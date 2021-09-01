@@ -19,7 +19,7 @@ daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.
 set(DUNEDAQ_DEPENDENCIES readout::readout dataformats::dataformats)
 
 # Provide override functionality for DPDK dependencies
-option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" ON)
+option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
 if(WITH_DPDK_AS_PACKAGE)
   set(DPDK_DEPENDENCIES 
