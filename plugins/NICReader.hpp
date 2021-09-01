@@ -1,18 +1,18 @@
 /**
- * @file UIOReader.hpp Generic UIO reader DAQ Module.
+ * @file NICReader.hpp Generic NIC reader DAQ Module over DPDK.
  *
  * This is part of the DUNE DAQ , copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#ifndef FLXLIBS_PLUGINS_UIOREADER_HPP_
-#define FLXLIBS_PLUGINS_UIOREADER_HPP_
+#ifndef FLXLIBS_PLUGINS_NICREADER_HPP_
+#define FLXLIBS_PLUGINS_NICREADER_HPP_
 
 #include "appfwk/app/Nljs.hpp"
 #include "appfwk/cmd/Nljs.hpp"
 #include "appfwk/cmd/Structs.hpp"
 
-#include "dpdklibs/uioreader/Structs.hpp"
+#include "dpdklibs/nicreader/Structs.hpp"
 
 // From appfwk
 #include "appfwk/DAQModule.hpp"
@@ -26,19 +26,19 @@
 
 namespace dunedaq::dpdklibs {
 
-class UIOReader : public dunedaq::appfwk::DAQModule
+class NICReader : public dunedaq::appfwk::DAQModule
 {
 public:
   /**
-   * @brief UIOReader Constructor
-   * @param name Instance name for this UIOReader instance
+   * @brief NICReader Constructor
+   * @param name Instance name for this NICReader instance
    */
-  explicit UIOReader(const std::string& name);
+  explicit NICReader(const std::string& name);
 
-  UIOReader(const UIOReader&) = delete;            ///< UIOReader is not copy-constructible
-  UIOReader& operator=(const UIOReader&) = delete; ///< UIOReader is not copy-assignable
-  UIOReader(UIOReader&&) = delete;                 ///< UIOReader is not move-constructible
-  UIOReader& operator=(UIOReader&&) = delete;      ///< UIOReader is not move-assignable
+  NICReader(const NICReader&) = delete;            ///< NICReader is not copy-constructible
+  NICReader& operator=(const NICReader&) = delete; ///< NICReader is not copy-assignable
+  NICReader(NICReader&&) = delete;                 ///< NICReader is not move-constructible
+  NICReader& operator=(NICReader&&) = delete;      ///< NICReader is not move-assignable
 
   void init(const data_t& args) override;
 
@@ -56,4 +56,4 @@ private:
 
 } // namespace dunedaq::dpdklibs
 
-#endif // FLXLIBS_PLUGINS_UIOREADER_HPP_
+#endif // FLXLIBS_PLUGINS_NICREADER_HPP_

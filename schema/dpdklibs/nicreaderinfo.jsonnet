@@ -3,7 +3,7 @@
 // for operational monitoring
 
 local moo = import "moo.jsonnet";
-local s = moo.oschema.schema("dunedaq.dpdklibs.uioreaderinfo");
+local s = moo.oschema.schema("dunedaq.dpdklibs.nicreaderinfo");
 
 local info = {
     uint8  : s.number("uint8", "u8",

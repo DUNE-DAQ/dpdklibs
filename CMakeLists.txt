@@ -11,7 +11,7 @@ find_package(dataformats REQUIRED)
 find_package(readout REQUIRED)
 #find_package(dpdk REQUIRED)
 
-daq_codegen(uioreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
+daq_codegen(nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
 ##############################################################################
@@ -45,7 +45,7 @@ endif()
 
 ##############################################################################
 # Plugins
-daq_add_plugin(UIOReader duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
+daq_add_plugin(NICReader duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 
 ##############################################################################
 # Integration tests

@@ -8,11 +8,11 @@
 local moo = import "moo.jsonnet";
 
 // A schema builder in the given path (namespace)
-local ns = "dunedaq.dpdklibs.uioreader";
+local ns = "dunedaq.dpdklibs.nicreader";
 local s = moo.oschema.schema(ns);
 
 // Object structure used by the test/fake producer module
-local uioreader = {
+local nicreader = {
     count  : s.number("Count", "u4",
                       doc="Count of things"),
 
@@ -29,4 +29,4 @@ local uioreader = {
 
 };
 
-moo.oschema.sort_select(uioreader, ns)
+moo.oschema.sort_select(nicreader, ns)
