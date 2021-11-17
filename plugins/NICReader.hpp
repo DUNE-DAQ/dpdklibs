@@ -44,7 +44,7 @@ public:
 
 private:
   // Types
-  using module_conf_t = dunedaq::dpdklibs::uioreader::Conf;
+  using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
 
   // Commands
   void do_configure(const data_t& args);
