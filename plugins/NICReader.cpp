@@ -50,10 +50,38 @@ NICReader::init(const data_t& args)
 
 }
 
+
+static int
+lcore_hello(__attribute__((unused)) void *arg)
+{
+  unsigned lcore_id;
+  lcore_id = rte_lcore_id();
+  printf("hello from core %u\n", lcore_id);
+  return 0;
+}
+
 void
 NICReader::do_configure(const data_t& args)
 {
+  int ret;
+  unsigned lcore_id;
 
+  //char[] eal_args = "-l 0-4 -n 3";
+  char* eal_args[] = {"-n", "4", "-l", "0-3"};
+
+  ret = rte_eal_init(4, eal_args);
+  if (ret < 0)
+    rte_panic("Cannot init EAL\n");
+
+  /* call lcore_hello() on every slave lcore */
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+  }
+
+  /* call it on master lcore too */
+  lcore_hello(NULL);
+
+  rte_eal_mp_wait_lcore();
 }
 
 void
