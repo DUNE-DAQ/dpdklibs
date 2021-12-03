@@ -12,6 +12,7 @@
 #include "logging/Logging.hpp"
 
 #include <chrono>
+#include <sstream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -63,17 +64,20 @@ lcore_hello(__attribute__((unused)) void *arg)
 void
 NICReader::do_configure(const data_t& args)
 {
-  int ret;
-  unsigned lcore_id;
+  auto config = args.get<module_conf_t>();
+  auto arg_count = config.arg_list.size();
+  // std::vector<std::string> to char** conversion
+  char* eal_args[arg_count];
+  for (int i = 0; i < arg_count; ++i) {
+    eal_args[i] = const_cast<char*>(config.arg_list[i].c_str());
+  }
 
-  //char[] eal_args = "-l 0-4 -n 3";
-  char* eal_args[] = {"-n", "4", "-l", "0-3"};
-
-  ret = rte_eal_init(4, eal_args);
+  auto ret = rte_eal_init(arg_count, eal_args);
   if (ret < 0)
     rte_panic("Cannot init EAL\n");
 
   /* call lcore_hello() on every slave lcore */
+  unsigned lcore_id;
   RTE_LCORE_FOREACH_SLAVE(lcore_id) {
     rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
   }
