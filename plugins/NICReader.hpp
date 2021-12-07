@@ -59,6 +59,9 @@ private:
   void do_stop(const data_t& args);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
+  // Internals
+  bool m_running = false;
+
 };
 
 } // namespace dunedaq::dpdklibs

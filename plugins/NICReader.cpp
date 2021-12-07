@@ -8,9 +8,12 @@
 #include "dpdklibs/nicreader/Nljs.hpp"
 
 #include "NICReader.hpp"
+#include "dpdklibs/AvailableCallbacks.hpp"
 
 #include "logging/Logging.hpp"
 
+#include <stdint.h>
+#include <inttypes.h>
 #include <chrono>
 #include <sstream>
 #include <memory>
@@ -51,15 +54,32 @@ NICReader::init(const data_t& args)
 
 }
 
-
-static int
-lcore_hello(__attribute__((unused)) void *arg)
-{
-  unsigned lcore_id;
-  lcore_id = rte_lcore_id();
-  printf("hello from core %u\n", lcore_id);
-  return 0;
-}
+//void
+//NICReader::do_configure(const data_t& args)
+//{
+//  auto config = args.get<module_conf_t>();
+//  auto arg_count = config.arg_list.size();
+//  // std::vector<std::string> to char** conversion
+//  char* eal_args[arg_count];
+//  for (int i = 0; i < arg_count; ++i) {
+//    eal_args[i] = const_cast<char*>(config.arg_list[i].c_str());
+//  }
+//
+//  auto ret = rte_eal_init(arg_count, eal_args);
+//  if (ret < 0)
+//    rte_panic("Cannot init EAL\n");
+//
+//  /* call lcore_hello() on every slave lcore */
+//  unsigned lcore_id;
+//  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+//    rte_eal_remote_launch(callbacks::lcore_hello, NULL, lcore_id);
+//  }
+//
+//  /* call it on master lcore too */
+//  callbacks::lcore_hello(NULL);
+//
+//  rte_eal_mp_wait_lcore();
+//}
 
 void
 NICReader::do_configure(const data_t& args)
@@ -72,20 +92,46 @@ NICReader::do_configure(const data_t& args)
     eal_args[i] = const_cast<char*>(config.arg_list[i].c_str());
   }
 
-  auto ret = rte_eal_init(arg_count, eal_args);
-  if (ret < 0)
-    rte_panic("Cannot init EAL\n");
+  struct rte_mempool* mbuf_pool;
+  unsigned nb_ports;
+  uint16_t portid;
 
-  /* call lcore_hello() on every slave lcore */
-  unsigned lcore_id;
-  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-    rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+  /* Initialize the Environment Abstraction Layer (EAL). */
+  int ret = rte_eal_init(arg_count, eal_args);
+  if (ret < 0)
+    rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
+
+//  arg_count -= ret;
+//  eal_args += ret;
+
+  /* Check that there is an even number of ports to send/receive on. */
+  nb_ports = rte_eth_dev_count_avail();
+  printf("nb_ports: %i\n", &nb_ports);
+  if (nb_ports < 2 || (nb_ports & 1))
+    rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
+
+  /* Creates a new mempool in memory to hold the mbufs. */
+  mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+                                      MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+  if (mbuf_pool == NULL)
+    rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
+
+  /* Initialize all ports. */
+  RTE_ETH_FOREACH_DEV(portid)
+  if (callbacks::port_init(portid, mbuf_pool) != 0)
+    rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16 "\n",
+             portid);
+
+  if (rte_lcore_count() > 1) {
+    printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+    m_running = true;
+    rte_eal_remote_launch(callbacks::lcore_main, &m_running, 2);
   }
 
-  /* call it on master lcore too */
-  lcore_hello(NULL);
-
   rte_eal_mp_wait_lcore();
+
+//  /* Call lcore_main on the main core only. */
+//  callbacks::lcore_main(&m_running);
 }
 
 void
@@ -97,7 +143,9 @@ NICReader::do_start(const data_t& args)
 void
 NICReader::do_stop(const data_t& args)
 {
-
+  m_running = false;
+  /* clean up the EAL */
+  rte_eal_cleanup();
 }
 
 void
