@@ -41,6 +41,7 @@ public:
    * @param name Instance name for this NICReader instance
    */
   explicit NICReader(const std::string& name);
+  ~NICReader();
 
   NICReader(const NICReader&) = delete;            ///< NICReader is not copy-constructible
   NICReader& operator=(const NICReader&) = delete; ///< NICReader is not copy-assignable
@@ -57,10 +58,11 @@ private:
   void do_configure(const data_t& args);
   void do_start(const data_t& args);
   void do_stop(const data_t& args);
+  void do_scrap(const data_t& args);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   // Internals
-  bool m_running = false;
+  int m_running = 0;
 
 };
 

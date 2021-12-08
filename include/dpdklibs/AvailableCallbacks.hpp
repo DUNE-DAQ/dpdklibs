@@ -120,7 +120,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 static int
 lcore_main(void* arg)
 {
-  bool* is_running = (bool*)&arg;
+  int* is_running = (int*)arg;
   uint16_t port;
 
   /*
@@ -138,7 +138,8 @@ lcore_main(void* arg)
   printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id());
 
   /* Run until the application is quit or killed. */
-  while (*is_running) {
+  while (*is_running != 0) {
+
     /*
      * Receive packets on a port and forward them on the paired
      * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.

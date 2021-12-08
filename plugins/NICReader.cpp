@@ -46,6 +46,13 @@ NICReader::NICReader(const std::string& name)
   register_command("conf", &NICReader::do_configure);
   register_command("start", &NICReader::do_start);
   register_command("stop", &NICReader::do_stop);
+  register_command("scrap", &NICReader::do_scrap);
+}
+
+NICReader::~NICReader()
+{
+  /* clean up the EAL */
+  rte_eal_cleanup();
 }
 
 void
@@ -124,11 +131,9 @@ NICReader::do_configure(const data_t& args)
 
   if (rte_lcore_count() > 1) {
     printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
-    m_running = true;
+    m_running = 1;
     rte_eal_remote_launch(callbacks::lcore_main, &m_running, 2);
   }
-
-  rte_eal_mp_wait_lcore();
 
 //  /* Call lcore_main on the main core only. */
 //  callbacks::lcore_main(&m_running);
@@ -143,9 +148,14 @@ NICReader::do_start(const data_t& args)
 void
 NICReader::do_stop(const data_t& args)
 {
-  m_running = false;
-  /* clean up the EAL */
-  rte_eal_cleanup();
+  m_running = 0;
+  rte_eal_mp_wait_lcore();
+}
+
+void
+NICReader::do_scrap(const data_t& args)
+{
+
 }
 
 void
