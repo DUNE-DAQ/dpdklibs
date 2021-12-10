@@ -34,6 +34,8 @@ else()
           $ENV{DPDK_LIB}/librte_ethdev.so
           $ENV{DPDK_LIB}/librte_mbuf.so
           $ENV{DPDK_LIB}/librte_mempool.so
+          $ENV{DPDK_LIB}/librte_jobstats.so
+          $ENV{DPDK_LIB}/librte_timer.so
   )
 endif()
 
@@ -56,10 +58,7 @@ daq_add_plugin(NICReader duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 # Integration tests
 daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-#daq_add_application(flxlibs_test_cardwrapper test_cardwrapper_app.cxx TEST LINK_LIBRARIES flxlibs)
-#daq_add_application(flxlibs_test_elinkhandler test_elinkhandler_app.cxx TEST LINK_LIBRARIES flxlibs)
-#daq_add_application(flxlibs_test_elink_to_file test_elink_to_file_app.cxx TEST LINK_LIBRARIES flxlibs)
-#daq_add_application(flxlibs_test_elink_to_heap test_elink_to_heap_app.cxx TEST LINK_LIBRARIES flxlibs)
+daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 
 ##############################################################################
 # Applications

@@ -61,6 +61,7 @@ NICReader::init(const data_t& args)
 
 }
 
+/// conf for hello world callback
 //void
 //NICReader::do_configure(const data_t& args)
 //{
@@ -88,6 +89,7 @@ NICReader::init(const data_t& args)
 //  rte_eal_mp_wait_lcore();
 //}
 
+/// conf for basic skeleton forwarding callback
 void
 NICReader::do_configure(const data_t& args)
 {
