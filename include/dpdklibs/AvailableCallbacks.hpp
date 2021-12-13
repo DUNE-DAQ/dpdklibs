@@ -156,6 +156,7 @@ lcore_main(void* arg)
 
       printf("Packets received: %i\n", nb_rx);
       int buffer_len, number_segs, packet_len, dat_len, length_with_macro;
+      uint8_t * data;
       for (int i = 0; i < nb_rx; ++i) {
         buffer_len = bufs[i]->buf_len;
         number_segs = bufs[i]->nb_segs;
@@ -163,6 +164,13 @@ lcore_main(void* arg)
         dat_len = bufs[i]->data_len;
         printf("Packet %i buf_len: %i, nb_segs: %i, pkt_len: %i, data_len: %i\n"
                , i, buffer_len, number_segs, packet_len, dat_len);
+        printf("Data: ");
+        data = (uint8_t *)bufs[i]->buf_addr;
+        for (int j = 0; j < dat_len; ++j) {
+          printf("%c", data);
+          data++;
+        }
+        printf("\n");
       }
 
 //      /* Send burst of TX packets, to second port of pair. */

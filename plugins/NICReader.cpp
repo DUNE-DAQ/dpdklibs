@@ -125,6 +125,11 @@ NICReader::do_configure(const data_t& args)
   if (mbuf_pool == NULL)
     rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
+  unsigned lcore_id;
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    printf("lcore_id: %i\n", lcore_id);
+  }
+
   /* Initialize all ports. */
   RTE_ETH_FOREACH_DEV(portid)
   if (callbacks::port_init(portid, mbuf_pool) != 0)
@@ -134,6 +139,7 @@ NICReader::do_configure(const data_t& args)
   if (rte_lcore_count() > 1) {
     printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
     m_running = 1;
+
     rte_eal_remote_launch(callbacks::lcore_main, &m_running, 2);
   }
 
@@ -150,14 +156,14 @@ NICReader::do_start(const data_t& args)
 void
 NICReader::do_stop(const data_t& args)
 {
-  m_running = 0;
-  rte_eal_mp_wait_lcore();
+
 }
 
 void
 NICReader::do_scrap(const data_t& args)
 {
-
+  m_running = 0;
+  rte_eal_mp_wait_lcore();
 }
 
 void
