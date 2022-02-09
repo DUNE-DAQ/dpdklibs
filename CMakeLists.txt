@@ -8,7 +8,7 @@ daq_setup_environment()
 find_package(appfwk REQUIRED)
 find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
-find_package(readout REQUIRED)
+find_package(readoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
 
 daq_codegen(nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
@@ -16,7 +16,7 @@ daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.
 
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readout::readout daqdataformats::daqdataformats)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats)
 
 # Provide override functionality for DPDK dependencies
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
