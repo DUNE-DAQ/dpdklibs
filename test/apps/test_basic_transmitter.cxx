@@ -200,7 +200,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
                 eth_hdr->ether_type = ether_type;
 
-                msg = (struct Message*) (rte_pktmbuf_mtod(pkt[i], char*) + sizeof(struct rte_ether_hdr));
+                msg = rte_pktmbuf_mtod_offset(pkt[i], struct Message*, sizeof(struct rte_ether_hdr));
                 *msg = obj;
                 suc_inits++;
             }
