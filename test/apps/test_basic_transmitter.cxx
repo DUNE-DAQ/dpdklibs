@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
+#include <rte_ip.h>
+#include <rte_udp.h>
 #include <rte_cycles.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
@@ -16,7 +18,7 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
-const int packet_size = 46;
+const int packet_size = 512;
 int burst_size = 32;
 bool jumbo_enabled = false;
 
@@ -169,15 +171,21 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
             };
 
             // Ethernet header 
-            struct rte_ether_hdr *eth_hdr;
+            struct rte_ether_hdr eth_hdr = {0};
+	    eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
+	    struct rte_ipv4_hdr ipv4_hdr = {0};
+	    uint16_t pkt_len = (uint16_t) (sizeof(struct rte_udp_hdr) + sizeof(struct rte_ipv4_hdr));
+
+	    struct rte_udp_hdr udp_hdr = {0};
+	    udp_hdr.src_port = rte_cpu_to_be_16(42742);
+	    udp_hdr.dst_port = rte_cpu_to_be_16(42742);
+	    udp_hdr.dgram_len = rte_cpu_to_be_16(sizeof(struct rte_udp_hdr));
+	
             /* Dummy message to transmit */
-            struct Message obj = {};
-            struct Message *msg;
-            generator.get_prev_n(obj.data, packet_size);
+            struct Message msg = {};
+            generator.get_prev_n(msg.data, packet_size);
 
-            // Ethernet type 
-            uint16_t ether_type = 0x0a00;
             
             //struct rte_mbuf *pkt[burst_size];
             struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
@@ -185,11 +193,23 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
             int i;
             for (i = 0; i < burst_size; i++) {
-                int pkt_size = sizeof(struct Message) + sizeof(struct rte_ether_hdr);
-                pkt[i]->data_len = pkt_size;
-                pkt[i]->pkt_len = pkt_size;
+                //int pkt_size = sizeof(struct Message)  + sizeof(struct rte_ether_hdr);
+                pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)
+							+ sizeof(struct rte_udp_hdr) + sizeof(struct Message);
 
-                eth_hdr = rte_pktmbuf_mtod(pkt[i], struct rte_ether_hdr*);
+		char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+		char *ipv4_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
+		char *udp_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
+		char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct Message));
+		
+		rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
+		rte_memcpy(ipv4_mbuf_offset, &ipv4_hdr, sizeof(rte_ipv4_hdr));
+		rte_memcpy(udp_mbuf_offset, &udp_hdr, sizeof(rte_udp_hdr));
+		rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+		rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+
+                //eth_hdr = rte_pktmbuf_mtod(pkt[i], struct rte_ether_hdr*);
+                /*
                 if (eth_hdr == NULL) {
                     printf("INFO: Number of successful initializations upon failure: %ld\n", suc_inits);
                     printf("INFO: Number of successfully transmitted packets upon failure: %ld\n", suc_sent);
@@ -197,12 +217,13 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
                     printf("INFO: Number of deallocated packets upon failure: %ld\n", failed_sent);
                     rte_exit(EXIT_FAILURE, "***ERROR: Ethernet Header allocation failed.***\n");
                 }
+		*/
 
-                eth_hdr->ether_type = ether_type;
+                //eth_hdr->ether_type = ether_type;
 
-                msg = rte_pktmbuf_mtod_offset(pkt[i], struct Message*, sizeof(struct rte_ether_hdr));
-                *msg = obj;
-                suc_inits++;
+                //msg = rte_pktmbuf_mtod_offset(pkt[i], struct Message*, sizeof(struct rte_ether_hdr));
+                //*msg = obj;
+                //suc_inits++;
             }
 
 		    //printf("Data len: %d Header len: %d\n", sizeof(struct Message), sizeof(struct rte_ether_hdr));
