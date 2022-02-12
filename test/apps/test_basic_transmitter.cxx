@@ -17,10 +17,12 @@
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
+#define JUMBO_MBUF_BUF_SIZE 9200
 
-const int packet_size = 512;
+const int packet_size = 1500;
 int burst_size = 32;
-bool jumbo_enabled = false;
+bool jumbo_enabled = true;
+bool is_debug = false;
 
 
 using namespace dunedaq::dpdklibs;
@@ -154,10 +156,6 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
     printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
 
-    unsigned long suc_inits = 0;
-    unsigned long suc_sent = 0;
-    unsigned long failed_sent = 0;
-
     /* Run until the application is quit or killed. */
     for (;;) {
         /* 
@@ -174,14 +172,6 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
             struct rte_ether_hdr eth_hdr = {0};
 	    eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-	    struct rte_ipv4_hdr ipv4_hdr = {0};
-	    uint16_t pkt_len = (uint16_t) (sizeof(struct rte_udp_hdr) + sizeof(struct rte_ipv4_hdr));
-
-	    struct rte_udp_hdr udp_hdr = {0};
-	    udp_hdr.src_port = rte_cpu_to_be_16(42742);
-	    udp_hdr.dst_port = rte_cpu_to_be_16(42742);
-	    udp_hdr.dgram_len = rte_cpu_to_be_16(sizeof(struct rte_udp_hdr));
-	
             /* Dummy message to transmit */
             struct Message msg = {};
             generator.get_prev_n(msg.data, packet_size);
@@ -193,41 +183,19 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
             int i;
             for (i = 0; i < burst_size; i++) {
-                //int pkt_size = sizeof(struct Message)  + sizeof(struct rte_ether_hdr);
                 pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)
 							+ sizeof(struct rte_udp_hdr) + sizeof(struct Message);
 
 		char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-		char *ipv4_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
-		char *udp_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
-		char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct Message));
+		char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct Message));
 		
 		rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
-		rte_memcpy(ipv4_mbuf_offset, &ipv4_hdr, sizeof(rte_ipv4_hdr));
-		rte_memcpy(udp_mbuf_offset, &udp_hdr, sizeof(rte_udp_hdr));
 		rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
-		rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
 
-                //eth_hdr = rte_pktmbuf_mtod(pkt[i], struct rte_ether_hdr*);
-                /*
-                if (eth_hdr == NULL) {
-                    printf("INFO: Number of successful initializations upon failure: %ld\n", suc_inits);
-                    printf("INFO: Number of successfully transmitted packets upon failure: %ld\n", suc_sent);
-                    printf("\t Effective Rate: %.2f\n", ((float) suc_sent) / ((float) suc_inits));
-                    printf("INFO: Number of deallocated packets upon failure: %ld\n", failed_sent);
-                    rte_exit(EXIT_FAILURE, "***ERROR: Ethernet Header allocation failed.***\n");
-                }
-		*/
-
-                //eth_hdr->ether_type = ether_type;
-
-                //msg = rte_pktmbuf_mtod_offset(pkt[i], struct Message*, sizeof(struct rte_ether_hdr));
-                //*msg = obj;
-                //suc_inits++;
+		if (is_debug) {
+			rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+		}
             }
-
-		    //printf("Data len: %d Header len: %d\n", sizeof(struct Message), sizeof(struct rte_ether_hdr));
-            //printf("packet data = %s\n", msg->data);
 
             /* Send burst of TX packets. */
             uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);	
@@ -238,11 +206,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
                 for (buf = nb_tx; buf < burst_size; buf++) {
                     rte_pktmbuf_free(pkt[buf]);
                 }
-                failed_sent += burst_size - nb_tx;
             }
-
-            /* Count the number of Successfully sent packets for stats. */
-            suc_sent += nb_tx;
         }
     }
 }
@@ -267,8 +231,15 @@ int main(int argc, char* argv[]) {
         rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
     }
 
-    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+
+    if (jumbo_enabled) {
+    	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+            MBUF_CACHE_SIZE, 0, JUMBO_MBUF_BUF_SIZE, rte_socket_id());
+    } else {
+    	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
             MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    }
 
     if (mbuf_pool == NULL) {
         rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
