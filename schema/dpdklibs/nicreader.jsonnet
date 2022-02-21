@@ -21,9 +21,18 @@ local nicreader = {
 
     choice : s.boolean("Choice"),
 
+    string : s.string("String",
+                      doc="A string field"),
+
+    arglist : s.sequence("ArgList", self.string,
+                         doc="A list of arguments"),
+
     conf: s.record("Conf", [
         s.field("card_id", self.id, 0,
                 doc="Physical card identifier (in the same host)"),
+
+        s.field("arg_list", self.arglist,
+                doc="A string with EAL arguments"),
 
     ], doc="Generic UIO reader DAQ Module Configuration"),
 
