@@ -170,7 +170,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
             // Ethernet header 
             struct rte_ether_hdr eth_hdr = {0};
-	    eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+        eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
             /* Dummy message to transmit */
             struct Message msg = {};
@@ -184,21 +184,21 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
             int i;
             for (i = 0; i < burst_size; i++) {
                 pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)
-							+ sizeof(struct rte_udp_hdr) + sizeof(struct Message);
+                            + sizeof(struct rte_udp_hdr) + sizeof(struct Message);
 
-		char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-		char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct Message));
-		
-		rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
-		rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+        char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+        char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct Message));
 
-		if (is_debug) {
-			rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
-		}
+        rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
+        rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+
+        if (is_debug) {
+            rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+        }
             }
 
             /* Send burst of TX packets. */
-            uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);	
+            uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);
 
             /* Free any unsent packets. */
             if (unlikely(nb_tx < burst_size)) {
@@ -234,10 +234,10 @@ int main(int argc, char* argv[]) {
     printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
     if (jumbo_enabled) {
-    	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+        mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
             MBUF_CACHE_SIZE, 0, JUMBO_MBUF_BUF_SIZE, rte_socket_id());
     } else {
-    	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+        mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
             MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
     }
 
