@@ -19,7 +19,7 @@
 #define MBUF_CACHE_SIZE 250
 #define JUMBO_MBUF_BUF_SIZE 9200
 
-const int packet_size = 1500;
+const int packet_size = 150;
 int burst_size = 32;
 bool jumbo_enabled = true;
 bool is_debug = false;
