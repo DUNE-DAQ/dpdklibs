@@ -1,7 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2015 Intel Corporation
- */
-
 #include <inttypes.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
@@ -9,6 +5,8 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <stdint.h>
+#include <iostream>
+#include <iomanip>
 
 #include "logging/Logging.hpp"
 #include "detdataformats/wib/WIBFrame.hpp"
@@ -18,7 +16,12 @@
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 8
+
+const int packet_size = 664;
+// Apparently only 8 and above works
+int burst_size = 8;
+bool jumbo_enabled = false;
+bool is_debug = true;
 
 using namespace dunedaq;
 
@@ -28,12 +31,6 @@ static const struct rte_eth_conf port_conf_default = {
         },
 };
 
-/* basicfwd.c: Basic DPDK skeleton forwarding example. */
-
-/*
- * Initializes a given port using global settings and with the RX buffers
- * coming from the mbuf_pool passed as a parameter.
- */
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 {
@@ -111,14 +108,9 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
-/*
- * The lcore main. This is the main thread that does the work, reading from
- * an input port and writing to an output port.
- */
 static int
 lcore_main(void* arg)
 {
-  TLOG() << "Calling lcore";
   int* is_running = (int*)arg;
   uint16_t port;
 
@@ -133,56 +125,45 @@ lcore_main(void* arg)
            "not be optimal.\n",
            port);
 
-  printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id());
-
   /* Run until the application is quit or killed. */
+  int burst_number = 0;
+  int sum = 0;
   while (*is_running != 0) {
-    /*
-     * Receive packets on a port and forward them on the paired
-     * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
-     */
     RTE_ETH_FOREACH_DEV(port)
     {
 
       /* Get burst of RX packets, from first port of pair. */
-      struct rte_mbuf* bufs[BURST_SIZE];
-      const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, BURST_SIZE);
+      struct rte_mbuf* bufs[burst_size];
+      const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
 
       if (nb_rx != 0) {
-        TLOG() << "nb_rx = " << nb_rx;
-        // printf("nb_rx = %d\n", nb_rx);
-        TLOG() << "bufs.buf_len = " << bufs[0]->data_len;
-        std::ostringstream ss;
-        // TLOG() << reinterpret_cast<char*>(bufs);
-        // auto fr = reinterpret_cast<detdataformats::wib::WIBFrame*>(bufs[0]->buf_addr + 42);
-        // auto fr = rte_pktmbuf_mtod(bufs[0], char*);
-        // auto fr = static_cast<char*>(bufs[0]->data);
-        // for (int i = 0; i < 256; ++i) {
-        //   ss << std::to_string(fr->get_channel(i)) << " ";
-        // }
+        // TLOG() << "nb_rx = " << nb_rx;
+        // TLOG() << "bufs.buf_len = " << bufs[0]->data_len;
 
-        // TLOG () << fr;
-        // for(int i=0; i<(*bufs)->data_len / sizeof(char); ++i) {
-        //   TLOG() << reinterpret_cast<char*>(bufs)[i]) << " ";
-        // }
-        // TLOG() << ss;
-        // rte_pktmbuf_dump(stdout, bufs[0], bufs[0]->data_len);
+        // Doesn't correspond to the packets we are expecting to receive
+        if (bufs[0]->data_len != sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) {
+          continue;
+        }
+
+        for (int i=0; i<nb_rx; ++i) {
+            auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
+            if (fr->get_channel(17) != burst_number) {
+              TLOG() << "Packets are lost";
+              burst_number = fr->get_channel(17);
+              sum = fr->get_channel(190);
+            }
+            else {
+              sum += fr->get_channel(190);
+              if (sum == 28) {
+                TLOG() << "All frames received for burst number " << burst_number;
+                burst_number++;
+                sum = 0;
+              }
+            }
+        }
       }
-      if (unlikely(nb_rx == 0))
-        continue;
-
-      /* Send burst of TX packets, to second port of pair. */
-      // const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0, bufs, nb_rx);
-
-      /* Free any unsent packets. */
-      // if (unlikely(nb_tx < nb_rx)) {
-      //   uint16_t buf;
-      //   for (buf = nb_tx; buf < nb_rx; buf++)
-      //     rte_pktmbuf_free(bufs[buf]);
-      // }
     }
   }
-
   return 0;
 }
 
