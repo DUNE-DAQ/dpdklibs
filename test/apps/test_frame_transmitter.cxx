@@ -10,7 +10,13 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 
+#include <chrono>
+#include <thread>
+
 #include "CyclicDataGenerator.hpp"
+
+#include "logging/Logging.hpp"
+#include "detdataformats/wib/WIBFrame.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -19,13 +25,16 @@
 #define MBUF_CACHE_SIZE 250
 #define JUMBO_MBUF_BUF_SIZE 9200
 
-const int packet_size = 150;
-int burst_size = 32;
-bool jumbo_enabled = true;
-bool is_debug = false;
+
+const int packet_size = 564;
+// Apparently only 8 and above works
+int burst_size = 8;
+bool jumbo_enabled = false;
+bool is_debug = true;
 
 
 using namespace dunedaq::dpdklibs;
+using namespace dunedaq;
 
 /* Default Ethernet configuration */
 static const struct rte_eth_conf port_conf_default = {
@@ -135,80 +144,89 @@ static inline int port_init(uint16_t port, struct rte_mempool *mbuf_pool) {
 }
 
 static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
-    uint16_t port;
+  uint16_t port;
 
-    /* Generator for cyclic dummy data. */
-    cyclicdatagenerator::CyclicDataGenerator generator;
+  /* Generator for cyclic dummy data. */
+  cyclicdatagenerator::CyclicDataGenerator generator;
 
+  /*
+   * Check that the port is on the same NUMA node as the polling thread
+   * for best performance.
+   */
+  RTE_ETH_FOREACH_DEV(port) {
+      if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
+          printf("WARNING, port %u is on remote NUMA node to "
+                          "polling thread./n/tPerformance will "
+                          "not be optimal.\n", port);
+      }
+
+      printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
+  }
+
+  printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
+
+  /* Run until the application is quit or killed. */
+  for (;;) {
     /*
-     * Check that the port is on the same NUMA node as the polling thread
-     * for best performance.
+     * Transmit packets on port.
      */
     RTE_ETH_FOREACH_DEV(port) {
-        if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
-            printf("WARNING, port %u is on remote NUMA node to "
-                            "polling thread./n/tPerformance will "
-                            "not be optimal.\n", port);
-        }
 
-        printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
-    }
+      TLOG() << "Sending message";
+      std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
-    printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
+      // Message struct
+      struct Message {
+          char data[packet_size] = "hello this is a test aaaaaaaaa bbbbbbbbbbbbbb ccccccccccccc dddddddddddd";
+        // detdataformats::wib::WIBFrame fr;
+      };
 
-    /* Run until the application is quit or killed. */
-    for (;;) {
-        /* 
-         * Transmit packets on port.
-         */
-        RTE_ETH_FOREACH_DEV(port) {
-            
-            // Message struct
-            struct Message {
-                char data[packet_size];
-            };
+      // Ethernet header
+      struct rte_ether_hdr eth_hdr = {0};
+    eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-            // Ethernet header 
-            struct rte_ether_hdr eth_hdr = {0};
-        eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+      /* Dummy message to transmit */
+      struct Message msg;
+      TLOG() << "Message: " << msg.data;
+      // for (int i=0; i<256; i++) {
+      //   msg.fr.set_channel(i, 255);
+      // }
+      // msg.data = "hello this is a test";
+      // generator.get_prev_n(msg.data, packet_size);
 
-            /* Dummy message to transmit */
-            struct Message msg = {};
-            generator.get_prev_n(msg.data, packet_size);
 
-            
-            //struct rte_mbuf *pkt[burst_size];
-            struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
-            rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
+      //struct rte_mbuf *pkt[burst_size];
+      struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+      rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
 
-            int i;
-            for (i = 0; i < burst_size; i++) {
-                pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)
-                            + sizeof(struct rte_udp_hdr) + sizeof(struct Message);
+      int i;
+      for (i = 0; i < burst_size; i++) {
+        pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)
+                    + sizeof(struct rte_udp_hdr) + sizeof(struct Message);
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
         char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr) + sizeof(struct Message));
-
+        
         rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
         rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
 
         if (is_debug) {
             rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
         }
-            }
+      }
 
-            /* Send burst of TX packets. */
-            uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);
+      /* Send burst of TX packets. */
+      uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);
 
-            /* Free any unsent packets. */
-            if (unlikely(nb_tx < burst_size)) {
-                uint16_t buf;
-                for (buf = nb_tx; buf < burst_size; buf++) {
-                    rte_pktmbuf_free(pkt[buf]);
-                }
-            }
-        }
+      /* Free any unsent packets. */
+      if (unlikely(nb_tx < burst_size)) {
+          uint16_t buf;
+          for (buf = nb_tx; buf < burst_size; buf++) {
+              rte_pktmbuf_free(pkt[buf]);
+          }
+      }
     }
+  }
 }
 
 int main(int argc, char* argv[]) {

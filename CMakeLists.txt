@@ -14,7 +14,7 @@ find_package(readoutlibs REQUIRED)
 daq_codegen(nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
 
 ##############################################################################
 # Dependency sets
@@ -31,11 +31,12 @@ else()
   # From env
   set(DPDK_DEPENDENCIES 
     $ENV{DPDK_LIB}/librte_eal.so
-          $ENV{DPDK_LIB}/librte_ethdev.so
-          $ENV{DPDK_LIB}/librte_mbuf.so
-          $ENV{DPDK_LIB}/librte_mempool.so
-          $ENV{DPDK_LIB}/librte_jobstats.so
-          $ENV{DPDK_LIB}/librte_timer.so
+    $ENV{DPDK_LIB}/librte_ethdev.so
+    $ENV{DPDK_LIB}/librte_mbuf.so
+    $ENV{DPDK_LIB}/librte_mempool.so
+    $ENV{DPDK_LIB}/librte_jobstats.so
+    $ENV{DPDK_LIB}/librte_timer.so
+    logging::logging
   )
 endif()
 
