@@ -1,0 +1,1 @@
+modprobe uio_pci_generic
