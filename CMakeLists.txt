@@ -62,6 +62,8 @@ daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdkl
 daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+daq_add_application(dpdklibs_test_frame_transmitter test_basic_frame_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+daq_add_application(dpdklibs_test_frame_receiver test_basic_frame_receiver.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 
 ##############################################################################
 # Applications
