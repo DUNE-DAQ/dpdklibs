@@ -2,8 +2,9 @@
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
 # Setting up dpdk
-For convenience, there is a set of scripts in this repo to set up dpdk, assuming it has been installed and it works.
-To begin setting up dpdk, run
+For convenience, there is a set of scripts in this repo to set up dpdk, assuming
+it has been installed and it works. These scripts have to be run as root. To
+begin setting up dpdk, run
 
 ```
 cd scripts
@@ -48,7 +49,8 @@ where the NICs that we wanted appear under `Network devices using DPDK-compatibl
 # Troubleshooting
 
 * EAL complains about `No available 1048576 kB hugepages reported`
-* ERROR: number of ports has to be even
-This happens when the interfaces are not bound. See instructions above on
-binding the interfaces, modify `bind.sh` and run it
+
+* `ERROR: number of ports has to be even`
+  This happens when the interfaces are not bound. See instructions above on
+  binding the interfaces, modify `scripts/bind.sh` and run it
 
