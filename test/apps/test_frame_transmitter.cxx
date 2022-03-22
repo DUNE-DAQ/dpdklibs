@@ -251,33 +251,28 @@ int main(int argc, char* argv[]) {
 
     printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
-    if (jumbo_enabled) {
-        mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-            MBUF_CACHE_SIZE, 0, JUMBO_MBUF_BUF_SIZE, rte_socket_id());
-    } else {
-        mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-            MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    }
+    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 
     if (mbuf_pool == NULL) {
         rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
     }
 
-    /* Initialize all ports. */
-    RTE_ETH_FOREACH_DEV(portid) { 
+    // Initialize all ports
+    RTE_ETH_FOREACH_DEV(portid) {
         if (port_init(portid, mbuf_pool) != 0) {
             rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
         }
     }
 
-    if (rte_lcore_count() > 1) { 
-        printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+    if (rte_lcore_count() > 1) {
+      TLOG() << "WARNING: Too many lcores enabled. Only 1 used.\n";
     }
 
-    /* Call lcore_main on the main core only. */
+    // Call lcore_main on the main core only
     lcore_main(mbuf_pool);
 
-    /* clean up the EAL */
+    // clean up the EAL
     rte_eal_cleanup();
 
     return 0;

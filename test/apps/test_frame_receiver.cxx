@@ -186,54 +186,53 @@ lcore_main(void* arg)
   return 0;
 }
 
-/*
- * The main function, which does initialization and calls the per-lcore
- * functions.
- */
 int
 main(int argc, char* argv[])
 {
-  struct rte_mempool* mbuf_pool;
-  unsigned nb_ports;
-  uint16_t portid;
-  int run_flag = 0;
+    struct rte_mempool *mbuf_pool;
+    unsigned nb_ports;
+    uint16_t portid;
 
-  /* Initialize the Environment Abstraction Layer (EAL). */
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0)
-    rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
+    // Init EAL
+    int ret = rte_eal_init(argc, argv);
+    if (ret < 0) {
+        rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+    }
 
-  argc -= ret;
-  argv += ret;
+    argc -= ret;
+    argv += ret;
 
-  /* Check that there is an even number of ports to send/receive on. */
-  nb_ports = rte_eth_dev_count_avail();
-  TLOG() << "nb_ports: " << nb_ports;
-  if (nb_ports < 2 || (nb_ports & 1))
-    rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
+    // Check that there is an even number of ports to send/receive on
+    nb_ports = rte_eth_dev_count_avail();
+    if (nb_ports < 2 || (nb_ports & 1)) {
+        rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+    }
 
-  /* Creates a new mempool in memory to hold the mbufs. */
-  mbuf_pool = rte_pktmbuf_pool_create(
-    "MBUF_POOL", NUM_MBUFS * nb_ports, MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-  if (mbuf_pool == NULL)
-    rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
+    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
-  /* Initialize all ports. */
-  RTE_ETH_FOREACH_DEV(portid)
-  if (port_init(portid, mbuf_pool) != 0)
-    rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n", portid);
+    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 
-  if (rte_lcore_count() > 1)
-    TLOG() << "WARNING: Too many lcores enabled. Only 1 used.";
-  run_flag = 1;
-  // rte_eal_remote_launch(lcore_main, &run_flag, 2);
+    if (mbuf_pool == NULL) {
+        rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+    }
 
-  /* Call lcore_main on the main core only. */
-  TLOG() << "Going to call lcore_main()";
-  lcore_main(&run_flag);
+    // Initialize all ports
+    RTE_ETH_FOREACH_DEV(portid) {
+        if (port_init(portid, mbuf_pool) != 0) {
+            rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+        }
+    }
 
-  /* clean up the EAL */
-  rte_eal_cleanup();
+    if (rte_lcore_count() > 1) {
+      TLOG() << "WARNING: Too many lcores enabled. Only 1 used.\n";
+    }
 
-  return 0;
+    // Call lcore_main on the main core only
+    lcore_main(mbuf_pool);
+
+    // clean up the EAL
+    rte_eal_cleanup();
+
+    return 0;
 }
