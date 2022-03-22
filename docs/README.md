@@ -43,4 +43,12 @@ Network devices using kernel driver
 0000:dc:00.0 'Ethernet Controller 10G X550T 1563' if=enp220s0f0 drv=ixgbe unused=uio_pci_generic 
 0000:dc:00.1 'Ethernet Controller 10G X550T 1563' if=enp220s0f1 drv=ixgbe unused=uio_pci_generic *Active*
 ```
-where the NICs that we wanted appear under Network devices using DPDK-compatible driver
+where the NICs that we wanted appear under `Network devices using DPDK-compatible driver`
+
+# Troubleshooting
+
+* EAL complains about `No available 1048576 kB hugepages reported`
+* ERROR: number of ports has to be even
+This happens when the interfaces are not bound. See instructions above on
+binding the interfaces, modify `bind.sh` and run it
+
