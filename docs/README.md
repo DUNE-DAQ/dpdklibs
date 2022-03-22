@@ -31,7 +31,7 @@ to match the two addresses that we just found (in this case 0000:41:00.0 and 000
 ./bind.sh
 ```
 
-Now if we run dpdk-devbind.py -s the output should look like this:
+Now if we run `dpdk-devbind.py -s` the output should look like this:
 ```
 Network devices using DPDK-compatible driver
 ============================================
