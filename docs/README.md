@@ -2,8 +2,9 @@
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
 # Setting up dpdk
-For convenience, there is a set of scripts in this repo to set up dpdk, assuming it has been installed and it works.
-To begin setting up dpdk, run
+For convenience, there is a set of scripts in this repo to set up dpdk, assuming
+it has been installed and it works. These scripts have to be run as root. To
+begin setting up dpdk, run
 
 ```
 cd scripts
@@ -43,4 +44,13 @@ Network devices using kernel driver
 0000:dc:00.0 'Ethernet Controller 10G X550T 1563' if=enp220s0f0 drv=ixgbe unused=uio_pci_generic 
 0000:dc:00.1 'Ethernet Controller 10G X550T 1563' if=enp220s0f1 drv=ixgbe unused=uio_pci_generic *Active*
 ```
-where the NICs that we wanted appear under Network devices using DPDK-compatible driver
+where the NICs that we wanted appear under `Network devices using DPDK-compatible driver`
+
+# Troubleshooting
+
+* EAL complains about `No available 1048576 kB hugepages reported`
+
+* `ERROR: number of ports has to be even`
+  This happens when the interfaces are not bound. See instructions above on
+  binding the interfaces, modify `scripts/bind.sh` and run it
+
