@@ -8,6 +8,7 @@ daq_setup_environment()
 find_package(appfwk REQUIRED)
 find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
+find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
 
@@ -18,7 +19,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
 
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats)
 
 # Provide override functionality for DPDK dependencies
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
