@@ -23,21 +23,21 @@ set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats
 # Provide override functionality for DPDK dependencies
 # option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
-if(WITH_DPDK_AS_PACKAGE)
-  set(DPDK_DEPENDENCIES 
-    # dpdk::dpdk
-  )
-else()
-  # From env
-  set(DPDK_DEPENDENCIES 
-    $ENV{DPDK_LIB}/librte_eal.so
-          $ENV{DPDK_LIB}/librte_ethdev.so
-          $ENV{DPDK_LIB}/librte_mbuf.so
-          $ENV{DPDK_LIB}/librte_mempool.so
-          $ENV{DPDK_LIB}/librte_jobstats.so
-          $ENV{DPDK_LIB}/librte_timer.so
-  )
-endif()
+# if(WITH_DPDK_AS_PACKAGE)
+#   set(DPDK_DEPENDENCIES
+#     # dpdk::dpdk
+#   )
+# else()
+#   # From env
+#   set(DPDK_DEPENDENCIES
+#     $ENV{DPDK_LIB}/librte_eal.so
+#           $ENV{DPDK_LIB}/librte_ethdev.so
+#           $ENV{DPDK_LIB}/librte_mbuf.so
+#           $ENV{DPDK_LIB}/librte_mempool.so
+#           $ENV{DPDK_LIB}/librte_jobstats.so
+#           $ENV{DPDK_LIB}/librte_timer.so
+#   )
+# endif()
 
 ##############################################################################
 # Main library
