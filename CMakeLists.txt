@@ -60,6 +60,7 @@ daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_DEPENDENCIES} ${DUNED
 # daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 # daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 # daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+daq_add_application(dpdklibs_test_tde_data_emulator test_tde_data_emulator.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 
 ##############################################################################
 # Applications
