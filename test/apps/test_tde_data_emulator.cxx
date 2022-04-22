@@ -66,7 +66,7 @@ int main()
 
   bool killswitch { true };
   uint16_t new_adc_val = 0x9;
-  uint64_t toptime = 0x23;
+  uint64_t toptime = 0xfa;
   uint64_t time = 0;
 
   // Seting the header
@@ -118,32 +118,35 @@ int main()
       limiter.limit();
 
       std::string str = std::to_string(i);
-      std::string filename16 = "/eos/home-d/dvargas/Salidadune/filesTDE16bits/binary_16bits_" + str + ".bit";
-      std::string filename12 = "/eos/home-d/dvargas/Salidadune/filesTDE12bits/binary_12bits_" + str + ".bit";
+      std::string filename16 = "/eos/home-d/dvargas/Salidadune/binary_16bits_" + str + ".bit";
+      std::string filename12 = "/eos/home-d/dvargas/Salidadune/binary_12bits_" + str + ".bit";
 
-      cout << "Crating file binary_16bits_" << i << endl;
+      cout << "version: " << tdeheader.version << "  det_id: " << tdeheader.det_id << "  crate: " << tdeheader.crate << "  slot: " << tdeheader.slot << "  link: " << tdeheader.link << endl;
+      cout << "timestamp: " << tdeheader.timestamp << endl;
+      cout << "TAItime: " << tdeheader.TAItime << endl;
+      cout << "tde_header: " << tdeheader.tde_header << "  tde_errors: " << tdeheader.tde_errors << endl;
+
+      cout << "--------------- Crating file binary_16bits_" << i << endl;
       fp_16 = fopen(filename16.c_str(), "wb");
       if (fp_16 == NULL) { cout << "Could not open output file fp_16" << endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_16);
       fwrite(&adcdata16, sizeof(adcdata16), 1, fp_16);
       fclose(fp_16);
-      cout << "Closing file number binary_16bits_" << i << endl;
+      cout << "--------------- Closing file number binary_16bits_" << i << endl;
 
-      cout << "Crating file binary_12bits_" << i << endl;
+      cout << "--------------- Crating file binary_12bits_" << i << endl;
       fp_12 = fopen(filename12.c_str(), "wb");
       if (fp_12 == NULL) { cout << "Could not open output file fp_12" << endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_12);
       fwrite(&adcdata12, sizeof(adcdata12), 1, fp_12);
       fclose(fp_12);
-      cout << "Closing file number binary_12bits_" << i << endl;
+      cout << "--------------- Closing file number binary_12bits_" << i << endl;
     }
 
     killswitch = false;
-
   }
 
   cout << "Finish while stamenet" << endl;
 
   return 0;
 }
-
