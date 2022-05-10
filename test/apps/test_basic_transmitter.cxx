@@ -10,6 +10,10 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 
+#include "logging/Logging.hpp"
+#include <chrono>
+#include <thread>
+
 #include "CyclicDataGenerator.hpp"
 
 #define RX_RING_SIZE 1024
@@ -22,7 +26,7 @@
 const int packet_size = 150;
 int burst_size = 32;
 bool jumbo_enabled = true;
-bool is_debug = false;
+bool is_debug = true;
 
 
 using namespace dunedaq::dpdklibs;
@@ -162,7 +166,10 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
          * Transmit packets on port.
          */
         RTE_ETH_FOREACH_DEV(port) {
-            
+
+            TLOG() << "Sending message";
+            std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
             // Message struct
             struct Message {
                 char data[packet_size];
