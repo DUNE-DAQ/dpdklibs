@@ -8,6 +8,7 @@ daq_setup_environment()
 find_package(appfwk REQUIRED)
 find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
+find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
 
@@ -18,7 +19,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse3")
 
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats)
 
 # Provide override functionality for DPDK dependencies
 # option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
@@ -60,7 +61,7 @@ daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_DEPENDENCIES} ${DUNED
 # daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 # daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 # daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-daq_add_application(dpdklibs_test_tde_data_emulator test_tde_data_emulator.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+#daq_add_application(dpdklibs_test_tde_data_emulator test_tde_data_emulator.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
 
 ##############################################################################
 # Applications
