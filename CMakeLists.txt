@@ -53,7 +53,8 @@ endif()
 
 ##############################################################################
 # Plugins
-daq_add_plugin(NICReader duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
+daq_add_plugin(NICSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
+daq_add_plugin(NICReceiver duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 
 ##############################################################################
 # Integration tests
