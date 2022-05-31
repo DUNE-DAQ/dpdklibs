@@ -19,8 +19,9 @@ using namespace dunedaq::readoutlibs;
 using namespace dunedaq::detdataformats::tde;
 using namespace std;
 
-static constexpr int rate_12bits = 328;  // in Hz = 3.054 in ms
-static constexpr int rate_16bits = 437;  // in Hz = 2.290 in ms
+static constexpr int rate_12bits = 328;                              // in Hz = 3.054 in ms
+static constexpr int rate_16bits = 437;                              // in Hz = 2.290 in ms
+
 
 int main()
 {
@@ -34,7 +35,8 @@ int main()
 
   bool killswitch16 { true };
   bool killswitch12 { true };
-  uint16_t new_adc_val = 0x9;
+  uint16_t new_adc_val_12bits = 0x43;
+  uint16_t new_adc_val_16bits = 0x72;
   uint64_t toptime = 0xfa;
   uint64_t time = 0;
 
@@ -47,8 +49,8 @@ int main()
   tdeheader.tde_header = 0x61;
   tdeheader.tde_errors = 0xfc5;
 
-  for(int i=0; i<tot_adc16_samples; i++) { tde16frame.set_adc_samples(new_adc_val, i); }
-  for(int i=0; i<tot_adc12_samples; i++) { tde12frame.set_adc_samples(new_adc_val, i); }
+  for(int i=0; i<tot_adc16_samples; i++) { tde16frame.set_adc_samples(new_adc_val_16bits, i); }
+  for(int i=0; i<tot_adc12_samples; i++) { tde12frame.set_adc(i, new_adc_val_12bits); }
 
   // using the RateLimiter in Hz for 16 and 12 bits
   auto limiter16 = RateLimiter(rate_16bits); 
@@ -66,19 +68,13 @@ int main()
       limiter16.limit();
 
       std::string str = std::to_string(i);
-      std::string filename16 = "/eos/home-d/dvargas/Salidadune/binary_16bits_" + str + ".bit";
-      std::cout << "version: " << tdeheader.version << "  det_id: " << tdeheader.det_id << "  crate: " << tdeheader.crate << "  slot: " << tdeheader.slot << "  link: " << tdeheader.link << std::endl;
-      std::cout << "timestamp: " << tdeheader.get_timestamp() << std::endl;
-      std::cout << "TAItime: " << tdeheader.get_TAItime() << std::endl;
-      std::cout << "tde_header: " << tdeheader.tde_header << "  tde_errors: " << tdeheader.tde_errors << std::endl;
-
-      std::cout << "--------------- Crating file binary_16bits_" << i << std::endl;
+      std::string filename16 = "/afs/cern.ch/work/d/dvargas/public/ProtoDune/Files_tde/binary_16bits_" + str + ".bit";
+      //std::string filename16 = "/nfs/sw/TDE-testing/binary_16bits_" + str + ".bit";
       fp_16 = fopen(filename16.c_str(), "wb");
       if (fp_16 == NULL) { std::cout << "Could not open output file fp_16" << std::endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_16);
       fwrite(&adc16data, sizeof(adc16data), 1, fp_16);
       fclose(fp_16);
-      std::cout << "--------------- Closing file number binary_16bits_" << i << std::endl;
     }
     killswitch16 = false;
   }
@@ -93,18 +89,13 @@ int main()
       limiter12.limit();
 
       std::string str = std::to_string(i);
-      std::string filename12 = "/eos/home-d/dvargas/Salidadune/binary_12bits_" + str + ".bit";
-      std::cout << "version: " << tdeheader.version << "  det_id: " << tdeheader.det_id << "  crate: " << tdeheader.crate << "  slot: " << tdeheader.slot << "  link: " << tdeheader.link << std::endl;
-      std::cout << "timestamp: " << tdeheader.get_timestamp() << std::endl;
-      std::cout << "TAItime: " << tdeheader.get_TAItime() << std::endl;
-      std::cout << "tde_header: " << tdeheader.tde_header << "  tde_errors: " << tdeheader.tde_errors << std::endl;
-      std::cout << "--------------- Crating file binary_12bits_" << i << std::endl;
+      std::string filename12 = "/afs/cern.ch/work/d/dvargas/public/ProtoDune/Files_tde/binary_12bits_" + str + ".bit";
+      //std::string filename12 = "/nfs/sw/TDE-testing/binary_12bits_" + str + ".bit";
       fp_12 = fopen(filename12.c_str(), "wb");
       if (fp_12 == NULL) { std::cout << "Could not open output file fp_12" << std::endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_12);
       fwrite(&adc12data, sizeof(adc12data), 1, fp_12);
       fclose(fp_12);
-      std::cout << "--------------- Closing file number binary_12bits_" << i << std::endl;
     }
     killswitch12 = false;
   }
