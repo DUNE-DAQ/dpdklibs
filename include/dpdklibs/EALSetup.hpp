@@ -15,17 +15,33 @@
 namespace dunedaq {
 namespace dpdklibs {
 
+#define RX_RING_SIZE 512
+#define TX_RING_SIZE 512
+
+#define NUM_MBUFS 8191
+#define MBUF_CACHE_SIZE 250
+
+#define PG_JUMBO_FRAME_LEN (9600 + RTE_ETHER_CRC_LEN + RTE_ETHER_HDR_LEN)
+#ifndef RTE_JUMBO_ETHER_MTU
+#define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
+#endif
+
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
-        .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+      //.max_rx_pkt_len = 9000,
+        //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
     },
+    .txmode = {
+        .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
+                     DEV_TX_OFFLOAD_UDP_CKSUM),
+},
 };
 
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = 1, tx_rings = 1;
+  const uint16_t rx_rings = 1, tx_rings = 3;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -35,12 +51,21 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 
   if (!rte_eth_dev_is_valid_port(port))
     return -1;
+  
+  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  { /* scope */
+    uint16_t mtu;
+    rte_eth_dev_get_mtu(port, &mtu);
+    printf(" port: %i mtu = %i\n", port, mtu);
+  } 
 
   retval = rte_eth_dev_info_get(port, &dev_info);
   if (retval != 0) {
     printf("Error during getting device (port %u) info: %s\n", port, strerror(-retval));
     return retval;
   }
+
+
 
   if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
     port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
@@ -98,7 +123,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
-void setup_eal(int argc, char* argv[]) {
+rte_mempool* setup_eal(int argc, char* argv[]) {
 
   struct rte_mempool *mbuf_pool;
   unsigned nb_ports;
@@ -134,6 +159,7 @@ void setup_eal(int argc, char* argv[]) {
           rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
       }
   }
+  return mbuf_pool;
 
 }
 

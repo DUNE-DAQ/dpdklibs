@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <iostream>
 #include <iomanip>
+#include <chrono>
+#include <thread>
 
 #include "logging/Logging.hpp"
 #include "detdataformats/wib/WIBFrame.hpp"
@@ -18,16 +20,16 @@
 #define MBUF_CACHE_SIZE 250
 
 // Apparently only 8 and above works
-int burst_size = 256;
+int burst_size = 8;
 bool jumbo_enabled = false;
-bool is_debug = true;
+bool is_debug = false;
 
 using namespace dunedaq;
 
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
         .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
-        },
+    },
 };
 
 static inline int
@@ -107,90 +109,85 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
-static int
-lcore_main(void* arg)
-{
-  int* is_running = (int*)arg;
+static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
   uint16_t port;
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
    * for best performance.
    */
-  RTE_ETH_FOREACH_DEV(port)
-  if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id())
-    printf("WARNING, port %u is on remote NUMA node to "
-           "polling thread.\n\tPerformance will "
-           "not be optimal.\n",
-           port);
+  RTE_ETH_FOREACH_DEV(port) {
+      if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
+          printf("WARNING, port %u is on remote NUMA node to "
+                          "polling thread./n/tPerformance will "
+                          "not be optimal.\n", port);
+      }
 
+      printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
+  }
 
+  printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
 
   /* Run until the application is quit or killed. */
   int burst_number = 0;
-  int sum = 0;
-  std::atomic<int> num_frames = 0;
+  for (;;) {
+    /*
+     * Transmit packets on port.
+     */
+    RTE_ETH_FOREACH_DEV(port) {
 
-  auto stats = std::thread([&]() {
-    while (true) {
-      TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
-      num_frames.exchange(0);
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  });
+      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-  while (true) {
-    // printf("hello\n");
-    RTE_ETH_FOREACH_DEV(port)
-    {
+      // Message struct
+      struct Message {
+        detdataformats::wib::WIBFrame fr;
+      };
 
-      /* Get burst of RX packets, from first port of pair. */
-      struct rte_mbuf* bufs[burst_size];
-      const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
+      // Ethernet header
+      struct rte_ether_hdr eth_hdr = {0};
+      eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-      if (nb_rx != 0) {
-        // TLOG() << "nb_rx = " << nb_rx;
-        // TLOG() << "bufs.buf_len = " << bufs[0]->data_len;
+      /* Dummy message to transmit */
 
-        // Doesn't correspond to the packets we are expecting to receive
-        if (bufs[0]->data_len != sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) {
-          continue;
+
+      //struct rte_mbuf *pkt[burst_size];
+      struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+      rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
+
+      TLOG() << "burst_number = " << burst_number;
+      for (int i = 0; i < burst_size; i++) {
+        struct Message msg;
+        msg.fr.set_channel(17, burst_number);
+        msg.fr.set_channel(190, i);
+        pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct Message);
+
+        char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+        char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
+        
+        rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
+        rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+
+        if (is_debug) {
+            rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
         }
+      }
+      burst_number++;
 
-        // if (burst_number % 1000 == 0) {
-        //   TLOG() << "burst_number =" << burst_number;
-        // }
-        for (int i=0; i<nb_rx; ++i) {
-          num_frames++;
-          // auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
-          // if (fr->get_timestamp() != burst_number) {
-          //   TLOG() << "Packets are lost";
-          //   burst_number = fr->get_timestamp();
-          //   sum = fr->get_channel(190);
-          // }
-          // else {
-          //   sum += fr->get_channel(190);
-          //   if (sum == 28) {
-          //     // TLOG() << "All frames received for burst number " << burst_number;
-          //     burst_number++;
-          //     sum = 0;
-          //   }
-          // }
-        }
+      /* Send burst of TX packets. */
+      uint16_t nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size);
 
-        for (int i=0; i < nb_rx; i++) {
-            rte_pktmbuf_free(bufs[i]);
-        }
+      /* Free any unsent packets. */
+      if (unlikely(nb_tx < burst_size)) {
+          uint16_t buf;
+          for (buf = nb_tx; buf < burst_size; buf++) {
+              rte_pktmbuf_free(pkt[buf]);
+          }
       }
     }
   }
-  return 0;
 }
 
-int
-main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     struct rte_mempool *mbuf_pool;
     unsigned nb_ports;
     uint16_t portid;
@@ -226,11 +223,12 @@ main(int argc, char* argv[])
         }
     }
 
-    // Call lcore_main on the main core only
-    for (int i=0; i < 2; ++i) {
-      rte_eal_remote_launch(lcore_main, mbuf_pool, i);
+    if (rte_lcore_count() > 1) {
+      TLOG() << "WARNING: Too many lcores enabled. Only 1 used.\n";
     }
-    // lcore_main(mbuf_pool);
+
+    // Call lcore_main on the main core only
+    lcore_main(mbuf_pool);
 
     // clean up the EAL
     rte_eal_cleanup();

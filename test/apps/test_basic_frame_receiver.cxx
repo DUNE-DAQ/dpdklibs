@@ -17,8 +17,9 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
+const int packet_size = 664;
 // Apparently only 8 and above works
-int burst_size = 256;
+int burst_size = 8;
 bool jumbo_enabled = false;
 bool is_debug = true;
 
@@ -124,24 +125,10 @@ lcore_main(void* arg)
            "not be optimal.\n",
            port);
 
-
-
   /* Run until the application is quit or killed. */
   int burst_number = 0;
   int sum = 0;
-  std::atomic<int> num_frames = 0;
-
-  auto stats = std::thread([&]() {
-    while (true) {
-      TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
-      num_frames.exchange(0);
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  });
-
-  while (true) {
-    // printf("hello\n");
+  while (*is_running != 0) {
     RTE_ETH_FOREACH_DEV(port)
     {
 
@@ -158,29 +145,21 @@ lcore_main(void* arg)
           continue;
         }
 
-        // if (burst_number % 1000 == 0) {
-        //   TLOG() << "burst_number =" << burst_number;
-        // }
         for (int i=0; i<nb_rx; ++i) {
-          num_frames++;
-          // auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
-          // if (fr->get_timestamp() != burst_number) {
-          //   TLOG() << "Packets are lost";
-          //   burst_number = fr->get_timestamp();
-          //   sum = fr->get_channel(190);
-          // }
-          // else {
-          //   sum += fr->get_channel(190);
-          //   if (sum == 28) {
-          //     // TLOG() << "All frames received for burst number " << burst_number;
-          //     burst_number++;
-          //     sum = 0;
-          //   }
-          // }
-        }
-
-        for (int i=0; i < nb_rx; i++) {
-            rte_pktmbuf_free(bufs[i]);
+            auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
+            if (fr->get_channel(17) != burst_number) {
+              TLOG() << "Packets are lost";
+              burst_number = fr->get_channel(17);
+              sum = fr->get_channel(190);
+            }
+            else {
+              sum += fr->get_channel(190);
+              if (sum == 28) {
+                TLOG() << "All frames received for burst number " << burst_number;
+                burst_number++;
+                sum = 0;
+              }
+            }
         }
       }
     }
@@ -226,11 +205,12 @@ main(int argc, char* argv[])
         }
     }
 
-    // Call lcore_main on the main core only
-    for (int i=0; i < 2; ++i) {
-      rte_eal_remote_launch(lcore_main, mbuf_pool, i);
+    if (rte_lcore_count() > 1) {
+      TLOG() << "WARNING: Too many lcores enabled. Only 1 used.\n";
     }
-    // lcore_main(mbuf_pool);
+
+    // Call lcore_main on the main core only
+    lcore_main(mbuf_pool);
 
     // clean up the EAL
     rte_eal_cleanup();

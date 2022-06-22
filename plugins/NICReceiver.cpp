@@ -8,7 +8,6 @@
 #include "dpdklibs/nicreader/Nljs.hpp"
 
 #include "NICReceiver.hpp"
-#include "dpdklibs/AvailableCallbacks.hpp"
 
 #include "logging/Logging.hpp"
 

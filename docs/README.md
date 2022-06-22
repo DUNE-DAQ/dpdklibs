@@ -54,3 +54,12 @@ where the NICs that we wanted appear under `Network devices using DPDK-compatibl
   This happens when the interfaces are not bound. See instructions above on
   binding the interfaces, modify `scripts/bind.sh` and run it
 
+
+# Tests and examples
+There are a set of tests or example applications
+
+* `dpdklibs_test_basic_frame_receiver` and
+  `dpdklibs_test_basic_frame_transmitter` do transmission of `WIBFrames` and
+  check that there are no missing frames. Each is run in a different node and
+  the receiver will tell us after every burst of packets if all frames have been
+  found.

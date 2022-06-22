@@ -8,28 +8,33 @@ daq_setup_environment()
 find_package(appfwk REQUIRED)
 find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
+find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(DPDK REQUIRED libdpdk)
+
 
 daq_codegen(nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
 
+
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats)
 
 # Provide override functionality for DPDK dependencies
-option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
+# option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
 if(WITH_DPDK_AS_PACKAGE)
-  set(DPDK_DEPENDENCIES 
+  set(DPDK_LIBRARIES
     # dpdk::dpdk
   )
 else()
   # From env
-  set(DPDK_DEPENDENCIES 
+  set(DPDK_LIBRARIES
     $ENV{DPDK_LIB}/librte_eal.so
     $ENV{DPDK_LIB}/librte_ethdev.so
     $ENV{DPDK_LIB}/librte_mbuf.so
@@ -42,14 +47,17 @@ endif()
 
 ##############################################################################
 # Main library
-daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_DEPENDENCIES} ${DUNEDAQ_DEPENDENCIES})
 
-if(WITH_DPDK_AS_PACKAGE)
-  # All good
-else()
-  # Hack target
-  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
-endif()
+daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIESS} ${DUNEDAQ_DEPENDENCIES})
+
+# daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+
+# if(WITH_DPDK_AS_PACKAGE)
+#   # All good
+# else()
+#   # Hack target
+#   target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
+# endif()
 
 ##############################################################################
 # Plugins
@@ -58,10 +66,17 @@ daq_add_plugin(NICReceiver duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 
 ##############################################################################
 # Integration tests
-daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+# daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_basic_frame_transmitter test_basic_frame_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_basic_frame_receiver test_basic_frame_receiver.cxx TEST LINK_LIBRARIES dpdklibs)
+daq_add_application(dpdklibs_test_frame_transmitter test_frame_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+# daq_add_application(dpdklibs_test_frame_receiver test_frame_receiver.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
+
+target_compile_options(dpdklibs PUBLIC ${DPDK_CFLAGS})
+target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
 
 ##############################################################################
 # Applications

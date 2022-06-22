@@ -1,7 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2015 Intel Corporation
- */
-
 #include <inttypes.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
@@ -9,13 +5,22 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <stdint.h>
+#include <iostream>
+#include <iomanip>
+
+#include "logging/Logging.hpp"
+#include "detdataformats/wib/WIBFrame.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 32
+#define BURST_SIZE 8
+
+
+
+using namespace dunedaq;
 
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
@@ -23,12 +28,6 @@ static const struct rte_eth_conf port_conf_default = {
         },
 };
 
-/* basicfwd.c: Basic DPDK skeleton forwarding example. */
-
-/*
- * Initializes a given port using global settings and with the RX buffers
- * coming from the mbuf_pool passed as a parameter.
- */
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 {
@@ -113,6 +112,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 static int
 lcore_main(void* arg)
 {
+  TLOG() << "Calling lcore";
   int* is_running = (int*)arg;
   uint16_t port;
 
@@ -127,8 +127,6 @@ lcore_main(void* arg)
            "not be optimal.\n",
            port);
 
-  printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id());
-
   /* Run until the application is quit or killed. */
   while (*is_running != 0) {
     /*
@@ -142,28 +140,43 @@ lcore_main(void* arg)
       struct rte_mbuf* bufs[BURST_SIZE];
       const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, BURST_SIZE);
 
-      if (unlikely(nb_rx == 0))
-        continue;
+      if (nb_rx != 0) {
+        TLOG() << "nb_rx = " << nb_rx;
+        // printf("nb_rx = %d\n", nb_rx);
+        TLOG() << "bufs.buf_len = " << bufs[0]->data_len;
+        std::ostringstream ss;
+        // TLOG() << reinterpret_cast<char*>(bufs);
+        // auto fr = reinterpret_cast<detdataformats::wib::WIBFrame*>(bufs[0]->buf_addr + 42);
+        // auto fr = rte_pktmbuf_mtod(bufs[0], char*);
+        // auto fr = static_cast<char*>(bufs[0]->data);
+        // for (int i = 0; i < 256; ++i) {
+        //   ss << std::to_string(fr->get_channel(i)) << " ";
+        // }
 
-      /* Send burst of TX packets, to second port of pair. */
-      const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0, bufs, nb_rx);
+        // TLOG () << fr;
+        // for(int i=0; i<(*bufs)->data_len / sizeof(char); ++i) {
+        //   TLOG() << reinterpret_cast<char*>(bufs)[i]) << " ";
+        // }
+        // TLOG() << ss;
+        // rte_pktmbuf_dump(stdout, bufs[0], bufs[0]->data_len);
 
-      /* Free any unsent packets. */
-      if (unlikely(nb_tx < nb_rx)) {
-        uint16_t buf;
-        for (buf = nb_tx; buf < nb_rx; buf++)
-          rte_pktmbuf_free(bufs[buf]);
+        // for (int i = 0; i < nb_rx; ++i) {
+        //     rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
+        // }
+        // stringstream ss;
+        for (int i=0; i<500; ++i) {
+          std::cout
+                    << std::setw(2) << std::hex << rte_pktmbuf_mtod(bufs[0], char*)[i] << " ";
+        }
+        // TLOG() << ss.str();
       }
+
     }
   }
 
   return 0;
 }
 
-/*
- * The main function, which does initialization and calls the per-lcore
- * functions.
- */
 int
 main(int argc, char* argv[])
 {
@@ -182,7 +195,7 @@ main(int argc, char* argv[])
 
   /* Check that there is an even number of ports to send/receive on. */
   nb_ports = rte_eth_dev_count_avail();
-  printf("nb_ports: %i\n", &nb_ports);
+  TLOG() << "nb_ports: " << nb_ports;
   if (nb_ports < 2 || (nb_ports & 1))
     rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
 
@@ -198,12 +211,13 @@ main(int argc, char* argv[])
     rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n", portid);
 
   if (rte_lcore_count() > 1)
-    printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+    TLOG() << "WARNING: Too many lcores enabled. Only 1 used.";
   run_flag = 1;
-  rte_eal_remote_launch(lcore_main, &run_flag, 2);
+  // rte_eal_remote_launch(lcore_main, &run_flag, 2);
 
   /* Call lcore_main on the main core only. */
-//  lcore_main();
+  TLOG() << "Going to call lcore_main()";
+  lcore_main(&run_flag);
 
   /* clean up the EAL */
   rte_eal_cleanup();
