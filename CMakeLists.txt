@@ -10,7 +10,7 @@ find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
 find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
-#find_package(dpdk REQUIRED)
+# find_package(dpdk REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DPDK REQUIRED libdpdk)
 
@@ -28,27 +28,27 @@ set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats
 # Provide override functionality for DPDK dependencies
 # option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
-if(WITH_DPDK_AS_PACKAGE)
-  set(DPDK_LIBRARIES
-    # dpdk::dpdk
-  )
-else()
-  # From env
-  set(DPDK_LIBRARIES
-    $ENV{DPDK_LIB}/librte_eal.so
-    $ENV{DPDK_LIB}/librte_ethdev.so
-    $ENV{DPDK_LIB}/librte_mbuf.so
-    $ENV{DPDK_LIB}/librte_mempool.so
-    $ENV{DPDK_LIB}/librte_jobstats.so
-    $ENV{DPDK_LIB}/librte_timer.so
-    logging::logging
-  )
-endif()
+# if(WITH_DPDK_AS_PACKAGE)
+#   set(DPDK_LIBRARIES
+#     # dpdk::dpdk
+#   )
+# else()
+#   # From env
+#   set(DPDK_LIBRARIES
+#     $ENV{DPDK_LIB}/librte_eal.so
+#     $ENV{DPDK_LIB}/librte_ethdev.so
+#     $ENV{DPDK_LIB}/librte_mbuf.so
+#     $ENV{DPDK_LIB}/librte_mempool.so
+#     $ENV{DPDK_LIB}/librte_jobstats.so
+#     $ENV{DPDK_LIB}/librte_timer.so
+#     logging::logging
+#   )
+# endif()
 
 ##############################################################################
 # Main library
 
-daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIESS} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
 # daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
