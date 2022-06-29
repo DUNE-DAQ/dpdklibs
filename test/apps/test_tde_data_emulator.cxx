@@ -68,8 +68,7 @@ int main()
       limiter16.limit();
 
       std::string str = std::to_string(i);
-      std::string filename16 = "/afs/cern.ch/work/d/dvargas/public/ProtoDune/Files_tde/binary_16bits_" + str + ".bit";
-      //std::string filename16 = "/nfs/sw/TDE-testing/binary_16bits_" + str + ".bit";
+      std::string filename16 = "/nfs/sw/TDE-testing/binary_16bits_" + str + ".bit";
       fp_16 = fopen(filename16.c_str(), "wb");
       if (fp_16 == NULL) { std::cout << "Could not open output file fp_16" << std::endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_16);
@@ -89,8 +88,7 @@ int main()
       limiter12.limit();
 
       std::string str = std::to_string(i);
-      std::string filename12 = "/afs/cern.ch/work/d/dvargas/public/ProtoDune/Files_tde/binary_12bits_" + str + ".bit";
-      //std::string filename12 = "/nfs/sw/TDE-testing/binary_12bits_" + str + ".bit";
+      std::string filename12 = "/nfs/sw/TDE-testing/binary_12bits_" + str + ".bit";
       fp_12 = fopen(filename12.c_str(), "wb");
       if (fp_12 == NULL) { std::cout << "Could not open output file fp_12" << std::endl; }
       fwrite(&tdeheader, sizeof(tdeheader), 1, fp_12);
