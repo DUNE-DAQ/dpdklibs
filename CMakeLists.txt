@@ -43,7 +43,10 @@ endif()
 
 ##############################################################################
 # Main library
-# daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_DEPENDENCIES} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIESS} ${DUNEDAQ_DEPENDENCIES})
+
+# daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+
 
 # if(WITH_DPDK_AS_PACKAGE)
 #   # All good
@@ -59,12 +62,6 @@ daq_add_plugin(NICReceiver duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 
 ##############################################################################
 # Integration tests
-# daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-# daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-# daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-# daq_add_application(dpdklibs_test_basic_transmitter test_basic_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
-
-
 # daq_add_application(dpdklibs_test_eal test_eal_app.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
 # daq_add_application(dpdklibs_test_receiving_payloads test_receiving_payloads.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
 # daq_add_application(dpdklibs_test_forward_with_stats test_forward_with_stats.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
@@ -73,7 +70,7 @@ daq_add_plugin(NICReceiver duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 # daq_add_application(dpdklibs_test_basic_frame_receiver test_basic_frame_receiver.cxx TEST LINK_LIBRARIES dpdklibs)
 daq_add_application(dpdklibs_test_frame_transmitter test_frame_transmitter.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
 # daq_add_application(dpdklibs_test_frame_receiver test_frame_receiver.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
-daq_add_application(dpdklibs_test_tde_data_emulator test_tde_data_emulator.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_DEPENDENCIES})
+daq_add_application(dpdklibs_test_tde_data_emulator test_tde_data_emulator.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
 
 target_compile_options(dpdklibs PUBLIC ${DPDK_CFLAGS})
 target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
