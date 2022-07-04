@@ -28,7 +28,7 @@ using namespace dunedaq;
 
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
-        .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+      .mtu = 9000,
     },
 };
 
@@ -229,6 +229,8 @@ int main(int argc, char* argv[]) {
     nb_ports = rte_eth_dev_count_avail();
     TLOG() << "There are " << nb_ports << " ports available";
     if (nb_ports < 2 || (nb_ports & 1)) {
+        TLOG() << "There are " << nb_ports << " ports available";
+        TLOG() << "There are " << rte_eth_dev_count_total() << " ports in total";
         rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
     }
 
