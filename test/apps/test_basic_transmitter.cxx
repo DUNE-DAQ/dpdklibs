@@ -34,16 +34,17 @@ using namespace dunedaq::dpdklibs;
 /* Default Ethernet configuration */
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
-        .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+        .mtu = 9000,
     },
 };
 
 /* Ethernet configuration for Jumbo frames */
 static const struct rte_eth_conf port_conf_jumbo = {
     .rxmode = {
-        .max_rx_pkt_len = 9000,
+        // .max_rx_pkt_len = 9000,
+        .mtu = 9000,
         .split_hdr_size = 0,
-        .offloads = (DEV_RX_OFFLOAD_JUMBO_FRAME),
+        //.offloads = (DEV_RX_OFFLOAD_JUMBO_FRAME),
     },
     .txmode = {
         .mq_mode = ETH_MQ_TX_NONE,
