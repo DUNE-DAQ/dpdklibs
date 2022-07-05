@@ -48,7 +48,7 @@ endif()
 ##############################################################################
 # Main library
 
-daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp udp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
 # daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
@@ -61,7 +61,7 @@ daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_
 
 ##############################################################################
 # Plugins
-daq_add_plugin(NICSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
+#daq_add_plugin(NICSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 daq_add_plugin(NICReceiver duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 
 ##############################################################################
