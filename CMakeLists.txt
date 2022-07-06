@@ -48,7 +48,7 @@ endif()
 ##############################################################################
 # Main library
 
-daq_add_library(*.cpp udp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp udp/*.cpp arp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
 # daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
