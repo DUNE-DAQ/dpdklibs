@@ -5,7 +5,7 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#include "Utils.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
 namespace dunedaq {
 namespace dpdklibs {

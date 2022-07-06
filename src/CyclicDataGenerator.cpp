@@ -1,4 +1,4 @@
-#include "CyclicDataGenerator.hpp"
+#include "dpdklibs/CyclicDataGenerator.hpp"
 
 #define DEFAULT_CYCLIC_PATTERN "abcdefghijklmnopqrstuvwxyz"
 

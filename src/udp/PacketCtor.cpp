@@ -1,7 +1,7 @@
 #include <rte_ethdev.h>
 
-#include "Utils.hpp"
-#include "PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
 
 #define IPV4_VERSION    4
 

@@ -14,7 +14,7 @@
 #include <chrono>
 #include <thread>
 
-#include "CyclicDataGenerator.hpp"
+#include "dpdklibs/CyclicDataGenerator.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
