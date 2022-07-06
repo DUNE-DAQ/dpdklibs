@@ -155,6 +155,12 @@ lcore_main(void* arg)
 
         // Doesn't correspond to the packets we are expecting to receive
         if (bufs[0]->data_len != sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) {
+          std::stringstream ss;
+          for (int i = 0; i < nb_rx; i++) {
+            ss << bufs[i]->pkt_len << " ";
+            TLOG() << "Found other data" << ss.str();
+            rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
+          }
           continue;
         }
 
@@ -213,7 +219,8 @@ main(int argc, char* argv[])
     printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
     mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+        // MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+        MBUF_CACHE_SIZE, 0, 9500, rte_socket_id());
 
     if (mbuf_pool == NULL) {
         rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
@@ -227,10 +234,10 @@ main(int argc, char* argv[])
     }
 
     // Call lcore_main on the main core only
-    for (int i=0; i < 2; ++i) {
-      rte_eal_remote_launch(lcore_main, mbuf_pool, i);
-    }
-    // lcore_main(mbuf_pool);
+    // for (int i=0; i < 2; ++i) {
+    //   rte_eal_remote_launch(lcore_main, mbuf_pool, i);
+    // }
+    lcore_main(mbuf_pool);
 
     // clean up the EAL
     rte_eal_cleanup();

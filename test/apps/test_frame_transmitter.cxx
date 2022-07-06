@@ -12,6 +12,7 @@
 
 #include "logging/Logging.hpp"
 #include "detdataformats/wib/WIBFrame.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -20,16 +21,17 @@
 #define MBUF_CACHE_SIZE 250
 
 // Apparently only 8 and above works
-int burst_size = 32;
-bool jumbo_enabled = false;
+int burst_size = 1;
 bool is_debug = false;
 
 using namespace dunedaq;
+using namespace dpdklibs;
+using namespace udp;
 
 static const struct rte_eth_conf port_conf_default = {
-    .rxmode = {
-      .mtu = 9000,
-    },
+    // .txmode = {
+    //   .mtu = 9000,
+    // },
 };
 
 static inline int
@@ -174,16 +176,24 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
       //   TLOG() << "burst_number =" << burst_number;
       // }
       for (int i = 0; i < burst_size; i++) {
-        struct Message msg;
+        // struct Message msg;
+
+        struct ether_packet msg;
+        ethr_packet_ctor(&msg);
+
         // msg.fr.set_timestamp(burst_number);
         // msg.fr.set_channel(190, i);
-        pkt[i]->data_len = pkt[i]->pkt_len = sizeof(struct rte_ether_hdr) + sizeof(struct Message);
+        pkt[i]->data_len = 80;
+        pkt[i]->pkt_len = sizeof(struct ether_packet);
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-        char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
+        // char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
 
-        rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
-        rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+        // rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
+        // rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
+
+        rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ether_packet));
+
 
         if (is_debug) {
             rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
