@@ -20,6 +20,7 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
+
 // Apparently only 8 and above works
 int burst_size = 1;
 bool is_debug = false;
@@ -141,19 +142,23 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
   auto stats = std::thread([&]() {
     while (true) {
-      TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
+      TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
   for (;;) {
     /*
      * Transmit packets on port.
      */
     RTE_ETH_FOREACH_DEV(port) {
 
-      std::this_thread::sleep_for(std::chrono::microseconds(1));
+      // std::this_thread::sleep_for(std::chrono::microseconds(5));
 
       // Message struct
       struct Message {
@@ -169,22 +174,26 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
 
 
       //struct rte_mbuf *pkt[burst_size];
-      struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
-      rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
 
       // if (burst_number % 1000 == 0) {
       //   TLOG() << "burst_number =" << burst_number;
       // }
-      for (int i = 0; i < burst_size; i++) {
+
+      for (int i = 0; i < burst_size; i++)
+      {
         // struct Message msg;
 
-        struct ether_packet msg;
-        ethr_packet_ctor(&msg);
+        struct ipv4_udp_packet msg;
+        pktgen_packet_ctor(&msg.hdr);
 
         // msg.fr.set_timestamp(burst_number);
         // msg.fr.set_channel(190, i);
-        pkt[i]->data_len = 80;
-        pkt[i]->pkt_len = sizeof(struct ether_packet);
+        pkt[i]->pkt_len = sizeof(struct ipv4_udp_packet);
+        pkt[i]->data_len = 8000;
+        for (int i = 0; i < 8000 / 11; ++i) {
+            strcpy(msg.payload + i * 11, "Hello world");
+        }
+        // strcpy(msg.payload, "Hello world");
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
         // char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
@@ -192,11 +201,11 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
         // rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
         // rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
 
-        rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ether_packet));
+        rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ipv4_udp_packet));
 
 
         if (is_debug) {
-            rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+          rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
         }
       }
       burst_number++;
@@ -204,19 +213,23 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
       /* Send burst of TX packets. */
       int sent = 0;
       uint16_t nb_tx;
-      do {
+      while(sent < burst_size)
+      {
         nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size - sent);
         sent += nb_tx;
         num_frames += nb_tx;
-      } while (sent < burst_size);
+      }
 
       /* Free any unsent packets. */
-      if (unlikely(nb_tx < burst_size)) {
-          uint16_t buf;
-          for (buf = nb_tx; buf < burst_size; buf++) {
-              rte_pktmbuf_free(pkt[buf]);
-          }
+      if (unlikely(nb_tx < burst_size))
+      {
+        uint16_t buf;
+        for (buf = nb_tx; buf < burst_size; buf++)
+        {
+          rte_pktmbuf_free(pkt[buf]);
+        }
       }
+      rte_eth_tx_done_cleanup(port, 0, 0);
     }
   }
 }
