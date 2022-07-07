@@ -268,28 +268,6 @@ pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
     return packet_len;
 }
 
-rte_le16_t
-ethr_packet_ctor(struct ether_packet * packet) {
-
-    /* src and dest addr */
-    // See definition dpdk-20.08/lib/librte_net/rte_ether.c is defined as static -> not exposed to the lib... redefining here
-    //char router_mac_address[] = "0a:00:10:c2:15:c1"; // na62 router
-    char router_mac_address[] = "cc:e1:94:15:cc:3d"; // DAQ lab
- 
-    get_ether_addr6(router_mac_address, &packet->eth_hdr.dst_addr);
-
-    uint8_t port_id = 0;
-    rte_eth_macaddr_get(port_id, &packet->eth_hdr.src_addr);
-
-    packet->eth_hdr.ether_type = 0x0a00;
-
-    char message[] = "Hello";
-    char * payload = (char * ) &packet->payload;
-    memcpy(payload, message, 6);
-
-    return 5;
-}
-
 } // namespace udp
 } // namespace dpdklibs
 } // namespace dunedaq
