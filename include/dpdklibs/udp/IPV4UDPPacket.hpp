@@ -63,12 +63,7 @@ struct ipv4_udp_packet_hdr {
 
 struct ipv4_udp_packet {
     struct ipv4_udp_packet_hdr hdr;
-    char payload[1000]; // TODO jumbo Mind the padding 
-};
-
-struct ether_packet {
-    struct rte_ether_hdr eth_hdr;
-    char payload[1000];
+    char payload[8000]; // TODO jumbo Mind the padding
 };
 
 } // namespace udp
