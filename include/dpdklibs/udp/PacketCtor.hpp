@@ -26,8 +26,6 @@ void pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
 
 rte_le16_t pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
 
-rte_le16_t ethr_packet_ctor(struct ether_packet * packet);
-
 } // namespace udp
 } // namespace dpdklibs
 } // namespace dunedaq
