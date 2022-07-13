@@ -5,9 +5,12 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-
 #ifndef DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
 #define DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
+
+#include "logging/Logging.hpp"
+
+#include <boost/program_options/parsers.hpp>
 
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -15,8 +18,8 @@
 namespace dunedaq {
 namespace dpdklibs {
 
-#define RX_RING_SIZE 512
-#define TX_RING_SIZE 512
+#define RX_RING_SIZE 1024
+#define TX_RING_SIZE 1024
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
@@ -27,21 +30,24 @@ namespace dpdklibs {
 #endif
 
 static const struct rte_eth_conf port_conf_default = {
-    .rxmode = {
-      //.max_rx_pkt_len = 9000,
-        //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
-    },
-    .txmode = {
-        .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
-                     DEV_TX_OFFLOAD_UDP_CKSUM),
-},
+  .rxmode = {
+    .mtu = 9000,
+    .max_lro_pkt_size = 9000
+      //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
+  },
+
+  .txmode = {
+    .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
+                 DEV_TX_OFFLOAD_UDP_CKSUM |
+		 RTE_ETH_TX_OFFLOAD_MULTI_SEGS),
+  },
 };
 
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = 1, tx_rings = 3;
+  const uint16_t rx_rings = 1, tx_rings = 1;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -52,20 +58,11 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   if (!rte_eth_dev_is_valid_port(port))
     return -1;
   
-  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
-  { /* scope */
-    uint16_t mtu;
-    rte_eth_dev_get_mtu(port, &mtu);
-    printf(" port: %i mtu = %i\n", port, mtu);
-  } 
-
   retval = rte_eth_dev_info_get(port, &dev_info);
   if (retval != 0) {
-    printf("Error during getting device (port %u) info: %s\n", port, strerror(-retval));
+    TLOG() << "Error during getting device (port " << port << ") retval: " << retval;
     return retval;
   }
-
-
 
   if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
     port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
@@ -74,6 +71,14 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
   if (retval != 0)
     return retval;
+
+  // Set MTU
+  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  { /* scope */
+    uint16_t mtu;
+    rte_eth_dev_get_mtu(port, &mtu);
+    TLOG() << "Port: " << port << " MTU: " << mtu;
+  }
 
   retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
   if (retval != 0)
@@ -105,7 +110,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   retval = rte_eth_macaddr_get(port, &addr);
   if (retval != 0)
     return retval;
-
+ 
   printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
          port,
          addr.addr_bytes[0],
@@ -114,6 +119,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
          addr.addr_bytes[3],
          addr.addr_bytes[4],
          addr.addr_bytes[5]);
+  
 
   /* Enable RX in promiscuous mode for the Ethernet device. */
   retval = rte_eth_promiscuous_enable(port);
@@ -123,7 +129,19 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
-rte_mempool* setup_eal(int argc, char* argv[]) {
+std::vector<char*>
+string_to_eal_args(const std::string& params)
+{
+  auto parts = boost::program_options::split_unix(params);
+  std::vector<char*> cstrings ;
+  for(auto& str : parts){
+    cstrings.push_back(const_cast<char*> (str.c_str()));
+  }
+  return cstrings;
+}
+
+std::unique_ptr<rte_mempool> 
+setup_eal(int argc, char* argv[]) {
 
   struct rte_mempool *mbuf_pool;
   unsigned nb_ports;
@@ -134,6 +152,7 @@ rte_mempool* setup_eal(int argc, char* argv[]) {
   if (ret < 0) {
       rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
   }
+  TLOG() << "EAL initialized with provided parameters.";
 
   argc -= ret;
   argv += ret;
@@ -144,10 +163,12 @@ rte_mempool* setup_eal(int argc, char* argv[]) {
       rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
   }
 
-  printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+  TLOG() << "RTE_MBUF_DEFAULT_BUF_SIZE = " << RTE_MBUF_DEFAULT_BUF_SIZE;
+  TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
 
   mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-      MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
 
   if (mbuf_pool == NULL) {
       rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
@@ -159,7 +180,10 @@ rte_mempool* setup_eal(int argc, char* argv[]) {
           rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
       }
   }
-  return mbuf_pool;
+
+  TLOG() << "EAL setup complete. Returning mempool.";
+
+  return std::unique_ptr<rte_mempool>(mbuf_pool);
 
 }
 
