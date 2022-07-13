@@ -33,6 +33,10 @@ static const struct rte_eth_conf port_conf_default = {
     // .txmode = {
     //   .mtu = 9000,
     // },
+    .txmode = {
+        .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
+                     DEV_TX_OFFLOAD_UDP_CKSUM),
+},
 };
 
 static inline int

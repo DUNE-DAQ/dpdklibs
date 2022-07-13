@@ -30,14 +30,15 @@ using namespace udp;
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
         .mtu = 9000,
-        },
+        .offloads = (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
+        }
 };
 
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = 1, tx_rings = 1;
+  const uint16_t rx_rings = 1, tx_rings = 0;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -137,7 +138,8 @@ lcore_main(struct rte_mempool *mbuf_pool)
   auto stats = std::thread([&]() {
     while (true) {
       // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+      TLOG() << "Rate is " << (size_t)9000 * num_frames / 1e6 * 8;
       // printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -146,6 +148,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
 
   struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
+  bool once = true;
   while (true) {
     // printf("hello\n");
     RTE_ETH_FOREACH_DEV(port)
@@ -165,7 +168,10 @@ lcore_main(struct rte_mempool *mbuf_pool)
           for (int i = 0; i < nb_rx; i++) {
             ss << bufs[i]->pkt_len << " ";
             // TLOG() << "Found other data" << ss.str();
-            // rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
+            if (once) {
+            rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
+            once = false;
+            }
           }
           // continue;
         }
