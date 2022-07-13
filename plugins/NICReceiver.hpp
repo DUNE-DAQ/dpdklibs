@@ -12,10 +12,10 @@
 #include "appfwk/cmd/Nljs.hpp"
 #include "appfwk/cmd/Structs.hpp"
 
-#include "dpdklibs/nicreader/Structs.hpp"
-
-// From appfwk
 #include "appfwk/DAQModule.hpp"
+
+#include "dpdklibs/nicreader/Structs.hpp"
+#include "dpdklibs/EALSetup.hpp"
 
 #include <future>
 #include <map>
@@ -55,9 +55,31 @@ private:
 
   // Internals
   int m_running = 0;
+  module_conf_t m_cfg;
+  std::atomic<bool> m_run_marker;
+  void set_running(bool /*should_run*/);
+
+  // Stats
+  int m_burst_number = 0;
+  int m_sum = 0;
+  std::atomic<int> m_num_frames;
+  std::thread m_stat_thread;
+
+  // DPDK
+  const int m_burst_size = 512; 
+  std::unique_ptr<rte_mempool> m_mbuf_pool;
+  struct rte_mbuf **m_bufs;
+  unsigned m_nb_ports;
+  uint16_t m_portid;
+
+  template<class T> 
+  int rx_runner();
 
 };
 
 } // namespace dunedaq::dpdklibs
+
+// Declarations
+#include "detail/NICReceiver.hxx"
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

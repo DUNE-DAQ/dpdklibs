@@ -23,6 +23,7 @@ class NICSender : public dunedaq::appfwk::DAQModule
 {
 public:
   explicit NICSender(const std::string& name);
+  ~NICSender();
 
   NICSender(const NICSender&) =
     delete; ///< NICSender is not copy-constructible

@@ -6,10 +6,31 @@
  * received with this code.
  */
 #include "dpdklibs/udp/Utils.hpp"
+#include <algorithm>
+#include <cstring>
 
 namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
+
+inline void
+dump_to_buffer(const char* data,
+               std::size_t size,
+               void* buffer,
+               uint32_t buffer_pos, // NOLINT
+               const std::size_t& buffer_size)
+{
+  auto bytes_to_copy = size; // NOLINT
+  while (bytes_to_copy > 0) {
+    auto n = std::min(bytes_to_copy, buffer_size - buffer_pos); // NOLINT
+    std::memcpy(static_cast<char*>(buffer) + buffer_pos, data, n);
+    buffer_pos += n;
+    bytes_to_copy -= n;
+    if (buffer_pos == buffer_size) {
+      buffer_pos = 0;
+    }
+  }
+}
 
 uint16_t
 get_payload_size_udp_hdr(struct rte_udp_hdr * udp_hdr)
@@ -52,8 +73,13 @@ char *
 get_udp_payload(struct rte_mbuf *mbuf, uint16_t dump_mode)
 {
   struct ipv4_udp_packet_hdr * udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  //dump_udp_header(udp_packet);
   uint16_t payload_size = get_payload_size(udp_packet);
   char* payload = (char *)(udp_packet + 1);
+
+  if (dump_mode == 10) {
+    return payload;
+  }
 
   if (dump_mode == 0 || dump_mode == 3) {
     printf("UDP Payload size: %i\n", payload_size);
