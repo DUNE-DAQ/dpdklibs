@@ -17,6 +17,7 @@
 
 namespace dunedaq {
 namespace dpdklibs {
+namespace ealutils {
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -29,10 +30,15 @@ namespace dpdklibs {
 #define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
 #endif
 
+static volatile uint8_t dpdk_quit_signal; 
+
 static const struct rte_eth_conf port_conf_default = {
   .rxmode = {
+    .mq_mode = ETH_MQ_RX_NONE, //RTE_ETH_MQ_RX_RSS,
     .mtu = 9000,
-    .max_lro_pkt_size = 9000
+    .max_lro_pkt_size = 9000,
+    .split_hdr_size = 0,
+
       //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
   },
 
@@ -44,10 +50,11 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 static inline int
-port_init(uint16_t port, struct rte_mempool* mbuf_pool)
+port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings, 
+	  std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool) //struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = 1, tx_rings = 1;
+  //const uint16_t rx_rings = 2, tx_rings = 0;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -86,7 +93,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 
   /* Allocate and set up 1 RX queue per Ethernet port. */
   for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(port, q, nb_rxd, rte_eth_dev_socket_id(port), NULL, mbuf_pool);
+    retval = rte_eth_rx_queue_setup(port, q, nb_rxd, rte_eth_dev_socket_id(port), NULL, mbuf_pool[q].get());
     if (retval < 0)
       return retval;
   }
@@ -129,6 +136,23 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
+std::unique_ptr<rte_mempool>
+get_mempool(const std::string& pool_name) {
+  TLOG() << "RTE_MBUF_DEFAULT_BUF_SIZE = " << RTE_MBUF_DEFAULT_BUF_SIZE;
+  TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
+
+  struct rte_mempool *mbuf_pool;
+  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ports,
+    //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
+
+  if (mbuf_pool == NULL) {
+    // ers fatal
+    rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");
+  }
+  return std::unique_ptr<rte_mempool>(mbuf_pool);
+}
+
 std::vector<char*>
 string_to_eal_args(const std::string& params)
 {
@@ -140,12 +164,8 @@ string_to_eal_args(const std::string& params)
   return cstrings;
 }
 
-std::unique_ptr<rte_mempool> 
-setup_eal(int argc, char* argv[]) {
-
-  struct rte_mempool *mbuf_pool;
-  unsigned nb_ports;
-  uint16_t portid;
+void
+init_eal(int argc, char* argv[]) {
 
   // Init EAL
   int ret = rte_eal_init(argc, argv);
@@ -153,45 +173,48 @@ setup_eal(int argc, char* argv[]) {
       rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
   }
   TLOG() << "EAL initialized with provided parameters.";
+}
 
-  argc -= ret;
-  argv += ret;
-
+int
+get_available_ports() {
   // Check that there is an even number of ports to send/receive on
+  unsigned nb_ports;
   nb_ports = rte_eth_dev_count_avail();
+  TLOG() << "Available PORTS: " << nb_ports;
   if (nb_ports < 2 || (nb_ports & 1)) {
-      rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
   }
 
-  TLOG() << "RTE_MBUF_DEFAULT_BUF_SIZE = " << RTE_MBUF_DEFAULT_BUF_SIZE;
-  TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
+  return nb_ports;
+}
 
-  mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-    //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
-
-  if (mbuf_pool == NULL) {
-      rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-  }
-
+void 
+setup_port(int portid, std::map<int, std::unique_ptr<rte_mempool>>& pool_map) {
   // Initialize all ports
-  RTE_ETH_FOREACH_DEV(portid) {
-      if (port_init(portid, mbuf_pool) != 0) {
-          rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-      }
+  //uint16_t portid;
+  //RTE_ETH_FOREACH_DEV(portid) {
+  //  if (port_init(portid, pool_map[portid].get()) != 0) {
+  //    rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+  //  }
+  //}
+  TLOG() << "Ports are set up with assigned mbuf_pools!";
+}
+
+int 
+wait_for_lcores() {
+  int lcore_id;
+  RTE_LCORE_FOREACH_WORKER(lcore_id) {
+    if (rte_eal_wait_lcore(lcore_id) < 0) {
+      return -1;
+    }
   }
-
-  TLOG() << "EAL setup complete. Returning mempool.";
-
-  return std::unique_ptr<rte_mempool>(mbuf_pool);
-
 }
 
 void finish_eal() {
   rte_eal_cleanup();
 }
 
-
+} // namespace ealutils
 } // namespace dpdklibs
 } // namespace dunedaq
 

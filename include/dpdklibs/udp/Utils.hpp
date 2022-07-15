@@ -9,10 +9,12 @@
 #define DPDKLIBS_SRC_UTILS_HPP_
 
 #include <rte_mbuf.h>
+#include <rte_ether.h>
 
 #include "IPV4UDPPacket.hpp"
 
 #include <cstdint>
+#include <iostream>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -26,8 +28,12 @@ struct ipaddr ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address);
 
 void print_ipv4_decimal_addr(struct ipaddr ipv4_address);
 
-char* get_udp_payload(struct rte_mbuf *mbuf, uint16_t dump_mode);
-void dump_udp_header(struct ipv4_udp_packet_hdr * pkt);
+char* get_udp_payload(struct rte_mbuf *mbuf);
+
+//void dump_udp_header(struct ipv4_udp_packet_hdr * pkt);
+void dump_udp_header(struct rte_mbuf *mbuf);
+
+bool foff_arp(struct rte_mbuf* mbuf);
 
 } // namespace udp
 } // namespace dpdklibs
