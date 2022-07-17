@@ -18,6 +18,11 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
+#define PG_JUMBO_FRAME_LEN (9600 + RTE_ETHER_CRC_LEN + RTE_ETHER_HDR_LEN)
+#ifndef RTE_JUMBO_ETHER_MTU
+#define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
+#endif
+
 // Apparently only 8 and above works
 int burst_size = 256;
 bool jumbo_enabled = false;
@@ -62,6 +67,13 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
   if (retval != 0)
     return retval;
+
+    rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  { /* scope */
+    uint16_t mtu;
+    rte_eth_dev_get_mtu(port, &mtu);
+    TLOG() << "Port: " << port << " MTU: " << mtu;
+  }
 
   retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
   if (retval != 0)
@@ -168,7 +180,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
           for (int i = 0; i < nb_rx; i++) {
             ss << bufs[i]->pkt_len << " ";
             // TLOG() << "Found other data" << ss.str();
-            if (once) {
+            if (false) {
             rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
             once = false;
             }
@@ -233,7 +245,7 @@ main(int argc, char* argv[])
 
     mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
         // MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-        MBUF_CACHE_SIZE, 0, 9500, rte_socket_id());
+        MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
 
     if (mbuf_pool == NULL) {
         rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
