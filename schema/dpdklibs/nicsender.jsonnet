@@ -8,11 +8,11 @@
 local moo = import "moo.jsonnet";
 
 // A schema builder in the given path (namespace)
-local ns = "dunedaq.dpdklibs.nicreader";
+local ns = "dunedaq.dpdklibs.nicsender";
 local s = moo.oschema.schema(ns);
 
 // Object structure used by the test/fake producer module
-local nicreader = {
+local nicsender = {
     count  : s.number("Count", "u4", doc="Count of things"),
 
     big_count : s.number("BigCount", "i8", doc="A count of more things"),
@@ -26,14 +26,14 @@ local nicreader = {
     float : s.number("Float", "f4", doc="A float number"),
 
     conf: s.record("Conf", [
-        s.field("card_id", self.id, 0,
-                doc="Physical card identifier (in the same host)"),
+        s.field("card_id", self.id, 0, doc="Physical card identifier (in the same host)"),
+        s.field("eal_arg_list", self.string, doc="A string with EAL arguments"),
+        s.field("number_of_cores", self.count, 1, doc="Number of cores that will be used for sending"),
+        s.field("burst_size", self.big_count, 1, doc="Burst size used when sending"),
+        s.field("rate", self.float, 1, doc="Rate used for the sender")
 
-        s.field("eal_arg_list", self.string,
-                doc="A string with EAL arguments"),
-
-    ], doc="Generic UIO reader DAQ Module Configuration"),
+    ], doc="Generic UIO sender DAQ Module Configuration"),
 
 };
 
-moo.oschema.sort_select(nicreader, ns)
+moo.oschema.sort_select(nicsender, ns)

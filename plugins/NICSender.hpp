@@ -10,11 +10,24 @@
 #define DPDKLIBS_PLUGINS_NICSENDER_HPP_
 
 #include <ers/Issue.hpp>
-#include "appfwk/DAQModule.hpp"
 
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "appfwk/DAQModule.hpp"
+#include "appfwk/app/Nljs.hpp"
+#include "appfwk/cmd/Nljs.hpp"
+
+#include "dpdklibs/nicsender/Nljs.hpp"
+#include "dpdklibs/nicsender/Structs.hpp"
+
+#include <rte_cycles.h>
+#include <rte_eal.h>
+#include <rte_ethdev.h>
+#include <rte_lcore.h>
+#include <rte_mbuf.h>
+#include "dpdklibs/udp/PacketCtor.hpp"
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -37,6 +50,9 @@ public:
   void init(const nlohmann::json& iniobj) override;
 
 private:
+  // Types
+  using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
+
   // Commands
   void do_start(const nlohmann::json& obj); 
   void do_stop(const nlohmann::json& obj);
@@ -44,8 +60,15 @@ private:
   void do_scrap(const nlohmann::json& obj);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
+
   // Threading
   void do_work(std::atomic<bool>&);
+
+  std::atomic<bool> m_run_mark;
+
+  int m_burst_size;
+  int m_number_of_cores;
+  double m_rate;
 
   // Configuration
 };
