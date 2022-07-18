@@ -32,7 +32,7 @@ import click
 @click.option('--host-receiver', default='np04-srv-022', help='Host to run the receiver on')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender, only_receiver, json_dir):
+def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender, only_receiver, host_sender, host_receiver, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
@@ -83,9 +83,9 @@ def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender,
    
     # add app
     if enable_sender:
-        the_system.apps["dpdk_sender"] = app_confgen.generate()
+        the_system.apps["dpdk_sender"] = app_confgen.generate(HOST=host_sender)
     if enable_receiver:
-        the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST='np04-srv-022')
+        the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST=host_receiver)
 
     ####################################################################
     # Application command data generation
