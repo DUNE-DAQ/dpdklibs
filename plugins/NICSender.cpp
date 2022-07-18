@@ -70,6 +70,54 @@ NICSender::NICSender(const std::string& name)
   register_command("scrap", &NICSender::do_scrap);
 }
 
+// void *
+// pktgen_udp_hdr_ctor(void *hdr, int type)
+// {
+//     uint16_t tlen;
+
+//     struct rte_ipv4_hdr *ipv4 = hdr;
+//     struct rte_udp_hdr *udp   = (struct rte_udp_hdr *)&ipv4[1];
+
+//     struct rte_ether_addr eth_dst_addr = ; /**< Destination Ethernet address */
+//     struct rte_ether_addr eth_src_addr = ; /**< Source Ethernet address */
+
+//     uint16_t ether_hdr_size = ; /**< Size of Ethernet header in packet for VLAN ID */
+//     uint16_t ipProto = ; /**< TCP or UDP or ICMP */
+//     uint16_t pktSize = ;    /**< Size of packet in bytes not counting FCS */
+
+//     uint16_t sport = ;   /**< Source port value */
+//     uint16_t dport = ;   /**< Destination port value */
+
+
+
+//     /* Create the UDP header */
+//     ipv4->src_addr = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
+//     ipv4->dst_addr = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+
+//     ipv4->version_ihl   = (IPv4_VERSION << 4) | (sizeof(struct rte_ipv4_hdr) / 4);
+//     tlen                = pkt->pktSize - pkt->ether_hdr_size;
+//     ipv4->total_length  = htons(tlen);
+//     ipv4->next_proto_id = pkt->ipProto;
+
+//     tlen           = pkt->pktSize - (pkt->ether_hdr_size + sizeof(struct rte_ipv4_hdr));
+//     udp->dgram_len = htons(tlen);
+//     udp->src_port  = htons(pkt->sport);
+//     udp->dst_port  = htons(pkt->dport);
+
+//     if (pkt->dport == VXLAN_PORT_ID) {
+//         struct vxlan *vxlan = (struct vxlan *)&udp[1];
+
+//         vxlan->vni_flags = htons(pkt->vni_flags);
+//         vxlan->group_id  = htons(pkt->group_id);
+//         vxlan->vxlan_id  = htonl(pkt->vxlan_id) << 8;
+//     }
+
+//     udp->dgram_cksum = 0;
+//     udp->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4, (const void *)udp);
+//     if (udp->dgram_cksum == 0)
+//         udp->dgram_cksum = 0xFFFF;
+// }
+
 void lcore_main(void *arg) {
 
     uint16_t lid = rte_lcore_id();
@@ -88,12 +136,6 @@ void lcore_main(void *arg) {
     TLOG () << "mbuf done with lid = " << lid;
 
     uint16_t portid;
-    // Initialize all ports
-    // RTE_ETH_FOREACH_DEV(portid) {
-    // if (port_init(portid) != 0) {
-    //     rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-    // }
-    // }
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
@@ -130,13 +172,8 @@ void lcore_main(void *arg) {
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
   if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
 
-  std::string first_string = std::string(8000, '9');
-  std::string second_string = std::string(8000, '7');
-
   while (true) {
       port = 0;
-
-      // std::this_thread::sleep_for(std::chrono::microseconds(5));
 
       // Message struct
       // struct Message {
@@ -177,13 +214,8 @@ void lcore_main(void *arg) {
         //     strcpy(msg.payload, second_string.c_str());
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-        // char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
-
-        // rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
-        // rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
 
         rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ipv4_udp_packet));
-
 
         if (false) {
           rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
@@ -224,15 +256,8 @@ NICSender::init(const data_t& args)
 }
 
 void
-NICSender::do_configure(const data_t& args)
+NICSender::dpdk_configure()
 {
-
-    module_conf_t cfg = args.get<module_conf_t>();
-
-    m_burst_size = cfg.burst_size;
-    m_number_of_cores = cfg.number_of_cores;
-    m_rate = cfg.rate;
-
     struct rte_mempool *mbuf_pool;
     unsigned nb_ports;
     uint16_t portid;
@@ -240,25 +265,22 @@ NICSender::do_configure(const data_t& args)
     // Init EAL
     int argc = 0;
     std::vector<char*> v{"test"};
-    int ret = rte_eal_init(argc, v.data());
-    if (ret < 0) {
-        rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
-    }
-    TLOG() << "EAL INIT WORKED";
-
-    // argc -= ret;
-    // argv += ret;
+    ealutils::init_eal(argc, v.data());
+    // if (ret < 0) {
+    //     rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+    // }
+    // TLOG() << "EAL INIT WORKED";
 
     // Check that there is an even number of ports to send/receive on
-    nb_ports = rte_eth_dev_count_avail();
-    TLOG() << "There are " << nb_ports << " ports available";
-    if (nb_ports < 2 || (nb_ports & 1)) {
-        TLOG() << "There are " << nb_ports << " ports available";
-        TLOG() << "There are " << rte_eth_dev_count_total() << " ports in total";
-        rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-    }
+    // nb_ports = rte_eth_dev_count_avail();
+    // TLOG() << "There are " << nb_ports << " ports available";
+    // if (nb_ports < 2 || (nb_ports & 1)) {
+    //     TLOG() << "There are " << nb_ports << " ports available";
+    //     TLOG() << "There are " << rte_eth_dev_count_total() << " ports in total";
+    //     rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+    // }
 
-    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+    // printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
     struct rte_eth_conf port_conf = port_conf_default;
     const uint16_t rx_rings = 0, tx_rings = 2;
@@ -315,6 +337,20 @@ NICSender::do_configure(const data_t& args)
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
     TLOG() << "MTU = " << mtu;
+}
+
+void
+NICSender::do_configure(const data_t& args)
+{
+
+    module_conf_t cfg = args.get<module_conf_t>();
+
+    m_burst_size = cfg.burst_size;
+    m_number_of_cores = cfg.number_of_cores;
+    m_rate = cfg.rate;
+
+    dpdk_configure();
+
 }
 
 void

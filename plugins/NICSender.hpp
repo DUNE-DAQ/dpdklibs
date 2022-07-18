@@ -15,6 +15,12 @@
 #include <string>
 #include <vector>
 
+#include <rte_cycles.h>
+#include <rte_eal.h>
+#include <rte_ethdev.h>
+#include <rte_lcore.h>
+#include <rte_mbuf.h>
+
 #include "appfwk/DAQModule.hpp"
 #include "appfwk/app/Nljs.hpp"
 #include "appfwk/cmd/Nljs.hpp"
@@ -22,11 +28,6 @@
 #include "dpdklibs/nicsender/Nljs.hpp"
 #include "dpdklibs/nicsender/Structs.hpp"
 
-#include <rte_cycles.h>
-#include <rte_eal.h>
-#include <rte_ethdev.h>
-#include <rte_lcore.h>
-#include <rte_mbuf.h>
 #include "dpdklibs/udp/PacketCtor.hpp"
 
 namespace dunedaq {
@@ -59,6 +60,8 @@ private:
   void do_configure(const nlohmann::json& obj);
   void do_scrap(const nlohmann::json& obj);
   void get_info(opmonlib::InfoCollector& ci, int level);
+
+  void dpdk_configure();
 
 
   // Threading
