@@ -27,24 +27,24 @@ import click
 @click.option('--ers-impl', type=click.Choice(['local','cern','pocket'], case_sensitive=False), default='local', help="ERS destination (Kafka used for cern and pocket)")
 @click.option('--pocket-url', default='127.0.0.1', help="URL for connecting to Pocket services")
 @click.option('--only-sender', is_flag=True, default=False, help='Enable only the sender')
-@click.option('--only-receiver', is_flag=True, default=False, help='Enable only the receiver')
+@click.option('--only-reader', is_flag=True, default=False, help='Enable only the reader')
 @click.option('--host-sender', default='np04-srv-021', help='Host to run the sender on')
-@click.option('--host-receiver', default='np04-srv-022', help='Host to run the receiver on')
+@click.option('--host-reader', default='np04-srv-022', help='Host to run the reader on')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender, only_receiver, host_sender, host_receiver, json_dir):
+def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_reader, host_sender, host_reader, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
 
     # Validate apps
-    if only_sender and only_receiver:
-        raise RuntimeError('Both options --only-sender and --only-receiver can not be specified at the same time')
+    if only_sender and only_reader:
+        raise RuntimeError('Both options --only-sender and --only-reader can not be specified at the same time')
 
     enable_sender, enable_receiver = True, True
     if only_sender:
         enable_receiver = False
-    if only_receiver:
+    if only_reader:
         enable_sender = False
 
     console.log('Loading dpdklibs config generator')
@@ -83,7 +83,7 @@ def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender,
    
     # add app
     if enable_sender:
-        the_system.apps["dpdk_sender"] = app_confgen.generate(HOST=host_sender)
+        the_system.apps["dpdk_sender"] = sender_confgen.generate(HOST=host_sender)
     if enable_receiver:
         the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST=host_receiver)
 
