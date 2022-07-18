@@ -23,7 +23,7 @@ CLOCK_SPEED_HZ = 50000000
 
 
 def generate(
-    HOST="localhost"
+    HOST='localhost',
     NUMBER_OF_CORES=2
 ):
 

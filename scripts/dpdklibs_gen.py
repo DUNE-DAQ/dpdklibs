@@ -92,7 +92,8 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_read
         )
     if enable_receiver:
         the_system.apps["dpdk_reader"] = reader_confgen.generate(
-            HOST=host_receiver)
+            HOST=host_reader,
+        )
 
     ####################################################################
     # Application command data generation
