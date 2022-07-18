@@ -2,17 +2,12 @@
 
 import json
 import os
-import math
-import sys
-import glob
 import rich.traceback
 from rich.console import Console
 from os.path import exists, join
 from daqconf.core.system import System
 from daqconf.core.conf_utils import make_app_command_data
 from daqconf.core.metadata import write_metadata_file
-
-CLOCK_SPEED_HZ = 50000000
 
 # Add -h as default help option
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -28,30 +23,32 @@ import click
 
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('-p', '--partition-name', default="global", help="Name of the partition to use, for ERS and OPMON")
-@click.option('--host-app', default='localhost', help='Host to run the listrev sw app on')
-@click.option('--ints-per-list', default=4, help='Number of integers in the list')
-@click.option('--wait-ms', default=1000, help='Number of ms to wait between list sends')
 @click.option('--opmon-impl', type=click.Choice(['json','cern','pocket'], case_sensitive=False),default='json', help="Info collector service implementation to use")
 @click.option('--ers-impl', type=click.Choice(['local','cern','pocket'], case_sensitive=False), default='local', help="ERS destination (Kafka used for cern and pocket)")
 @click.option('--pocket-url', default='127.0.0.1', help="URL for connecting to Pocket services")
-@click.option('--apps',default=['s'],multiple=True, help="Apps to generate: \"s\" for single-app ListRev, otherwise specify \"g\", \"r\", and \"v\". E.g.: [\"gv\",\"r\"]")
+@click.option('--only-sender', is_flag=True, default=False, help='Enable only the sender')
+@click.option('--only-receiver', is_flag=True, default=False, help='Enable only the receiver')
+@click.option('--host-sender', default='np04-srv-021', help='Host to run the sender on')
+@click.option('--host-receiver', default='np04-srv-022', help='Host to run the receiver on')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, host_app, ints_per_list, wait_ms, opmon_impl, ers_impl, pocket_url, json_dir, apps):
+def cli(partition_name, host_app, opmon_impl, ers_impl, pocket_url, only_sender, only_receiver, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
 
     # Validate apps
-    apps_check = "".join(apps)
-    if "s" in apps_check and not apps_check == "s":
-        raise RuntimeError(f"App spec {apps} contains an \"s\" entry, which must be alone!")
+    if only_sender and only_receiver:
+        raise RuntimeError('Both options --only-sender and --only-receiver can not be specified at the same time')
 
-    if "s" not in apps_check and (len(apps_check) != 3 or "g" not in apps_check or "r" not in apps_check or "v" not in apps_check):
-        raise RuntimeError(f"App spec {apps} is not \"s\", so must contain one each of \"g\", \"r\", and \"v\"")
+    enable_sender, enable_receiver = True, True
+    if only_sender:
+        enable_receiver = False
+    if only_receiver:
+        enable_sender = False
 
-    console.log('Loading listrevapp config generator')
-    from dpdklibs import app_confgen
+    console.log('Loading dpdklibs config generator')
+    from dpdklibs import sender_confgen
     from dpdklibs import reader_confgen
 
     the_system = System()
@@ -85,9 +82,10 @@ def cli(partition_name, host_app, ints_per_list, wait_ms, opmon_impl, ers_impl, 
         ers_settings["FATAL"] =   "erstrace,lstdout"
    
     # add app
-    print(the_system.apps)
-    the_system.apps["dpdklibs_app"] = app_confgen.generate()
-    the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST='np04-srv-022')
+    if enable_sender:
+        the_system.apps["dpdk_sender"] = app_confgen.generate()
+    if enable_receiver:
+        the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST='np04-srv-022')
 
     ####################################################################
     # Application command data generation
