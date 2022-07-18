@@ -52,6 +52,7 @@ def cli(partition_name, host_app, ints_per_list, wait_ms, opmon_impl, ers_impl, 
 
     console.log('Loading listrevapp config generator')
     from dpdklibs import app_confgen
+    from dpdklibs import reader_confgen
 
     the_system = System()
    
@@ -86,6 +87,7 @@ def cli(partition_name, host_app, ints_per_list, wait_ms, opmon_impl, ers_impl, 
     # add app
     print(the_system.apps)
     the_system.apps["dpdklibs_app"] = app_confgen.generate()
+    the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST='np04-srv-022')
 
     ####################################################################
     # Application command data generation

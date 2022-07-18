@@ -8,11 +8,9 @@ moo.io.default_load_path = get_moo_model_path()
 import moo.otypes
 
 moo.otypes.load_types("dpdklibs/nicsender.jsonnet")
-moo.otypes.load_types("dpdklibs/nicreceiver.jsonnet")
 
 # Import new types
-import dunedaq.dpdklibs.nicsenderconfig as nsc
-import dunedaq.dpdklibs.nicreceiverconfig as nrc
+import dunedaq.dpdklibs.nicsender as nsc
 
 from daqconf.core.app import App, ModuleGraph
 from daqconf.core.daqmodule import DAQModule
@@ -33,8 +31,9 @@ def generate(
 
     modules += [DAQModule(name="nic_sender", plugin="NICSender",
                           conf=nsc.Conf(
-                               number_of_cores=2;
-                               burst_size=1;)
+                               eal_arg_list='',
+                               number_of_cores=2,
+                               burst_size=1,)
                           
         )]
 

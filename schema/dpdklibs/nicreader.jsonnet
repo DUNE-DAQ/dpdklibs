@@ -29,7 +29,7 @@ local nicreader = {
         s.field("card_id", self.id, 0,
                 doc="Physical card identifier (in the same host)"),
 
-        s.field("eal_arg_list", self.string,
+        s.field("eal_arg_list", self.string, "",
                 doc="A string with EAL arguments"),
 
     ], doc="Generic UIO reader DAQ Module Configuration"),
