@@ -105,6 +105,7 @@ void NICSender::lcore_main(void *arg __rte_unused) {
 
     uint16_t lid = rte_lcore_id();
 
+    // TODO: Check why it crashes without this line
     int m_burst_size = 1;
 
     TLOG() << "lid = " << lid;
@@ -156,7 +157,10 @@ void NICSender::lcore_main(void *arg __rte_unused) {
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
   if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
 
-  while (true) {
+
+  while (m_run_mark) {
+      // TODO: Why does it crash when accessing class members?
+      // TLOG() << m_run_mark.load();
       port = 0;
 
       // Ethernet header
@@ -250,13 +254,20 @@ NICSender::do_start(const data_t& args)
 {
   m_run_mark.store(true);
 
-  rte_eal_mp_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), NULL, SKIP_MAIN);
+  for (int i = 1; i <= m_number_of_cores; ++i) {
+    rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, i);
+  }
+  // rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, 2);
 }
 
 void
 NICSender::do_stop(const data_t& args)
 {
+  TLOG() << "Stopping on core " << rte_lcore_id();
   m_run_mark.store(false);
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+  rte_eal_wait_lcore(1);
+  rte_eal_cleanup();
 }
 
 void

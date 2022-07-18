@@ -31,8 +31,8 @@ import click
 @click.option('--host-sender', default='np04-srv-021', help='Host to run the sender on')
 @click.option('--host-reader', default='np04-srv-022', help='Host to run the reader on')
 @click.option('--sender-rate', help='Rate with which the sender sends packets')
-@click.option('--sender-burst-size', help='Burst size used for sending packets')
-@click.option('--sender-cores', help='How many cores to use for sending')
+@click.option('--sender-burst-size', type=int, default=1, help='Burst size used for sending packets')
+@click.option('--sender-cores', type=int, default=1, help='How many cores to use for sending')
 @click.argument('json_dir', type=click.Path())
 
 def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_reader, host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, json_dir):
@@ -86,9 +86,13 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_read
    
     # add app
     if enable_sender:
-        the_system.apps["dpdk_sender"] = sender_confgen.generate(HOST=host_sender)
+        the_system.apps["dpdk_sender"] = sender_confgen.generate(
+            HOST=host_sender,
+            NUMBER_OF_CORES=sender_cores,
+        )
     if enable_receiver:
-        the_system.apps["dpdk_reader"] = reader_confgen.generate(HOST=host_receiver)
+        the_system.apps["dpdk_reader"] = reader_confgen.generate(
+            HOST=host_receiver)
 
     ####################################################################
     # Application command data generation

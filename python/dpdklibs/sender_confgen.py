@@ -24,6 +24,7 @@ CLOCK_SPEED_HZ = 50000000
 
 def generate(
     HOST="localhost"
+    NUMBER_OF_CORES=2
 ):
 
     modules = []
@@ -32,7 +33,7 @@ def generate(
     modules += [DAQModule(name="nic_sender", plugin="NICSender",
                           conf=nsc.Conf(
                                eal_arg_list='',
-                               number_of_cores=2,
+                               number_of_cores=NUMBER_OF_CORES,
                                burst_size=1,)
                           
         )]
