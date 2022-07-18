@@ -101,7 +101,7 @@ NICSender::NICSender(const std::string& name)
 //         udp->dgram_cksum = 0xFFFF;
 // }
 
-void lcore_main(void *arg) {
+void NICSender::lcore_main(void *arg __rte_unused) {
 
     uint16_t lid = rte_lcore_id();
 
@@ -250,7 +250,7 @@ NICSender::do_start(const data_t& args)
 {
   m_run_mark.store(true);
 
-  rte_eal_mp_remote_launch( (lcore_function_t*)(lcore_main), NULL, SKIP_MAIN);
+  rte_eal_mp_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), NULL, SKIP_MAIN);
 }
 
 void
