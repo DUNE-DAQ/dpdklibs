@@ -30,9 +30,12 @@ import click
 @click.option('--only-reader', is_flag=True, default=False, help='Enable only the reader')
 @click.option('--host-sender', default='np04-srv-021', help='Host to run the sender on')
 @click.option('--host-reader', default='np04-srv-022', help='Host to run the reader on')
+@click.option('--sender-rate', help='Rate with which the sender sends packets')
+@click.option('--sender-burst-size', help='Burst size used for sending packets')
+@click.option('--sender-cores', help='How many cores to use for sending')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_reader, host_sender, host_reader, json_dir):
+def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_reader, host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
