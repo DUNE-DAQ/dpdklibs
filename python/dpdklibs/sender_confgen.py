@@ -39,5 +39,5 @@ def generate(
 
     mgraph = ModuleGraph(modules, queues=queues)
 
-    dpdk_app = App(modulegraph=mgraph, host=HOST, name="dpdklibs_app")
+    dpdk_app = App(modulegraph=mgraph, host=HOST, name="dpdk_sender")
     return dpdk_app
