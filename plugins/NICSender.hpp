@@ -63,6 +63,7 @@ private:
 
   void dpdk_configure();
 
+  // int lcore_main(void *arg);
 
   // Threading
   void do_work(std::atomic<bool>&);

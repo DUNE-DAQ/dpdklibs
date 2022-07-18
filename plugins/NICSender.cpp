@@ -37,29 +37,12 @@ enum
   TLVL_BOOKKEEPING = 15
 };
 
-#define RX_RING_SIZE 1024
-#define TX_RING_SIZE 1024
-
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
-#define PG_JUMBO_FRAME_LEN (9600 + RTE_ETHER_CRC_LEN + RTE_ETHER_HDR_LEN)
-#ifndef RTE_JUMBO_ETHER_MTU
-#define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
-#endif
-
-static const struct rte_eth_conf port_conf_default = {
-    .txmode = {
-        .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
-                     DEV_TX_OFFLOAD_UDP_CKSUM),
-},
-};
-
-int burst_size = 1;
-
 namespace dunedaq {
 namespace dpdklibs {
-  using namespace udp;
+using namespace udp;
 
 NICSender::NICSender(const std::string& name)
   : DAQModule(name)
@@ -122,6 +105,8 @@ void lcore_main(void *arg) {
 
     uint16_t lid = rte_lcore_id();
 
+    int m_burst_size = 1;
+
     TLOG() << "lid = " << lid;
     if (lid > 2) return;
 
@@ -166,20 +151,13 @@ void lcore_main(void *arg) {
     }
   });
 
-  // std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   if (lid == 2) TLOG() << "Allocation with lid = " << lid;
-  rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
+  rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
   if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
 
   while (true) {
       port = 0;
-
-      // Message struct
-      // struct Message {
-      //   // detdataformats::wib::WIBFrame fr;
-      //   char ch[16];
-      // };
 
       // Ethernet header
       // struct rte_ether_hdr eth_hdr = {0};
@@ -188,30 +166,19 @@ void lcore_main(void *arg) {
       /* Dummy message to transmit */
 
 
-      //struct rte_mbuf *pkt[burst_size];
+      //struct rte_mbuf *pkt[m_burst_size];
 
       // if (burst_number % 1000 == 0) {
       //   TLOG() << "burst_number =" << burst_number;
       // }
 
-      for (int i = 0; i < burst_size; i++)
+      for (int i = 0; i < m_burst_size; i++)
       {
-        // struct Message msg;
-
         struct ipv4_udp_packet msg;
         pktgen_packet_ctor(&msg.hdr);
 
-        // msg.fr.set_timestamp(burst_number);
-        // msg.fr.set_channel(190, i);
         pkt[i]->pkt_len = sizeof(struct ipv4_udp_packet);
         pkt[i]->data_len = 8000;
-        // for (int i = 0; i < 8000 / 11; ++i) {
-        //     strcpy(msg.payload + i * 11, "Hello world");
-        // }
-        // if (port) 
-        //     strcpy(msg.payload, first_string.c_str());
-        // else
-        //     strcpy(msg.payload, second_string.c_str());
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
 
@@ -226,18 +193,18 @@ void lcore_main(void *arg) {
       /* Send burst of TX packets. */
       int sent = 0;
       uint16_t nb_tx;
-      while(sent < burst_size)
+      while(sent < m_burst_size)
       {
-            nb_tx = rte_eth_tx_burst(port, lid-1, pkt, burst_size - sent);
+            nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
         sent += nb_tx;
         num_frames += nb_tx;
       }
 
       /* Free any unsent packets. */
-      if (unlikely(nb_tx < burst_size))
+      if (unlikely(nb_tx < m_burst_size))
       {
         uint16_t buf;
-        for (buf = nb_tx; buf < burst_size; buf++)
+        for (buf = nb_tx; buf < m_burst_size; buf++)
         {
           rte_pktmbuf_free(pkt[buf]);
         }
@@ -258,91 +225,17 @@ NICSender::init(const data_t& args)
 void
 NICSender::dpdk_configure()
 {
-    struct rte_mempool *mbuf_pool;
-    unsigned nb_ports;
-    uint16_t portid;
-
-    // Init EAL
     int argc = 0;
     std::vector<char*> v{"test"};
     ealutils::init_eal(argc, v.data());
-    // if (ret < 0) {
-    //     rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
-    // }
-    // TLOG() << "EAL INIT WORKED";
 
-    // Check that there is an even number of ports to send/receive on
-    // nb_ports = rte_eth_dev_count_avail();
-    // TLOG() << "There are " << nb_ports << " ports available";
-    // if (nb_ports < 2 || (nb_ports & 1)) {
-    //     TLOG() << "There are " << nb_ports << " ports available";
-    //     TLOG() << "There are " << rte_eth_dev_count_total() << " ports in total";
-    //     rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-    // }
-
-    // printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
-
-    struct rte_eth_conf port_conf = port_conf_default;
-    const uint16_t rx_rings = 0, tx_rings = 2;
-    uint16_t nb_rxd = RX_RING_SIZE;
-    uint16_t nb_txd = TX_RING_SIZE;
-    int retval;
-    uint16_t q;
-    struct rte_eth_dev_info dev_info;
-    struct rte_eth_txconf txconf;
-    uint16_t port = 0;
-
-    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-        port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-
-    /* Configure the Ethernet device. */
-    retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
-    // if (retval != 0)
-    //     return retval;
-
-    retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
-    // if (retval != 0)
-    //   return retval;
-
-    txconf = dev_info.default_txconf;
-    txconf.offloads = port_conf.txmode.offloads;
-    /* Allocate and set up 1 TX queue per Ethernet port. */
-    for (q = 0; q < tx_rings; q++) {
-      retval = rte_eth_tx_queue_setup(port, q, nb_txd, rte_eth_dev_socket_id(port), &txconf);
-      // if (retval < 0)
-      //   return retval;
-    }
-
-    retval = rte_eth_dev_start(port);
-    // if (retval < 0)
-    //   return retval;
-
-    /* Display the port MAC address. */
-    struct rte_ether_addr addr;
-    retval = rte_eth_macaddr_get(port, &addr);
-    // if (retval != 0)
-    //   return retval;
-
-    printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-           port,
-           addr.addr_bytes[0],
-           addr.addr_bytes[1],
-           addr.addr_bytes[2],
-           addr.addr_bytes[3],
-           addr.addr_bytes[4],
-           addr.addr_bytes[5]);
-
-    rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
-    
-    uint16_t mtu;
-    rte_eth_dev_get_mtu(port, &mtu);
-    TLOG() << "MTU = " << mtu;
+    std::map<int, std::unique_ptr<rte_mempool>> m;
+    ealutils::port_init(0, 0, 2, m);
 }
 
 void
 NICSender::do_configure(const data_t& args)
 {
-
     module_conf_t cfg = args.get<module_conf_t>();
 
     m_burst_size = cfg.burst_size;
@@ -350,7 +243,6 @@ NICSender::do_configure(const data_t& args)
     m_rate = cfg.rate;
 
     dpdk_configure();
-
 }
 
 void
@@ -358,8 +250,7 @@ NICSender::do_start(const data_t& args)
 {
   m_run_mark.store(true);
 
-  rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
-
+  rte_eal_mp_remote_launch( (lcore_function_t*)(lcore_main), NULL, SKIP_MAIN);
 }
 
 void
