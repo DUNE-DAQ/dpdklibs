@@ -34,6 +34,7 @@ def generate(
     HOST='localhost',
     ENABLE_SOFTWARE_TPG=False,
     NUMBER_OF_DATA_PRODUCERS=2,
+    FRONTEND_TYPE='tde',
 ):
 
     modules = []
