@@ -108,7 +108,10 @@ NICReceiver::do_configure(const data_t& args)
   // DPDK setup
   std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
   TLOG() << "Setting up EAL with params from config.";
+  // int argc = 4;
+  // std::vector<char*> v{"-l", "0-1", "-n", "3"};
   ealutils::init_eal(eal_params.size(), eal_params.data());
+  // ealutils::init_eal(argc, v.data());
 
   int nb_ports = ealutils::get_available_ports();
   TLOG() << "Allocating pools and mbufs";
