@@ -106,11 +106,20 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_read
     }
 
     # Make boot.json config
-    from daqconf.core.conf_utils import make_system_command_datas,generate_boot, write_json_files
+    from daqconf.core.conf_utils import make_system_command_datas, generate_boot_common, update_with_ssh_boot_data, write_json_files
     system_command_datas = make_system_command_datas(the_system)
     # Override the default boot.json with the one from minidaqapp
-    boot = generate_boot(the_system.apps, ers_settings=ers_settings, info_svc_uri=info_svc_uri,
-                              disable_trace=True, use_kafka=use_kafka, extra_env_vars={'WIBMOD_SHARE':'getenv'})
+    boot = generate_boot_common(ers_settings=ers_settings,
+                                info_svc_uri=info_svc_uri,
+                               disable_trace=True,
+                                use_kafka=use_kafka,
+                                daq_app_exec_name="daq_application_ssh",
+                                extra_env_vars={'WIBMOD_SHARE':'getenv'})
+    update_with_ssh_boot_data(
+        boot_data=boot,
+        apps=the_system.apps,
+        base_command_port=3333,
+    )
 
     system_command_datas['boot'] = boot
 
