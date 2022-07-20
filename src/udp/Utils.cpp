@@ -13,25 +13,6 @@ namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
 
-inline void
-dump_to_buffer(const char* data,
-               std::size_t size,
-               void* buffer,
-               uint32_t buffer_pos, // NOLINT
-               const std::size_t& buffer_size)
-{
-  auto bytes_to_copy = size; // NOLINT
-  while (bytes_to_copy > 0) {
-    auto n = std::min(bytes_to_copy, buffer_size - buffer_pos); // NOLINT
-    std::memcpy(static_cast<char*>(buffer) + buffer_pos, data, n);
-    buffer_pos += n;
-    bytes_to_copy -= n;
-    if (buffer_pos == buffer_size) {
-      buffer_pos = 0;
-    }
-  }
-}
-
 uint16_t
 get_payload_size_udp_hdr(struct rte_udp_hdr * udp_hdr)
 {
@@ -70,13 +51,15 @@ print_ipv4_decimal_addr(struct ipaddr ipv4_address) {
 }
 
 char *
-get_udp_payload(struct rte_mbuf *mbuf, uint16_t dump_mode)
+get_udp_payload(struct rte_mbuf *mbuf)
 {
   struct ipv4_udp_packet_hdr * udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
   //dump_udp_header(udp_packet);
-  uint16_t payload_size = get_payload_size(udp_packet);
+  //uint16_t payload_size = get_payload_size(udp_packet);
   char* payload = (char *)(udp_packet + 1);
+  return payload;
 
+  /*
   if (dump_mode == 10) {
     return payload;
   }
@@ -95,11 +78,15 @@ get_udp_payload(struct rte_mbuf *mbuf, uint16_t dump_mode)
     printf("%s\n", payload);
   }
   return payload;
+  */
 }
 
 void 
-dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
+//dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
+dump_udp_header(struct rte_mbuf *mbuf)
 {
+  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+
   printf("------ start of packet ----- \n");
   //static void
   //print_ethaddr(const char *name, struct rte_ether_addr *eth_addr)
@@ -154,6 +141,16 @@ dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
   }
   printf("\n");
   return;
+}
+
+bool 
+foff_arp(struct rte_mbuf *mbuf)
+{
+  struct rte_ether_hdr * eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+  if (eth->ether_type == RTE_ETHER_TYPE_ARP) {
+    return true;
+  }
+  return false;
 }
 
 } // namespace udp

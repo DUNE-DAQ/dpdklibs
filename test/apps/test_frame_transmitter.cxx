@@ -20,6 +20,11 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 
+#define PG_JUMBO_FRAME_LEN (9600 + RTE_ETHER_CRC_LEN + RTE_ETHER_HDR_LEN)
+#ifndef RTE_JUMBO_ETHER_MTU
+#define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
+#endif
+
 
 // Apparently only 8 and above works
 int burst_size = 1;
@@ -40,10 +45,10 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 static inline int
-port_init(uint16_t port, struct rte_mempool* mbuf_pool)
+port_init(uint16_t port)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = 0, tx_rings = 1;
+  const uint16_t rx_rings = 0, tx_rings = 2;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -71,13 +76,6 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
   if (retval != 0)
     return retval;
-
-  /* Allocate and set up 1 RX queue per Ethernet port. */
-  for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(port, q, nb_rxd, rte_eth_dev_socket_id(port), NULL, mbuf_pool);
-    if (retval < 0)
-      return retval;
-  }
 
   txconf = dev_info.default_txconf;
   txconf.offloads = port_conf.txmode.offloads;
@@ -108,7 +106,8 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
          addr.addr_bytes[4],
          addr.addr_bytes[5]);
 
-
+  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  
   uint16_t mtu;
   rte_eth_dev_get_mtu(port, &mtu);
   TLOG() << "MTU = " << mtu;
@@ -121,22 +120,47 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
-static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
-  uint16_t port;
+void lcore_main(void *arg) {
+
+
+    uint16_t lid = rte_lcore_id();
+
+    // if (pktgen_has_work())
+    //     return 0;
+    TLOG() << "lid = " << lid;
+    if (lid > 2) return;
+
+    TLOG () << "Going to sleep with lid = " << lid;
+    rte_delay_us_sleep((lid + 1) * 1000021);
+    uint16_t port;
+
+    unsigned nb_ports = rte_eth_dev_count_avail();
+    TLOG () << "mbuf with lid = " << lid;
+    struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
+        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    TLOG () << "mbuf done with lid = " << lid;
+
+    uint16_t portid;
+    // Initialize all ports
+    // RTE_ETH_FOREACH_DEV(portid) {
+    // if (port_init(portid) != 0) {
+    //     rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+    // }
+    // }
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
    * for best performance.
    */
-  RTE_ETH_FOREACH_DEV(port) {
-      if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
-          printf("WARNING, port %u is on remote NUMA node to "
-                          "polling thread./n/tPerformance will "
-                          "not be optimal.\n", port);
-      }
+  // RTE_ETH_FOREACH_DEV(port) {
+  //     if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
+  //         printf("WARNING, port %u is on remote NUMA node to "
+  //                         "polling thread./n/tPerformance will "
+  //                         "not be optimal.\n", port);
+  //     }
 
-      printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
-  }
+  //     printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
+  // }
 
   printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
 
@@ -153,26 +177,33 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
     }
   });
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  // std::this_thread::sleep_for(std::chrono::milliseconds(5));
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  if (lid == 2) TLOG() << "Allocation with lid = " << lid;
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
+  if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
+
+  std::string first_string = std::string(8000, '9');
+  std::string second_string = std::string(8000, '7');
+
+
   for (;;) {
     /*
      * Transmit packets on port.
      */
-    RTE_ETH_FOREACH_DEV(port) {
+      port = 0;
 
       // std::this_thread::sleep_for(std::chrono::microseconds(5));
 
       // Message struct
-      struct Message {
-        // detdataformats::wib::WIBFrame fr;
-        char ch[16];
-      };
+      // struct Message {
+      //   // detdataformats::wib::WIBFrame fr;
+      //   char ch[16];
+      // };
 
       // Ethernet header
-      struct rte_ether_hdr eth_hdr = {0};
-      eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+      // struct rte_ether_hdr eth_hdr = {0};
+      // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
       /* Dummy message to transmit */
 
@@ -194,10 +225,13 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
         // msg.fr.set_channel(190, i);
         pkt[i]->pkt_len = sizeof(struct ipv4_udp_packet);
         pkt[i]->data_len = 8000;
-        for (int i = 0; i < 8000 / 11; ++i) {
-            strcpy(msg.payload + i * 11, "Hello world");
-        }
-        // strcpy(msg.payload, "Hello world");
+        // for (int i = 0; i < 8000 / 11; ++i) {
+        //     strcpy(msg.payload + i * 11, "Hello world");
+        // }
+        // if (port) 
+        //     strcpy(msg.payload, first_string.c_str());
+        // else
+        //     strcpy(msg.payload, second_string.c_str());
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
         // char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
@@ -208,7 +242,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
         rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ipv4_udp_packet));
 
 
-        if (is_debug) {
+        if (false) {
           rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
         }
       }
@@ -219,7 +253,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
       uint16_t nb_tx;
       while(sent < burst_size)
       {
-        nb_tx = rte_eth_tx_burst(port, 0, pkt, burst_size - sent);
+            nb_tx = rte_eth_tx_burst(port, lid-1, pkt, burst_size - sent);
         sent += nb_tx;
         num_frames += nb_tx;
       }
@@ -233,8 +267,7 @@ static __rte_noreturn void lcore_main(struct rte_mempool *mbuf_pool) {
           rte_pktmbuf_free(pkt[buf]);
         }
       }
-      rte_eth_tx_done_cleanup(port, 0, 0);
-    }
+      rte_eth_tx_done_cleanup(port, lid-1, 0);
   }
 }
 
@@ -263,31 +296,90 @@ int main(int argc, char* argv[]) {
 
     printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 
-    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    struct rte_eth_conf port_conf = port_conf_default;
+    const uint16_t rx_rings = 0, tx_rings = 2;
+    uint16_t nb_rxd = RX_RING_SIZE;
+    uint16_t nb_txd = TX_RING_SIZE;
+    int retval;
+    uint16_t q;
+    struct rte_eth_dev_info dev_info;
+    struct rte_eth_txconf txconf;
+    uint16_t port = 0;
 
-    if (mbuf_pool == NULL) {
-        rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+        port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+
+    /* Configure the Ethernet device. */
+    retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
+    if (retval != 0)
+        return retval;
+
+    retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
+    if (retval != 0)
+      return retval;
+
+    txconf = dev_info.default_txconf;
+    txconf.offloads = port_conf.txmode.offloads;
+    /* Allocate and set up 1 TX queue per Ethernet port. */
+    for (q = 0; q < tx_rings; q++) {
+      retval = rte_eth_tx_queue_setup(port, q, nb_txd, rte_eth_dev_socket_id(port), &txconf);
+      if (retval < 0)
+        return retval;
     }
+
+    retval = rte_eth_dev_start(port);
+    if (retval < 0)
+      return retval;
+
+    /* Display the port MAC address. */
+    struct rte_ether_addr addr;
+    retval = rte_eth_macaddr_get(port, &addr);
+    if (retval != 0)
+      return retval;
+
+    printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
+           port,
+           addr.addr_bytes[0],
+           addr.addr_bytes[1],
+           addr.addr_bytes[2],
+           addr.addr_bytes[3],
+           addr.addr_bytes[4],
+           addr.addr_bytes[5]);
+
+    rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+    
+    uint16_t mtu;
+    rte_eth_dev_get_mtu(port, &mtu);
+    TLOG() << "MTU = " << mtu;
+
+    // mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+    //     MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+
+    // if (mbuf_pool == NULL) {
+    //     rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+    // }
 
     // Initialize all ports
-    RTE_ETH_FOREACH_DEV(portid) {
-        if (port_init(portid, mbuf_pool) != 0) {
-            rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-        }
-    }
+    // RTE_ETH_FOREACH_DEV(portid) {
+    //     if (port_init(portid, mbuf_pool) != 0) {
+    //         rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
+    //     }
+    // }
 
     // Call lcore_main on the main core only
-    int res = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 1);
-    TLOG() << "Result = " << res;
-    // res = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 2);
+    // int res = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 1);
+
+    // int res2 = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 2);
+    rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
+    // TLOG() << "Result = " << res;
     // TLOG() << "Result = " << res;
     // lcore_main(mbuf_pool);
 
-    rte_eal_wait_lcore(1);
+    // rte_eal_wait_lcore(1);
     // rte_eal_wait_lcore(2);
     // clean up the EAL
-    rte_eal_cleanup();
+    // rte_eal_cleanup();
+    rte_eal_mp_wait_lcore();
 
     return 0;
 }

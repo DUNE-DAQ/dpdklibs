@@ -1,6 +1,19 @@
 # dpdklibs - DPDK UIO software and utilities 
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
+# How to run a system with a transmitter and a receiver:
+Generate the config with
+```
+python sourcecode/dpdklibs/scripts/dpdklibs_gen.py dpdk_app
+```
+and then run it
+```
+nanorc dpdk_app partition_name
+```
+
+For debugging, only the sender and only the receiver can be started with
+`--only-sender` and `--only-receiver` respectively.
+
 # Setting up dpdk
 For convenience, there is a set of scripts in this repo to set up dpdk, assuming
 it has been installed and it works. These scripts have to be run as root. To
