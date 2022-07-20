@@ -35,13 +35,14 @@ def generate(
     ENABLE_SOFTWARE_TPG=False,
     NUMBER_OF_DATA_PRODUCERS=2,
     FRONTEND_TYPE='tde',
+    EAL_ARGS='',
 ):
 
     modules = []
     queues = []
 
     modules += [DAQModule(name="nic_reader", plugin="NICReceiver",
-                          conf=nrc.Conf(eal_arg_list='')
+                          conf=nrc.Conf(eal_arg_list=EAL_ARGS)
         )]
 
     queues += [Queue(f"nic_reader.output_{idx}",f"datahandler_{idx}.raw_input",f'{FRONTEND_TYPE}_link_{idx}', 100000) for idx in range(NUMBER_OF_DATA_PRODUCERS)]

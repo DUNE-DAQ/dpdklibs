@@ -26,6 +26,7 @@ import click
 @click.option('--opmon-impl', type=click.Choice(['json','cern','pocket'], case_sensitive=False),default='json', help="Info collector service implementation to use")
 @click.option('--ers-impl', type=click.Choice(['local','cern','pocket'], case_sensitive=False), default='local', help="ERS destination (Kafka used for cern and pocket)")
 @click.option('--pocket-url', default='127.0.0.1', help="URL for connecting to Pocket services")
+@click.option('--eal-args', default='-l 0-1 -n 3 -- -m [0:1].0 -j', help='Arguments passed to EAL used when EAL inits')
 @click.option('--only-sender', is_flag=True, default=False, help='Enable only the sender')
 @click.option('--only-reader', is_flag=True, default=False, help='Enable only the reader')
 @click.option('--host-sender', default='np04-srv-021', help='Host to run the sender on')
@@ -35,7 +36,7 @@ import click
 @click.option('--sender-cores', type=int, default=1, help='How many cores to use for sending')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_reader, host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, json_dir):
+def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender, only_reader, host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
@@ -93,6 +94,7 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, only_sender, only_read
     if enable_receiver:
         the_system.apps["dpdk_reader"] = reader_confgen.generate(
             HOST=host_reader,
+            EAL_ARGS=eal_args,
         )
 
     ####################################################################
