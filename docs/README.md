@@ -8,8 +8,11 @@ python sourcecode/dpdklibs/scripts/dpdklibs_gen.py dpdk_app
 ```
 and then run it
 ```
-nanorc dpdk_app
+nanorc dpdk_app partition_name
 ```
+
+For debugging, only the sender and only the receiver can be started with
+`--only-sender` and `--only-receiver` respectively.
 
 # Setting up dpdk
 For convenience, there is a set of scripts in this repo to set up dpdk, assuming
