@@ -13,7 +13,7 @@
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/flow_control.h"
+#include "dpdklibs/FlowControl.hpp"
 
 #include "NICReceiver.hpp"
 
@@ -126,8 +126,8 @@ NICReceiver::do_configure(const data_t& args)
   struct rte_flow *flow;
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
-      const IpAddr src_ip_addr(srcip);
-      const IpAddr dst_ip_addr(m_dest_ip);
+      const udp::IpAddr src_ip_addr(srcip);
+      const udp::IpAddr dst_ip_addr(m_dest_ip);
       flow = generate_ipv4_flow(0, rxqid, 
 		                src_ip_addr, m_ip_full_mask,
 				dst_ip_addr, m_ip_full_mask,
@@ -141,14 +141,16 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
-  // Adding drop flow
-  TLOG() << "Adding Drop Flow.";
-  flow = generate_drop_flow(0, &error);
-  if (not flow) { // ers::fatal
-    TLOG() << "Drop flow can't be created for port0!"
-           << " Error type: " << (unsigned)error.type
-           << " Message: " << error.message;
-    rte_exit(EXIT_FAILURE, "error in creating flow");
+  if (m_cfg.with_drop_flow) {
+    // Adding drop flow
+    TLOG() << "Adding Drop Flow.";
+    flow = generate_drop_flow(0, &error);
+    if (not flow) { // ers::fatal
+      TLOG() << "Drop flow can't be created for port0!"
+             << " Error type: " << (unsigned)error.type
+             << " Message: " << error.message;
+      rte_exit(EXIT_FAILURE, "error in creating flow");
+    }
   }
   
   TLOG() << "DPDK EAL & RTE configured.";
@@ -204,6 +206,8 @@ NICReceiver::do_stop(const data_t& args)
     ealutils::dpdk_quit_signal = 1;
     int ret = ealutils::wait_for_lcores();
     TLOG() << "Stoppped DPDK lcore processors...";
+    struct rte_flow_error error;
+    rte_flow_flush(0, &error);
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }

@@ -6,8 +6,8 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#ifndef DPDKLIBS_SRC_UDP_PACKETCTOR_HPP_
-#define DPDKLIBS_SRC_UDP_PACKETCTOR_HPP_
+#ifndef DPDKLIBS_INCLUDE_DPDKLIBS_UDP_PACKETCTOR_HPP_
+#define DPDKLIBS_INCLUDE_DPDKLIBS_UDP_PACKETCTOR_HPP_
 
 #include <rte_byteorder.h>
 #include "IPV4UDPPacket.hpp"
@@ -30,4 +30,4 @@ rte_le16_t pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
 } // namespace dpdklibs
 } // namespace dunedaq
 
-#endif // DPDKLIBS_SRC_UDP_PACKETCTOR_HPP_
+#endif // DPDKLIBS_INCLUDE_DPDKLIBS_PACKETCTOR_HPP_
