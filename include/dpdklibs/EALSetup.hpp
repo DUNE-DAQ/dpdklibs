@@ -34,18 +34,15 @@ static volatile uint8_t dpdk_quit_signal;
 
 static const struct rte_eth_conf port_conf_default = {
   .rxmode = {
-    .mq_mode = ETH_MQ_RX_NONE, //RTE_ETH_MQ_RX_RSS,
+    //.mq_mode = ETH_MQ_RX_NONE, // Deprecated
     .mtu = 9000,
     .max_lro_pkt_size = 9000,
     .split_hdr_size = 0,
-
-      //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
+    //.offloads = DEV_RX_OFFLOAD_JUMBO_FRAME,
   },
 
   .txmode = {
-    .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
-                 DEV_TX_OFFLOAD_UDP_CKSUM |
-		 RTE_ETH_TX_OFFLOAD_MULTI_SEGS),
+    .offloads = (RTE_ETH_TX_OFFLOAD_MULTI_SEGS),
   },
 };
 
@@ -54,7 +51,6 @@ port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings,
 	  std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool) //struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
-  //const uint16_t rx_rings = 2, tx_rings = 0;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
   int retval;
@@ -70,9 +66,6 @@ port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings,
     TLOG() << "Error during getting device (port " << port << ") retval: " << retval;
     return retval;
   }
-
-  if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-    port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 
   /* Configure the Ethernet device. */
   retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
@@ -188,18 +181,6 @@ get_available_ports() {
   return nb_ports;
 }
 
-void 
-setup_port(int portid, std::map<int, std::unique_ptr<rte_mempool>>& pool_map) {
-  // Initialize all ports
-  //uint16_t portid;
-  //RTE_ETH_FOREACH_DEV(portid) {
-  //  if (port_init(portid, pool_map[portid].get()) != 0) {
-  //    rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-  //  }
-  //}
-  TLOG() << "Ports are set up with assigned mbuf_pools!";
-}
-
 int 
 wait_for_lcores() {
   int lcore_id;
@@ -208,6 +189,7 @@ wait_for_lcores() {
       return -1;
     }
   }
+  return 0;
 }
 
 void finish_eal() {

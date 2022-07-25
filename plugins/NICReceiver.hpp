@@ -64,9 +64,16 @@ private:
 
   // Internals
   int m_running = 0;
-  module_conf_t m_cfg;
   std::atomic<bool> m_run_marker;
   void set_running(bool /*should_run*/);
+
+  // Configuration
+  module_conf_t m_cfg;
+  std::string m_dest_ip;
+  int m_num_ip_sources;
+  int m_num_rx_cores;
+  std::set<int> m_rx_qs;
+  std::map<int, std::map<int, std::string>> m_rx_core_map;
 
   // TDE specifics
   inline static const std::string m_parser_thread_name = "ipp";
@@ -86,6 +93,8 @@ private:
   std::thread m_stat_thread;
 
   // DPDK
+  inline static const IpAddr m_ip_full_mask = { "255.255.255.255" };
+  inline static const IpAddr m_ip_empty_mask = { "0.0.0.0" };
   const int m_burst_size = 512; 
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;

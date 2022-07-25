@@ -56,7 +56,6 @@ NICReceiver::NICReceiver(const std::string& name)
 
 NICReceiver::~NICReceiver()
 {
-  //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) 
   TLOG() << get_name() << ": Destructor called. Tearing down EAL.";
   ealutils::finish_eal();
 }
@@ -64,206 +63,147 @@ NICReceiver::~NICReceiver()
 void
 NICReceiver::init(const data_t& args)
 {
-  //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) 
   TLOG() << get_name() << ": Entering init() method";
 }
 
 void
 NICReceiver::do_configure(const data_t& args)
 {
-  m_num_frames[0] = { 0 };
-  m_num_frames[1] = { 0 };
-  m_num_frames[2] = { 0 };
-  m_num_frames[3] = { 0 };
-
-  // TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS)
   TLOG() << get_name() << ": Entering do_conf() method";
   m_cfg = args.get<module_conf_t>();
+  m_dest_ip = m_cfg.dest_ip;
+  auto ip_sources = m_cfg.ip_sources;
+  auto rx_cores = m_cfg.rx_cores; 
+  m_num_ip_sources = ip_sources.size();
+  m_num_rx_cores = rx_cores.size();
 
-  // Source mapping setup. For now, baked in...
-  TLOG() << "Setting up AMC[0] data queue.";
-  m_amc_data_queues[0] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
-  TLOG() << "Setting up AMC[0] parser.";
-  m_amc_frame_handlers[0] = std::make_unique<readoutlibs::ReusableThread>(0);
-  m_amc_frame_handlers[0]->set_name(m_parser_thread_name, 0);
+  // Initialize RX core map
+  for (auto rxc : rx_cores) {
+    for (auto qid : rxc.rx_qs) {
+      m_rx_core_map[rxc.lcore_id][qid] = "";
+    }
+  }
 
-  TLOG() << "Setting up AMC[1] data queue.";
-  m_amc_data_queues[1] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
-  TLOG() << "Setting up AMC[1] parser.";
-  m_amc_frame_handlers[1] = std::make_unique<readoutlibs::ReusableThread>(0);
-  m_amc_frame_handlers[1]->set_name(m_parser_thread_name, 1);
+  // Setup expected IP sources
+  for (auto src : ip_sources) {
+    TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
+    // Extend mapping
+    m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
+    m_rx_qs.insert(src.rx_q);
 
-  TLOG() << "Setting up AMC[2] data queue.";
-  m_amc_data_queues[2] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
-  TLOG() << "Setting up AMC[2] parser.";
-  m_amc_frame_handlers[2] = std::make_unique<readoutlibs::ReusableThread>(0);
-  m_amc_frame_handlers[2]->set_name(m_parser_thread_name, 2);
+    // Create frame counter metric
+    m_num_frames[src.id] = { 0 };
+    // Creating AMC handler
+    TLOG() << "Setting up AMC[" << src.id << "] data queue and parser...";
+    m_amc_data_queues[src.id] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
+    m_amc_frame_handlers[src.id] = std::make_unique<readoutlibs::ReusableThread>(0);
+    m_amc_frame_handlers[src.id]->set_name(m_parser_thread_name, src.id);
+  }
 
-  TLOG() << "Setting up AMC[3] data queue.";
-  m_amc_data_queues[3] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
-  TLOG() << "Setting up AMC[3] parser.";
-  m_amc_frame_handlers[3] = std::make_unique<readoutlibs::ReusableThread>(0);
-  m_amc_frame_handlers[3]->set_name(m_parser_thread_name, 3);
-
-  // DPDK setup
-  std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
+  // EAL setup
   TLOG() << "Setting up EAL with params from config.";
-  // int argc = 4;
-  // std::vector<char*> v{"-l", "0-1", "-n", "3"};
+  std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
   ealutils::init_eal(eal_params.size(), eal_params.data());
-  // ealutils::init_eal(argc, v.data());
-
   int nb_ports = ealutils::get_available_ports();
-  TLOG() << "Allocating pools and mbufs";
 
-// RS -> Fixme never
-/////////////////////////////////////////////////////////////////////////////////
-  const int nb_queues = 4;
-////////////////////////////////////////////////////////////////////////////////
-
-  for (int i=0; i<nb_queues; ++i) {
+  // Allocate pools and mbufs per queue
+  TLOG() << "Allocating pools and mbufs.";
+  for (int i=0; i<m_rx_qs.size(); ++i) {
     std::stringstream ss;
-    ss << "MBUFPOOL-" << i; 
+    ss << "MBP-" << i; 
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
-  TLOG() << "Setting up only port 0.";
-  ealutils::port_init(0, nb_queues, 0, m_mbuf_pools); // just init port 0.
 
+  // Setting up only port0
+  TLOG() << "Initialize only port 0!";
+  ealutils::port_init(0, m_rx_qs.size(), 0, m_mbuf_pools); // just init port0, no TX queues
 
-
-///////////////////////////////////////////////
-    struct rte_flow_error error;
-    struct rte_flow *flow;
-
-    const IpAddr src_ip("24.16.8.0");
-    const IpAddr dst_ip("192.168.8.1");
-    const IpAddr full_mask("255.255.255.255");
-    const IpAddr empty_mask("0.0.0.0");
-
-    const IpAddr src_ip16("10.73.139.16");
-    const IpAddr dst_ip16("192.168.8.1");
-    const IpAddr full_mask16("255.255.255.255");
-    const IpAddr empty_mask16("0.0.0.0");
-
-    /* closing and releasing resources */
-    //rte_flow_flush(0, &error);
-
-
-    flow = generate_ipv4_flow(0, 0,
-    			src_ip, empty_mask,
-    			dst_ip, full_mask, &error);
-
-    flow = generate_ipv4_flow(0, 1,
-    			src_ip, empty_mask,
-    			dst_ip, full_mask, &error);
-
-    flow = generate_ipv4_flow(0, 2,
-    			src_ip, empty_mask,
-    			dst_ip, full_mask, &error);
-
-    flow = generate_ipv4_flow(0, 3,
-    			src_ip, empty_mask,
-    			dst_ip, full_mask, &error);
-
-
-//    /* >8 End of create flow and the flow rule. */
-//    if (not flow) {
-//    	printf("Flow can't be created %d message: %s\n",
-//    		error.type,
-//    		error.message ? error.message : "(no stated reason)");
-//    	rte_exit(EXIT_FAILURE, "error in creating flow");
-//    }
-//    /* >8 End of creating flow for send packet with. */
-
-
-    // Adding second flow
-    flow = generate_drop_flow(0, &error);
-    /* >8 End of create flow and the flow rule. */
-    if (not flow) {
-    	printf("Flow can't be created %d message: %s\n",
-    		error.type,
-    		error.message ? error.message : "(no stated reason)");
+  // Flow steering setup
+  TLOG() << "Configuring Flow steering rules.";
+  struct rte_flow_error error;
+  struct rte_flow *flow;
+  for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
+    for (auto const& [rxqid, srcip] : rxqs) {
+      const IpAddr src_ip_addr(srcip);
+      const IpAddr dst_ip_addr(m_dest_ip);
+      flow = generate_ipv4_flow(0, rxqid, 
+		                src_ip_addr, m_ip_full_mask,
+				dst_ip_addr, m_ip_full_mask,
+				&error);
+      if (not flow) { // ers::fatal
+        TLOG() << "Flow can't be created for " << rxqid
+	       << " Error type: " << (unsigned)error.type
+	       << " Message: " << error.message;
     	rte_exit(EXIT_FAILURE, "error in creating flow");
+      }
     }
-////////////////////////////////////////////
+  }
 
-
+  // Adding drop flow
+  TLOG() << "Adding Drop Flow.";
+  flow = generate_drop_flow(0, &error);
+  if (not flow) { // ers::fatal
+    TLOG() << "Drop flow can't be created for port0!"
+           << " Error type: " << (unsigned)error.type
+           << " Message: " << error.message;
+    rte_exit(EXIT_FAILURE, "error in creating flow");
+  }
   
-  //m_mbuf_pool = ealutils::setup_eal(eal_params.size(), eal_params.data());//&eal_params[0]);
-  //TLOG() << "Allocating RTE_MBUFs.";
-  //m_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-  //rte_pktmbuf_alloc_bulk(m_mbuf_pool.get(), m_bufs, m_burst_size);
-  TLOG() << "RTE configured.";
+  TLOG() << "DPDK EAL & RTE configured.";
 }
 
 void
 NICReceiver::do_start(const data_t& args)
 {
+  TLOG() << get_name() << ": Entering do_start() method";
   if (!m_run_marker.load()) {
     set_running(true);
     m_dpdk_quit_signal = 0;
     ealutils::dpdk_quit_signal = 0;
 
+    TLOG() << "Starting stats thread.";
     m_stat_thread = std::thread([&]() {
       while (m_run_marker.load()) {
         // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-        TLOG() << "Received Rate of q0 is " << size_t(9000) * m_num_frames[0] / 1e6 * 8;
-        TLOG() << "Received Rate of q1 is " << size_t(9000) * m_num_frames[1] / 1e6 * 8;
-        TLOG() << "Received Rate of q2 is " << size_t(9000) * m_num_frames[2] / 1e6 * 8;
-        TLOG() << "Received Rate of q3 is " << size_t(9000) * m_num_frames[3] / 1e6 * 8;
+	for (auto& [qid, nframes] : m_num_frames) { // fixme for proper payload size
+	  TLOG() << "Received Rate of q[" << qid << "] is " << size_t(9000) * nframes.load() / 1e6 * 8;
+	  nframes.exchange(0);
+	}
 	TLOG() << "CLEARED  Rate is " << size_t(9000) * m_cleaned / 1e6 * 8;
-        // printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
-        m_num_frames[0].exchange(0);
-        m_num_frames[1].exchange(0);
-        m_num_frames[2].exchange(0);
-        m_num_frames[3].exchange(0);
 	m_cleaned.exchange(0);
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     });
-    TLOG() << "Stats thread started.";
 
     TLOG() << "Starting frame processors.";
     for (unsigned int i=0; i<m_amc_frame_handlers.size(); ++i) {
       m_amc_frame_handlers[i]->set_work(&NICReceiver::handle_frame_queue, this, i);
     }
 
-    // Call lcore_main on the main core only
-    // int res = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 1);
-    // int res2 = rte_eal_remote_launch((lcore_function_t *) lcore_main, mbuf_pool, 2);
-    //rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
-    int ret1 = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, 1); //SKIP_MAIN); // cast (int (*)(void*))
-    int ret2 = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, 2);
-    int ret3 = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, 3);
-    int ret4 = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, 4);
-    //ret = rte_eal_mp_remote_launch(launch_one_lcore, NULL, SKIP_MAIN);
+    TLOG() << "Starting LCore processors:";
+    for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
+      int ret = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, lcoreid);
+      TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret;
+    }
 
-    TLOG() << "RX runner started.";
-
-    // launch core proc
-    TLOG_DEBUG(5) << "Started DPDK lcore processor...";
   } else {
-    TLOG_DEBUG(5) << "DPDK lcore processor is already running!";
+    TLOG_DEBUG(5) << "NICReader is already running!";
   }
 }
 
 void
 NICReceiver::do_stop(const data_t& args)
 {
-  TLOG() << "STOP CALLED";
+  TLOG() << get_name() << ": Entering do_stop() method";
   if (m_run_marker.load()) {
-    TLOG() << "Raising quit through variables!";
+    TLOG() << "Raising stop through variables!";
     set_running(false);
     m_dpdk_quit_signal = 1;
     ealutils::dpdk_quit_signal = 1;
-    TLOG() << "Signal raised!";
     int ret = ealutils::wait_for_lcores();
-    TLOG() << "Lcores finished!";
-
-    // should wait for thread to join
-    TLOG_DEBUG(5) << "Stoppped DPDK lcore processor...";
+    TLOG() << "Stoppped DPDK lcore processors...";
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
@@ -272,6 +212,7 @@ NICReceiver::do_stop(const data_t& args)
 void
 NICReceiver::do_scrap(const data_t& args)
 {
+  TLOG() << get_name() << ": Entering do_scrap() method";
 }
 
 void
@@ -284,7 +225,6 @@ void
 NICReceiver::handle_frame_queue(int id)
 {
   TLOG() << "frame_proc[" << id << "] starting to handle frames in corresponding queue!";
-
   while (m_run_marker.load()) {
     detdataformats::tde::TDE16Frame frame;
     if (m_amc_data_queues[id]->read(frame)) {
