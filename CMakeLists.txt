@@ -18,8 +18,8 @@ pkg_check_modules(DPDK REQUIRED libdpdk)
 daq_codegen(*.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
-
+# RS -> This was needed at some point?
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
 
 ##############################################################################
 # Dependency sets
@@ -47,17 +47,14 @@ endif()
 
 ##############################################################################
 # Main library
-
 daq_add_library(*.cpp udp/*.cpp arp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
-# daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
-
-# if(WITH_DPDK_AS_PACKAGE)
-#   # All good
-# else()
-#   # Hack target
-#   target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
-# endif()
+if(WITH_DPDK_AS_PACKAGE)
+  # All good
+else()
+  # Hack target
+  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
+endif()
 
 ##############################################################################
 # Plugins

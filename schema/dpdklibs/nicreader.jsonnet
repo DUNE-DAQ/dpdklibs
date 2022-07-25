@@ -47,6 +47,9 @@ local nicreader = {
         s.field("card_id", self.id, 0,
                 doc="Physical card identifier (in the same host)"),
 
+        s.field("with_drop_flow", self.choice, true,
+                doc="Enable drop flow of non-UDP packets"),
+
         s.field("eal_arg_list", self.string, "",
                 doc="A string with EAL arguments"),
 
