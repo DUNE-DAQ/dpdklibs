@@ -77,7 +77,7 @@ private:
 
   // TDE specifics
   inline static const std::string m_parser_thread_name = "ipp";
-  inline static const std::size_t m_amc_queue_capacity = 1000000;
+  inline static const std::size_t m_amc_queue_capacity = 1000;
   std::map<int, amc_frame_queue_ptr_t> m_amc_data_queues;
   std::map<int, std::unique_ptr<readoutlibs::ReusableThread>> m_amc_frame_handlers;
   //std::map<int, std::atomic<uint64_t>> m_amc_frame_dropped;
