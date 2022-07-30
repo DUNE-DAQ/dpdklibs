@@ -9,18 +9,20 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
   bool once = true;
   uint16_t port = 0;
 
+  const uint16_t lid = rte_lcore_id();
+
+  auto queues = m_rx_core_map[lid];
+
+  if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
+    TLOG() << "WARNING, port " << port << " is on remote NUMA node to polling thread! "
+           << "Performance will not be optimal.";
+  }
+
   //while(!m_run_marker) {
   while(!ealutils::dpdk_quit_signal){
-    const uint16_t lid = rte_lcore_id();
-    const uint16_t queue = lid-1;
-    if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
-      TLOG() << "WARNING, port " << port << " is on remote NUMA node to polling thread! "
-             << "Performance will not be optimal.";
-    }
 
-    // Get burst of RX packets, from first port of pair.
-    
-    //for (int q=0; q<nb_q; ++q) {
+    for (auto q : queues) {
+      auto queue = q.first;
       // Get burst from queue
       const uint16_t nb_rx = rte_eth_rx_burst(port, queue, m_bufs[queue], m_burst_size);
       if (nb_rx != 0) {
@@ -33,7 +35,7 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
           TLOG() << "lid = " << lid;
           TLOG() << "queue = " << queue;
           TLOG() << "nb_rx = " << nb_rx;
-          TLOG() << "bufs.dta_len = " << m_bufs[queue][0]->data_len;;
+          TLOG() << "bufs.dta_len = " << m_bufs[queue][0]->data_len;
       	  TLOG() << "bufs.pkt_len = " << m_bufs[queue][0]->pkt_len;
           rte_pktmbuf_dump(stdout, m_bufs[queue][0], m_bufs[queue][0]->pkt_len);
  	    once = false;
@@ -57,7 +59,7 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
 	    //}
 	  
 	    // Check for JUMBOs (user payloads)
-	    if (m_bufs[queue][i]->data_len > 8000) { // do proper check on data length later
+	    if (true) { // do proper check on data length later
             m_num_frames[queue]++;
             std::size_t data_len = m_bufs[queue][i]->data_len;
             char* message = udp::get_udp_payload(m_bufs[queue][i]);  //(char *)(udp_packet + 1);
@@ -76,7 +78,7 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
         //}
 
       } // per burst
-    //} // per Q
+    } // per Q
   }
  
   TLOG() << "Rx runner returned.";
