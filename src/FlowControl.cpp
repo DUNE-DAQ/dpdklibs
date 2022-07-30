@@ -2,7 +2,6 @@
  * Copyright 2017 Mellanox Technologies, Ltd
  */
 
-#include "dpdklibs/udp/IPV4Address.hpp"
 #include "dpdklibs/FlowControl.hpp"
 
 namespace dunedaq {
@@ -34,8 +33,8 @@ namespace dpdklibs {
 /* Function responsible for creating the flow rule. 8< */
 struct rte_flow *
 generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
-                   udp::IpAddr src_ip, udp::IpAddr src_mask,
-                   udp::IpAddr dest_ip, udp::IpAddr dest_mask,
+                   uint32_t src_ip, uint32_t src_mask,
+                   uint32_t dest_ip, uint32_t dest_mask,
                    struct rte_flow_error *error)
 {
   // Declaring structs being used.

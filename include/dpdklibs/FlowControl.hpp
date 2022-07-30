@@ -12,18 +12,16 @@
 #include <stdint.h>
 #include <rte_flow.h>
 
-#include "dpdklibs/udp/IPV4Address.hpp"
-
 namespace dunedaq {
 namespace dpdklibs {
 
-static constexpr uint32_t MAX_PATTERN_NUM = 4; // (shouldn't this be a configuration?)
+static constexpr uint32_t MAX_PATTERN_NUM = 3;
 static constexpr uint32_t MAX_ACTION_NUM  = 2;
 
 struct rte_flow *
 generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
-                   udp::IpAddr src_ip, udp::IpAddr src_mask,
-                   udp::IpAddr dest_ip, udp::IpAddr dest_mask,
+                   uint32_t src_ip, uint32_t src_mask,
+                   uint32_t dest_ip, uint32_t dest_mask,
                    struct rte_flow_error *error);
 
 struct rte_flow *

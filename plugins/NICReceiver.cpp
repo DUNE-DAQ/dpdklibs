@@ -126,11 +126,11 @@ NICReceiver::do_configure(const data_t& args)
   struct rte_flow *flow;
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
-      const udp::IpAddr src_ip_addr(srcip);
-      const udp::IpAddr dst_ip_addr(m_dest_ip);
+      // const udp::IpAddr src_ip_addr(srcip);
+      // const udp::IpAddr dst_ip_addr(m_dest_ip);
       flow = generate_ipv4_flow(0, rxqid, 
-		                src_ip_addr, m_ip_full_mask,
-				dst_ip_addr, m_ip_full_mask,
+		                0, 0,
+				0, 0,
 				&error);
       if (not flow) { // ers::fatal
         TLOG() << "Flow can't be created for " << rxqid
