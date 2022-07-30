@@ -24,17 +24,35 @@ CLOCK_SPEED_HZ = 50000000
 
 def generate(
     HOST='localhost',
-    NUMBER_OF_CORES=2
+    NUMBER_OF_CORES=2,
+    NUMBER_OF_IPS_PER_CORE=2,
+    BASE_SOURCE_IP="10.73.139.",
+    DESTINATION_IP="10.73.139.17",
+    FRONTEND_TYPE='tde',
+    EAL_ARGS=''
 ):
 
     modules = []
     queues = []
 
+    last_ip = 100
+
+    core_maps = []
+    for core in range(1, NUMBER_OF_CORES + 1):
+        ips = []
+        for ip in range(NUMBER_OF_IPS_PER_CORE):
+            src_ip = f'{BASE_SOURCE_IP}{last_ip + core * NUMBER_OF_IPS_PER_CORE + ip}'
+            ips.append(src_ip)
+        core_maps.append(nsc.Core(lcore_id=core, src_ips=ips))
+
     modules += [DAQModule(name="nic_sender", plugin="NICSender",
                           conf=nsc.Conf(
-                               eal_arg_list='',
+                               eal_arg_list=EAL_ARGS,
                                number_of_cores=NUMBER_OF_CORES,
-                               burst_size=1,)
+                               burst_size=1,
+                               rate=1,
+                               core_list=core_maps,
+                          )
                           
         )]
 

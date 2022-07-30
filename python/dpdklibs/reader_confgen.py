@@ -62,7 +62,10 @@ def generate(
         rxcores.append( nrc.LCore(lcore_id=group+1, rx_qs=qlist) )
 
     modules += [DAQModule(name="nic_reader", plugin="NICReceiver",
-                          conf=nrc.Conf(eal_arg_list=EAL_ARGS, dest_ip=DESTINATION_IP, rx_cores=rxcores, ip_sources=links)
+                          conf=nrc.Conf(eal_arg_list=EAL_ARGS,
+                                        dest_ip=DESTINATION_IP,
+                                        rx_cores=rxcores,
+                                        ip_sources=links)
         )]
 
     queues += [Queue(f"nic_reader.output_{idx}",f"datahandler_{idx}.raw_input",f'{FRONTEND_TYPE}_link_{idx}', 100000) for idx in range(NUMBER_OF_DATA_PRODUCERS)]

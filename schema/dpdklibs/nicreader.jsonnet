@@ -37,7 +37,7 @@ local nicreader = {
     rxqs : s.sequence("RXQList", self.id, doc="A list of RX Queue IDs"),
 
     lcore : s.record("LCore", [
-        s.field("lcore_id", self.id, 0, doc="ID of lcroe"),
+        s.field("lcore_id", self.id, 0, doc="ID of lcore"),
         s.field("rx_qs", self.rxqs, doc="A set of RX queue IDs to process")
     ], doc=""),
 
