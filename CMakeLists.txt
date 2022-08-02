@@ -10,6 +10,7 @@ find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
 find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
+find_package(fdreadoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DPDK REQUIRED libdpdk)
@@ -23,7 +24,7 @@ daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.
 
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats fdreadoutlibs::fdreadoutlibs)
 
 # Provide override functionality for DPDK dependencies
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
