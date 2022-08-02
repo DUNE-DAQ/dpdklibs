@@ -33,9 +33,9 @@ CLOCK_SPEED_HZ = 50000000
 def generate(
     HOST='localhost',
     ENABLE_SOFTWARE_TPG=False,
-    NUMBER_OF_GROUPS=1,
-    NUMBER_OF_LINKS_PER_GROUP=4,
-    NUMBER_OF_DATA_PRODUCERS=1*4,
+    NUMBER_OF_GROUPS=4,
+    NUMBER_OF_LINKS_PER_GROUP=1,
+    NUMBER_OF_DATA_PRODUCERS=2,
     BASE_SOURCE_IP="10.73.139.",
     DESTINATION_IP="10.73.139.17",
     FRONTEND_TYPE='tde',
@@ -65,10 +65,13 @@ def generate(
                           conf=nrc.Conf(eal_arg_list=EAL_ARGS,
                                         dest_ip=DESTINATION_IP,
                                         rx_cores=rxcores,
-                                        ip_sources=links)
+                                        ip_sources=links),
         )]
 
-    queues += [Queue(f"nic_reader.output_{idx}",f"datahandler_{idx}.raw_input",f'{FRONTEND_TYPE}_link_{idx}', 100000) for idx in range(NUMBER_OF_DATA_PRODUCERS)]
+    queues += [Queue(f"nic_reader.output_{idx}",
+                     f"datahandler_{idx}.raw_input",
+                     f'{FRONTEND_TYPE}_link_{idx}', 100000)
+               for idx in range(NUMBER_OF_DATA_PRODUCERS)]
 
     for idx in range(NUMBER_OF_DATA_PRODUCERS):
         if ENABLE_SOFTWARE_TPG:
