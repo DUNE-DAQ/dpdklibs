@@ -93,8 +93,6 @@ private:
   std::thread m_stat_thread;
 
   // DPDK
-  inline static const udp::IpAddr m_ip_full_mask = { "255.255.255.255" };
-  inline static const udp::IpAddr m_ip_empty_mask = { "0.0.0.0" };
   const int m_burst_size = 512; 
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;
@@ -106,6 +104,8 @@ private:
   // Lcore processor
   //template<class T> 
   int rx_runner(void *arg __rte_unused);
+
+  std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDE_AMC_STRUCT>> m_sender;
 
 };
 

@@ -2,8 +2,11 @@
  * Copyright 2017 Mellanox Technologies, Ltd
  */
 
-#include "dpdklibs/udp/IPV4Address.hpp"
 #include "dpdklibs/FlowControl.hpp"
+
+#include "logging/Logging.hpp"
+
+#include <rte_ip.h>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -34,8 +37,8 @@ namespace dpdklibs {
 /* Function responsible for creating the flow rule. 8< */
 struct rte_flow *
 generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
-                   udp::IpAddr src_ip, udp::IpAddr src_mask,
-                   udp::IpAddr dest_ip, udp::IpAddr dest_mask,
+                   uint32_t src_ip, uint32_t src_mask,
+                   uint32_t dest_ip, uint32_t dest_mask,
                    struct rte_flow_error *error)
 {
   // Declaring structs being used.
@@ -46,6 +49,7 @@ generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
   struct rte_flow_action_queue queue = { .index = rx_q };
   struct rte_flow_item_ipv4 ip_spec;
   struct rte_flow_item_ipv4 ip_mask;
+
   int res;
   
   memset(pattern, 0, sizeof(pattern));
@@ -54,8 +58,6 @@ generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
   // Set the rule attribute, only ingress packets will be checked.
   memset(&attr, 0, sizeof(struct rte_flow_attr));
   attr.ingress = 1;
-  attr.egress = 0;
-  attr.priority = 0;
   
   /*
    * create the action sequence.
@@ -72,7 +74,6 @@ generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
    */
   
   // Set this level to allow all.
-  pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
   
   /*
    * setting the second level of the pattern (IP).
@@ -83,28 +84,18 @@ generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
   // Setting the second level of the pattern.
   memset(&ip_spec, 0, sizeof(struct rte_flow_item_ipv4));
   memset(&ip_mask, 0, sizeof(struct rte_flow_item_ipv4));
-  
-  
-  // Cast to small endian
-  const rte_le32_t src_addr_ser = *(reinterpret_cast<rte_le32_t *>(&src_ip));
-  
-  //ip_spec.hdr.dst_addr = htonl(dest_ip);
-  // Convertion to big endian
-  ip_spec.hdr.dst_addr = rte_cpu_to_be_32(src_addr_ser);
-  
-  ip_mask.hdr.dst_addr = *(reinterpret_cast<uint32_t *>(&dest_mask)); // TODO why endian convertion for ip but not for the mask?
-  
-  const rte_le32_t dst_addr_ser = *(reinterpret_cast<rte_le32_t *>(&dest_ip));
-  //ip_spec.hdr.src_addr = htonl(src_ip);
-  ip_spec.hdr.src_addr = rte_cpu_to_be_32(dst_addr_ser);
-  
-  ip_mask.hdr.src_addr = *(reinterpret_cast<uint32_t *>(&src_mask)); // TODO why endian convertion for ip but not for the mask?
+  ip_spec.hdr.dst_addr = htonl(dest_ip);
+  ip_mask.hdr.dst_addr = 0;
+  ip_spec.hdr.src_addr = htonl(src_ip);
+  ip_mask.hdr.src_addr = src_mask;
+
+  pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
   
   pattern[1].type = RTE_FLOW_ITEM_TYPE_IPV4;
   pattern[1].spec = &ip_spec;
   pattern[1].mask = &ip_mask;
   
-  // The final level must be always type end.
+
   pattern[2].type = RTE_FLOW_ITEM_TYPE_END;
   
   // Validate the rule and create it.

@@ -51,10 +51,8 @@ public:
   void init(const nlohmann::json& iniobj) override;
 
 private:
-  // Types
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
-  // Commands
   void do_start(const nlohmann::json& obj); 
   void do_stop(const nlohmann::json& obj);
   void do_configure(const nlohmann::json& obj);
@@ -65,7 +63,6 @@ private:
 
   void lcore_main(void *arg);
 
-  // Threading
   void do_work(std::atomic<bool>&);
 
   std::atomic<bool> m_run_mark;
@@ -74,7 +71,10 @@ private:
   int m_number_of_cores;
   double m_rate;
 
-  // Configuration
+  std::map<int, std::vector<std::string>> m_core_map;
+  std::map<int, std::vector<uint32_t>> m_core_map32;
+
+
 };
 } // namespace dpdklibs
 } // namespace dunedaq

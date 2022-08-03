@@ -22,6 +22,12 @@
 #include <utility>
 #include <vector>
 
+#include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_udp.h>
+
+#include "dpdklibs/udp/PacketCtor.hpp"
+
 /**
  * @brief Name used by TRACE TLOG calls from this source file
  */
@@ -53,53 +59,76 @@ NICSender::NICSender(const std::string& name)
   register_command("scrap", &NICSender::do_scrap);
 }
 
-// void *
-// pktgen_udp_hdr_ctor(void *hdr, int type)
-// {
-//     uint16_t tlen;
+void
+eth_hdr_ctor(struct rte_ether_hdr *eth_hdr){
 
-//     struct rte_ipv4_hdr *ipv4 = hdr;
-//     struct rte_udp_hdr *udp   = (struct rte_udp_hdr *)&ipv4[1];
+  char mac_address[] = "ec:0d:9a:8e:b9:88";
+  //char router_mac_address[] = "00:25:90:ed:d5:70"; // farm 21
 
-//     struct rte_ether_addr eth_dst_addr = ; /**< Destination Ethernet address */
-//     struct rte_ether_addr eth_src_addr = ; /**< Source Ethernet address */
+  rte_ether_addr addr;
+  addr.addr_bytes[0] = (int)('e') >> 4 | (int)('c');
+  addr.addr_bytes[1] = (int)('0') >> 4 | (int)('d');
+  addr.addr_bytes[2] = (int)('9') >> 4 | (int)('a');
+  addr.addr_bytes[3] = (int)('8') >> 4 | (int)('e');
+  addr.addr_bytes[4] = (int)('b') >> 4 | (int)('9');
+  addr.addr_bytes[5] = (int)('8') >> 4 | (int)('8');
+  // get_ether_addr6(mac_address, &addr);
 
-//     uint16_t ether_hdr_size = ; /**< Size of Ethernet header in packet for VLAN ID */
-//     uint16_t ipProto = ; /**< TCP or UDP or ICMP */
-//     uint16_t pktSize = ;    /**< Size of packet in bytes not counting FCS */
+  eth_hdr->dst_addr = addr;
 
-//     uint16_t sport = ;   /**< Source port value */
-//     uint16_t dport = ;   /**< Destination port value */
+  uint8_t port_id = 0;
+  rte_eth_macaddr_get(port_id, &eth_hdr->src_addr);
+  eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
+  // eth_hdr->src_addr = {10, 73, 139, 16};
+  // eth_hdr->ether_type = ;
+}
 
+void
+pktgen_udp_hdr_ctor(rte_ipv4_hdr *ipv4, rte_udp_hdr *udp)
+{
+    uint16_t tlen;
 
-//     /* Create the UDP header */
-//     ipv4->src_addr = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
-//     ipv4->dst_addr = htonl(pkt->ip_dst_addr.addr.ipv4.s_addr);
+    // struct rte_ipv4_hdr *ipv4 = reinterpret_cast<struct rte_ipv4_hdr *>(hdr);
+    // struct rte_udp_hdr *udp   = (struct rte_udp_hdr *)&ipv4[1];
 
-//     ipv4->version_ihl   = (IPv4_VERSION << 4) | (sizeof(struct rte_ipv4_hdr) / 4);
-//     tlen                = pkt->pktSize - pkt->ether_hdr_size;
-//     ipv4->total_length  = htons(tlen);
-//     ipv4->next_proto_id = pkt->ipProto;
+    struct rte_ether_addr eth_dst_addr = {10, 73, 139, 17}; /**< Destination Ethernet address */
+    // struct rte_ether_addr eth_src_addr = "10.73.139.16"; /**< Source Ethernet address */
 
-//     tlen           = pkt->pktSize - (pkt->ether_hdr_size + sizeof(struct rte_ipv4_hdr));
-//     udp->dgram_len = htons(tlen);
-//     udp->src_port  = htons(pkt->sport);
-//     udp->dst_port  = htons(pkt->dport);
+    // uint16_t ether_hdr_size = ; /**< Size of Ethernet header in packet for VLAN ID */
+    // uint16_t ipProto = ; /**< TCP or UDP or ICMP */
+    // uint16_t pktSize = ;    /**< Size of packet in bytes not counting FCS */
 
-//     if (pkt->dport == VXLAN_PORT_ID) {
-//         struct vxlan *vxlan = (struct vxlan *)&udp[1];
+    uint16_t sport = 0;   /**< Source port value */
+    uint16_t dport = 0;   /**< Destination port value */
 
-//         vxlan->vni_flags = htons(pkt->vni_flags);
-//         vxlan->group_id  = htons(pkt->group_id);
-//         vxlan->vxlan_id  = htonl(pkt->vxlan_id) << 8;
-//     }
+    /* Create the UDP header */
+    // ipv4->src_addr = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
+    // ipv4->dst_addr = eth_dst_addr;
 
-//     udp->dgram_cksum = 0;
-//     udp->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4, (const void *)udp);
-//     if (udp->dgram_cksum == 0)
-//         udp->dgram_cksum = 0xFFFF;
-// }
+    // ipv4->version_ihl   = (IPv4_VERSION << 4) | (sizeof(struct rte_ipv4_hdr) / 4);
+    // tlen                = pkt->pktSize - pkt->ether_hdr_size;
+    // ipv4->total_length  = htons(tlen);
+    // ipv4->next_proto_id = pkt->ipProto;
+
+    // tlen           = pkt->pktSize - (pkt->ether_hdr_size + sizeof(struct rte_ipv4_hdr));
+    // udp->dgram_len = htons(tlen);
+    udp->src_port  = htons(sport);
+    udp->dst_port  = htons(dport);
+
+    // if (pkt->dport == VXLAN_PORT_ID) {
+    //     struct vxlan *vxlan = (struct vxlan *)&udp[1];
+
+    //     vxlan->vni_flags = htons(pkt->vni_flags);
+    //     vxlan->group_id  = htons(pkt->group_id);
+    //     vxlan->vxlan_id  = htonl(pkt->vxlan_id) << 8;
+    // }
+
+    udp->dgram_cksum = 0;
+    udp->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4, (const void *)udp);
+    if (udp->dgram_cksum == 0)
+        udp->dgram_cksum = 0xFFFF;
+}
 
 void NICSender::lcore_main(void *arg __rte_unused) {
 
@@ -109,7 +138,6 @@ void NICSender::lcore_main(void *arg __rte_unused) {
     int m_burst_size = 1;
 
     TLOG() << "lid = " << lid;
-    if (lid > 2) return;
 
     TLOG () << "Going to sleep with lid = " << lid;
     rte_delay_us_sleep((lid + 1) * 1000021);
@@ -118,7 +146,7 @@ void NICSender::lcore_main(void *arg __rte_unused) {
     unsigned nb_ports = rte_eth_dev_count_avail();
     TLOG () << "mbuf with lid = " << lid;
     struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
-        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+        MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
     TLOG () << "mbuf done with lid = " << lid;
 
     uint16_t portid;
@@ -137,9 +165,6 @@ void NICSender::lcore_main(void *arg __rte_unused) {
   //     printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
   // }
 
-  printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
-
-  /* Run until the application is quit or killed. */
   int burst_number = 0;
   std::atomic<int> num_frames = 0;
 
@@ -153,12 +178,13 @@ void NICSender::lcore_main(void *arg __rte_unused) {
   });
 
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-  if (lid == 2) TLOG() << "Allocation with lid = " << lid;
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
-  if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
 
-
+  int i = 0;
+  auto ips = m_core_map32[lid];
   while (m_run_mark) {
+      i++;
+      uint8_t ip = ips[i % ips.size()] & 0xff;
       // TODO: Why does it crash when accessing class members?
       // TLOG() << m_run_mark.load();
       port = 0;
@@ -178,15 +204,33 @@ void NICSender::lcore_main(void *arg __rte_unused) {
 
       for (int i = 0; i < m_burst_size; i++)
       {
-        struct ipv4_udp_packet msg;
-        pktgen_packet_ctor(&msg.hdr);
 
-        pkt[i]->pkt_len = sizeof(struct ipv4_udp_packet);
-        pkt[i]->data_len = 8000;
+        struct ipv4_udp_packet msg;
+        // pktgen_packet_ctor(&msg.hdr);
+
+        struct rte_ether_hdr eth_hdr;
+        // eth_hdr_ctor(&eth_hdr);
+
+        rte_ipv4_hdr hdr;
+        rte_udp_hdr hdr_udp;
+        // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
+        // pktgen_udp_hdr_ctor(&hdr);
+
+        // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
+        pkt[i]->pkt_len = 8997;
+        pkt[i]->data_len = 8996;
+
+        uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, 0x08, 0x00, 0x45, 0x00, 0x23, 0x16, 0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11, 0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip, 0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2, 0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
 
         char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+        // char *ether_mbuf_offset2 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr));
+        // char *ether_mbuf_offset3 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
+        char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
 
-        rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ipv4_udp_packet));
+        rte_memcpy(ether_mbuf_offset, ary, 42);
+        // rte_memcpy(ether_mbuf_offset2, &hdr, sizeof(struct rte_ipv4_hdr));
+        // rte_memcpy(ether_mbuf_offset3, &hdr_udp, sizeof(struct rte_udp_hdr));
+        rte_memcpy(ether_mbuf_offset4, &msg, sizeof(struct ipv4_udp_packet));
 
         if (false) {
           rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
@@ -246,6 +290,22 @@ NICSender::do_configure(const data_t& args)
     m_number_of_cores = cfg.number_of_cores;
     m_rate = cfg.rate;
 
+    for (auto& [id, ips]: cfg.core_list) {
+      m_core_map[id] = ips;
+      std::vector<uint32_t> vips;
+      for (auto& ip : ips) {
+        size_t ind = 0, current_ind = 0;
+        std::vector<uint8_t> v;
+        for (int i = 0; i < 4; ++i) {
+          v.push_back(std::stoi(ip.substr(current_ind, ip.size() - current_ind), &ind));
+          current_ind += ind + 1;
+        }
+        vips.push_back(RTE_IPV4(v[0], v[1], v[2], v[3]));
+      }
+      m_core_map32[id] = vips;
+    }
+
+
     dpdk_configure();
 }
 
@@ -254,8 +314,9 @@ NICSender::do_start(const data_t& args)
 {
   m_run_mark.store(true);
 
-  for (int i = 1; i <= m_number_of_cores; ++i) {
-    rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, i);
+  for (auto& [id, _] : m_core_map) {
+    TLOG() << "Starting core " << id;
+    rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, id);
   }
   // rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, 2);
 }
