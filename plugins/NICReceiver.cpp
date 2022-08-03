@@ -15,6 +15,8 @@
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
 
+#include "fdreadoutlibs/FDReadoutTypes.hpp"
+
 #include "NICReceiver.hpp"
 
 #include <cinttypes>
@@ -84,6 +86,11 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
+  dunedaq::iomanager::ConnectionRef cref;
+  cref.uid = "tde_link_0";
+  m_sender = get_iom_sender<fdreadoutlibs::types::TDE_AMC_STRUCT>(cref);
+
+
   // Setup expected IP sources
   for (auto src : ip_sources) {
     TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
@@ -126,10 +133,19 @@ NICReceiver::do_configure(const data_t& args)
   struct rte_flow *flow;
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
-      // const udp::IpAddr src_ip_addr(srcip);
-      // const udp::IpAddr dst_ip_addr(m_dest_ip);
+
+      // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
+      TLOG() << "Current ip is " << srcip;
+      size_t ind = 0, current_ind = 0;
+      std::vector<uint8_t> v;
+      for (int i = 0; i < 4; ++i) {
+        TLOG() << "Calling stoi with argument " << srcip.substr(current_ind, srcip.size() - current_ind);
+        v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
+        current_ind += ind + 1;
+      }
+
       flow = generate_ipv4_flow(0, rxqid, 
-		                0, 0,
+		                RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff,
 				0, 0,
 				&error);
       if (not flow) { // ers::fatal
@@ -260,10 +276,14 @@ dump_to_buffer(const char* data,
 
 void
 NICReceiver::copy_out(int queue, char* message, std::size_t size) {
-  detdataformats::tde::TDE16Frame target_payload;
+  // detdataformats::tde::TDE16Frame target_payload;
+  fdreadoutlibs::types::TDE_AMC_STRUCT target_payload;
   uint32_t bytes_copied = 0;
   dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-  m_amc_data_queues[queue]->write(std::move(target_payload));
+  // m_amc_data_queues[queue]->write(std::move(target_payload));
+  m_sender->send(std::move(target_payload), std::chrono::milliseconds(100));
+  TLOG() << "SENDING";
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 void 
