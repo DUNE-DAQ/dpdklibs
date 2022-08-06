@@ -27,6 +27,7 @@
 #include <rte_udp.h>
 
 #include "dpdklibs/udp/PacketCtor.hpp"
+#include "detdataformats/tde/TDE16Frame.hpp"
 
 /**
  * @brief Name used by TRACE TLOG calls from this source file
@@ -130,26 +131,40 @@ pktgen_udp_hdr_ctor(rte_ipv4_hdr *ipv4, rte_udp_hdr *udp)
         udp->dgram_cksum = 0xFFFF;
 }
 
-void NICSender::lcore_main(void *arg __rte_unused) {
+struct lcore_args
+{
+  NICSender *ns;
+};
 
-    uint16_t lid = rte_lcore_id();
+template<typename T>
+int lcore_main(void *arg)
+{
+  lcore_args *largs = static_cast<lcore_args*>(arg);
+  uint16_t lid = rte_lcore_id();
 
-    // TODO: Check why it crashes without this line
-    int m_burst_size = 1;
+  std::vector<uint32_t> ips;
+  for (auto& [key, val]: largs->ns->m_core_map32) {
+    if (key == lid) { ips = val; TLOG() << "ips has now size " << ips.size();}
+    for (auto& elem : val)
+      TLOG() << "Core map val: " << key << " " << elem;
+  }
 
-    TLOG() << "lid = " << lid;
+  // TODO: Check why it crashes without this line
+  int m_burst_size = 1;
 
-    TLOG () << "Going to sleep with lid = " << lid;
-    rte_delay_us_sleep((lid + 1) * 1000021);
-    uint16_t port;
+  TLOG() << "lid = " << lid;
 
-    unsigned nb_ports = rte_eth_dev_count_avail();
-    TLOG () << "mbuf with lid = " << lid;
-    struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
-        MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
-    TLOG () << "mbuf done with lid = " << lid;
+  TLOG () << "Going to sleep with lid = " << lid;
+  rte_delay_us_sleep((lid + 1) * 1000021);
+  uint16_t port;
 
-    uint16_t portid;
+  unsigned nb_ports = rte_eth_dev_count_avail();
+  TLOG () << "mbuf with lid = " << lid;
+  struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
+      MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
+  TLOG () << "mbuf done with lid = " << lid;
+
+  uint16_t portid;
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
@@ -171,94 +186,92 @@ void NICSender::lcore_main(void *arg __rte_unused) {
   auto stats = std::thread([&]() {
     while (true) {
       // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+      TLOG() << "Rate is " << (sizeof(T)+42) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
+  TLOG() << "Doing malloc";
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
+  TLOG() << "Malloc done";
 
-  int i = 0;
-  auto ips = m_core_map32[lid];
-  while (m_run_mark) {
-      i++;
-      uint8_t ip = ips[i % ips.size()] & 0xff;
-      // TODO: Why does it crash when accessing class members?
-      // TLOG() << m_run_mark.load();
-      port = 0;
+  size_t i = 0;
+  TLOG() << "Got ips with lid " << lid;
+  while (true) {
+    // TLOG() << "Inside the loop";
+    i++;
+    // TLOG() << "Index is " << i % ips.size();
+    uint8_t ip = ips[i % ips.size()] & 0xff;
+    // TODO: Why does it crash when accessing class members?
+    // TLOG() << m_run_mark.load();
+    port = 0;
 
-      // Ethernet header
-      // struct rte_ether_hdr eth_hdr = {0};
-      // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    // Ethernet header
+    // struct rte_ether_hdr eth_hdr = {0};
+    // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-      /* Dummy message to transmit */
+    for (int i = 0; i < m_burst_size; i++)
+    {
 
+      T msg;
+      msg.set_timestamp(0);
+      // pktgen_packet_ctor(&msg.hdr);
 
-      //struct rte_mbuf *pkt[m_burst_size];
+      // struct rte_ether_hdr eth_hdr;
+      // eth_hdr_ctor(&eth_hdr);
 
-      // if (burst_number % 1000 == 0) {
-      //   TLOG() << "burst_number =" << burst_number;
-      // }
+      // rte_ipv4_hdr hdr;
+      // rte_udp_hdr hdr_udp;
+      // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
+      // pktgen_udp_hdr_ctor(&hdr);
 
-      for (int i = 0; i < m_burst_size; i++)
-      {
+      // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
+      // pkt[i]->pkt_len = sizeof(T)+42;
+      // TLOG() << "pkt_len = " << sizeof(T) + 42; 9014 for TDE + 42
+      pkt[i]->data_len = 8996;
 
-        struct ipv4_udp_packet msg;
-        // pktgen_packet_ctor(&msg.hdr);
+      uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, 0x08, 0x00, 0x45, 0x00, 0x23, 0x16, 0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11, 0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip, 0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2, 0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
 
-        struct rte_ether_hdr eth_hdr;
-        // eth_hdr_ctor(&eth_hdr);
+      char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+      // char *ether_mbuf_offset2 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr));
+      // char *ether_mbuf_offset3 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
+      char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
 
-        rte_ipv4_hdr hdr;
-        rte_udp_hdr hdr_udp;
-        // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
-        // pktgen_udp_hdr_ctor(&hdr);
+      rte_memcpy(ether_mbuf_offset, ary, 42);
+      // rte_memcpy(ether_mbuf_offset2, &hdr, sizeof(struct rte_ipv4_hdr));
+      // rte_memcpy(ether_mbuf_offset3, &hdr_udp, sizeof(struct rte_udp_hdr));
+      rte_memcpy(ether_mbuf_offset4, &msg, sizeof(T));
 
-        // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
-        pkt[i]->pkt_len = 8997;
-        pkt[i]->data_len = 8996;
-
-        uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, 0x08, 0x00, 0x45, 0x00, 0x23, 0x16, 0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11, 0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip, 0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2, 0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
-
-        char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-        // char *ether_mbuf_offset2 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr));
-        // char *ether_mbuf_offset3 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
-        char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
-
-        rte_memcpy(ether_mbuf_offset, ary, 42);
-        // rte_memcpy(ether_mbuf_offset2, &hdr, sizeof(struct rte_ipv4_hdr));
-        // rte_memcpy(ether_mbuf_offset3, &hdr_udp, sizeof(struct rte_udp_hdr));
-        rte_memcpy(ether_mbuf_offset4, &msg, sizeof(struct ipv4_udp_packet));
-
-        if (false) {
-          rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
-        }
+      if (false) {
+        rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
       }
-      burst_number++;
+    }
+    burst_number++;
 
-      /* Send burst of TX packets. */
-      int sent = 0;
-      uint16_t nb_tx;
-      while(sent < m_burst_size)
-      {
-            nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
-        sent += nb_tx;
-        num_frames += nb_tx;
-      }
+    // Send burst of TX packets
+    int sent = 0;
+    uint16_t nb_tx;
+    while(sent < m_burst_size)
+    {
+      nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
+      sent += nb_tx;
+      num_frames += nb_tx;
+    }
 
-      /* Free any unsent packets. */
-      if (unlikely(nb_tx < m_burst_size))
+    // Free any unsent packets
+    if (unlikely(nb_tx < m_burst_size))
+    {
+      uint16_t buf;
+      for (buf = nb_tx; buf < m_burst_size; buf++)
       {
-        uint16_t buf;
-        for (buf = nb_tx; buf < m_burst_size; buf++)
-        {
-          rte_pktmbuf_free(pkt[buf]);
-        }
+        rte_pktmbuf_free(pkt[buf]);
       }
-      rte_eth_tx_done_cleanup(port, lid-1, 0);
+    }
+    rte_eth_tx_done_cleanup(port, lid-1, 0);
   }
+  return 0;
 }
 
 NICSender::~NICSender()
@@ -289,6 +302,7 @@ NICSender::do_configure(const data_t& args)
     m_burst_size = cfg.burst_size;
     m_number_of_cores = cfg.number_of_cores;
     m_rate = cfg.rate;
+    m_frontend_type = cfg.frontend_type;
 
     for (auto& [id, ips]: cfg.core_list) {
       m_core_map[id] = ips;
@@ -313,11 +327,15 @@ void
 NICSender::do_start(const data_t& args)
 {
   m_run_mark.store(true);
-
-  for (auto& [id, _] : m_core_map) {
-    TLOG() << "Starting core " << id;
-    rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, id);
+  lcore_args largs = {this};
+  if (m_frontend_type == "tde") {
+    auto fun = &lcore_main<detdataformats::tde::TDE16Frame>;
+    for (auto& [id, _] : m_core_map) {
+        TLOG() << "Starting core " << id;
+        rte_eal_remote_launch(fun, reinterpret_cast<void*>(&largs), id);
+    }
   }
+
   // rte_eal_remote_launch( (lcore_function_t*)(&NICSender::lcore_main), this, 2);
 }
 
