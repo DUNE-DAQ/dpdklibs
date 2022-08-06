@@ -48,6 +48,7 @@ def generate(
     modules += [DAQModule(name="nic_sender", plugin="NICSender",
                           conf=nsc.Conf(
                                eal_arg_list=EAL_ARGS,
+                               frontend_type='tde',
                                number_of_cores=NUMBER_OF_CORES,
                                burst_size=1,
                                rate=1,

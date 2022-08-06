@@ -37,6 +37,7 @@ local nicsender = {
     conf: s.record("Conf", [
         s.field("card_id", self.id, 0, doc="Physical card identifier (in the same host)"),
         s.field("eal_arg_list", self.string, doc="A string with EAL arguments"),
+        s.field("frontend_type", self.string, "", doc="The frontend type (wib, wib2, daphne, tde)"),
         s.field("number_of_cores", self.count, 1, doc="Number of cores that will be used for sending"),
         s.field("burst_size", self.big_count, 1, doc="Burst size used when sending"),
         s.field("rate", self.float, 1, doc="Rate used for the sender"),

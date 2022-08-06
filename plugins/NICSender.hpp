@@ -50,6 +50,10 @@ public:
 
   void init(const nlohmann::json& iniobj) override;
 
+  std::map<int, std::vector<std::string>> m_core_map;
+  std::map<int, std::vector<uint32_t>> m_core_map32;
+  std::atomic<bool> m_run_mark;
+
 private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
@@ -61,18 +65,16 @@ private:
 
   void dpdk_configure();
 
-  void lcore_main(void *arg);
+  // template<typename T> int lcore_main(void *arg);
 
   void do_work(std::atomic<bool>&);
 
-  std::atomic<bool> m_run_mark;
 
   int m_burst_size;
   int m_number_of_cores;
   double m_rate;
+  std::string m_frontend_type;
 
-  std::map<int, std::vector<std::string>> m_core_map;
-  std::map<int, std::vector<uint32_t>> m_core_map32;
 
 
 };
