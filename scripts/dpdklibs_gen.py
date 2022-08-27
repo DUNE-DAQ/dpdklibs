@@ -35,10 +35,11 @@ import click
 @click.option('--sender-burst-size', type=int, default=1, help='Burst size used for sending packets')
 @click.option('--sender-cores', type=int, default=1, help='How many cores to use for sending')
 @click.option('--sender-boards', type=int, default=1, help='How many AMC boards to send from')
+@click.option('--sender-time-tick-difference', type=int, default=1000, help='How many ticks between timestamps')
 @click.argument('json_dir', type=click.Path())
 
 def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender, only_reader,
-        host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, sender_boards, json_dir):
+        host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, sender_boards, sender_time_tick_difference, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
@@ -96,6 +97,7 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender,
             HOST=host_sender,
             NUMBER_OF_CORES=sender_cores,
             NUMBER_OF_IPS_PER_CORE=sender_boards // sender_cores,
+            TIME_TICK_DIFFERENCE=sender_time_tick_difference,
         )
     if enable_receiver:
         the_system.apps["dpdk_reader"] = reader_confgen.generate(
@@ -119,7 +121,7 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender,
     # Override the default boot.json with the one from minidaqapp
     boot = generate_boot_common(ers_settings=ers_settings,
                                 info_svc_uri=info_svc_uri,
-                               disable_trace=True,
+                                disable_trace=True,
                                 use_kafka=use_kafka,
                                 daq_app_exec_name="daq_application_ssh",
                                 extra_env_vars={'WIBMOD_SHARE':'getenv'})

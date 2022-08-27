@@ -72,6 +72,7 @@ private:
 
   int m_burst_size;
   int m_number_of_cores;
+  int m_time_tick_difference;
   double m_rate;
   std::string m_frontend_type;
 

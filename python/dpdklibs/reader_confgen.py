@@ -31,16 +31,15 @@ CLOCK_SPEED_HZ = 50000000
 
 
 def generate(
-    HOST='localhost',
-    ENABLE_SOFTWARE_TPG=False,
-    NUMBER_OF_GROUPS=4,
-    NUMBER_OF_LINKS_PER_GROUP=1,
-    NUMBER_OF_DATA_PRODUCERS=1,
-    BASE_SOURCE_IP="10.73.139.",
-    DESTINATION_IP="10.73.139.17",
-    FRONTEND_TYPE='tde',
-    EAL_ARGS='',
-
+        HOST='localhost',
+        ENABLE_SOFTWARE_TPG=False,
+        NUMBER_OF_GROUPS=4,
+        NUMBER_OF_LINKS_PER_GROUP=1,
+        NUMBER_OF_DATA_PRODUCERS=1,
+        BASE_SOURCE_IP="10.73.139.",
+        DESTINATION_IP="10.73.139.17",
+        FRONTEND_TYPE='tde',
+        EAL_ARGS='',
 ):
 
     modules = []
@@ -48,18 +47,18 @@ def generate(
 
     links = []
     rxcores = []
-    lid=0
-    last_ip=100
+    lid = 0
+    last_ip = 100
     for group in range(NUMBER_OF_GROUPS):
-        offset=0
-        qlist=[]
+        offset= 0
+        qlist = []
         for src in range(NUMBER_OF_LINKS_PER_GROUP):
-            links.append( nrc.Link(id=lid, ip=BASE_SOURCE_IP+str(last_ip), rx_q=lid, lcore=group+1) )
+            links.append(nrc.Link(id=lid, ip=BASE_SOURCE_IP+str(last_ip), rx_q=lid, lcore=group+1))
             qlist.append(lid)
-            lid+=1
-            last_ip+=1
-        offset+=NUMBER_OF_LINKS_PER_GROUP
-        rxcores.append( nrc.LCore(lcore_id=group+1, rx_qs=qlist) )
+            lid += 1
+            last_ip += 1
+        offset += NUMBER_OF_LINKS_PER_GROUP
+        rxcores.append(nrc.LCore(lcore_id=group+1, rx_qs=qlist))
 
     modules += [DAQModule(name="nic_reader", plugin="NICReceiver",
                           conf=nrc.Conf(eal_arg_list=EAL_ARGS,

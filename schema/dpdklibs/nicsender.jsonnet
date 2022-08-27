@@ -41,7 +41,8 @@ local nicsender = {
         s.field("number_of_cores", self.count, 1, doc="Number of cores that will be used for sending"),
         s.field("burst_size", self.big_count, 1, doc="Burst size used when sending"),
         s.field("rate", self.float, 1, doc="Rate used for the sender"),
-        s.field("core_list", self.core_list, doc="Core lists used for sending")
+        s.field("core_list", self.core_list, doc="Core lists used for sending"),
+        s.field("time_tick_difference", self.big_count, doc="How many ticks between timestamps")
 ], doc="Generic UIO sender DAQ Module Configuration"),
 
 };
