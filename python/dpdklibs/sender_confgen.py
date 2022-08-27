@@ -35,13 +35,13 @@ def generate(
     modules = []
     queues = []
 
-    last_ip = 99
+    last_ip = 100
 
     core_maps = []
     for core in range(1, NUMBER_OF_CORES + 1):
         ips = []
         for ip in range(NUMBER_OF_IPS_PER_CORE):
-            src_ip = f'{BASE_SOURCE_IP}{last_ip + core * NUMBER_OF_IPS_PER_CORE + ip}'
+            src_ip = f'{BASE_SOURCE_IP}{last_ip + (core-1) * NUMBER_OF_IPS_PER_CORE + ip}'
             ips.append(src_ip)
         core_maps.append(nsc.Core(lcore_id=core, src_ips=ips))
 

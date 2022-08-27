@@ -34,16 +34,21 @@ import click
 @click.option('--sender-rate', help='Rate with which the sender sends packets')
 @click.option('--sender-burst-size', type=int, default=1, help='Burst size used for sending packets')
 @click.option('--sender-cores', type=int, default=1, help='How many cores to use for sending')
+@click.option('--sender-boards', type=int, default=1, help='How many AMC boards to send from')
 @click.argument('json_dir', type=click.Path())
 
-def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender, only_reader, host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, json_dir):
+def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender, only_reader,
+        host_sender, host_reader, sender_rate, sender_burst_size, sender_cores, sender_boards, json_dir):
 
     if exists(json_dir):
         raise RuntimeError(f"Directory {json_dir} already exists")
 
-    # Validate apps
+    # Validate options
     if only_sender and only_reader:
         raise RuntimeError('Both options --only-sender and --only-reader can not be specified at the same time')
+
+    if sender_boards % sender_cores:
+        raise RuntimeError(f'--sender-boards has to be divisible by --sender-cores ({sender_boards} is not divisible by {sender_cores}')
 
     enable_sender, enable_receiver = True, True
     if only_sender:
@@ -90,6 +95,7 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender,
         the_system.apps["dpdk_sender"] = sender_confgen.generate(
             HOST=host_sender,
             NUMBER_OF_CORES=sender_cores,
+            NUMBER_OF_IPS_PER_CORE=sender_boards // sender_cores,
         )
     if enable_receiver:
         the_system.apps["dpdk_reader"] = reader_confgen.generate(
