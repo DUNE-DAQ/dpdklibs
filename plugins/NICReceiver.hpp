@@ -20,6 +20,7 @@
 #include "detdataformats/tde/TDE16Frame.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 #include "dpdklibs/EALSetup.hpp"
 
 #include <folly/ProducerConsumerQueue.h>
@@ -106,6 +107,11 @@ private:
   int rx_runner(void *arg __rte_unused);
 
   std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDE_AMC_STRUCT>> m_sender;
+
+  // Opmon
+  std::atomic<int> m_total_groups_sent {0};
+  std::atomic<int> m_groups_sent {0};
+
 
 };
 

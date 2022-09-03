@@ -238,6 +238,11 @@ NICReceiver::do_scrap(const data_t& args)
 void
 NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 {
+  nicreaderinfo::Info nri;
+  nri.groups_sent = m_groups_sent.exchange(0);
+  nri.total_groups_sent = m_total_groups_sent.load();
+
+
 
 }
 
