@@ -21,6 +21,8 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <random>
+#include <algorithm>
 
 #include <rte_ether.h>
 #include <rte_ip.h>
@@ -28,6 +30,8 @@
 
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "detdataformats/tde/TDE16Frame.hpp"
+
+#include "readoutlibs/utils/RateLimiter.hpp"
 
 /**
  * @brief Name used by TRACE TLOG calls from this source file
@@ -144,13 +148,16 @@ int lcore_main(void *arg)
 
   std::vector<uint32_t> ips;
   for (auto& [key, val]: largs->ns->m_core_map32) {
-    if (key == lid) { ips = val; TLOG() << "ips has now size " << ips.size();}
+    if (key == lid) {
+      ips = val;
+      TLOG() << "ips has now size " << ips.size();
+    }
     for (auto& elem : val)
       TLOG() << "Core map val: " << key << " " << elem;
   }
 
   // TODO: Check why it crashes without this line
-  int m_burst_size = 1;
+  int m_burst_size = 16;
 
   TLOG() << "lid = " << lid;
 
@@ -180,7 +187,6 @@ int lcore_main(void *arg)
   //     printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
   // }
 
-  int burst_number = 0;
   std::atomic<int> num_frames = 0;
 
   auto stats = std::thread([&]() {
@@ -192,83 +198,102 @@ int lcore_main(void *arg)
     }
   });
 
-  TLOG() << "Doing malloc";
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
-  TLOG() << "Malloc done";
 
-  size_t i = 0;
+  readoutlibs::RateLimiter rl(1.0 / 2.290);
+
+  std::random_device rd;
+  std::default_random_engine rng(rd());
+
+  std::vector<int> channels;
+  uint64_t ts = 0;
+  for (int i = 0; i < 64; ++i) {
+    channels.push_back(i);
+  }
+
+  size_t ips_index = 0;
   TLOG() << "Got ips with lid " << lid;
+  port = 0;
+  int m_time_tick_difference = 1000;
   while (true) {
-    // TLOG() << "Inside the loop";
-    i++;
+    rl.limit();
+    ts += m_time_tick_difference;
+    // std::shuffle(channels.begin(), channels.end(), rng);
     // TLOG() << "Index is " << i % ips.size();
-    uint8_t ip = ips[i % ips.size()] & 0xff;
     // TODO: Why does it crash when accessing class members?
     // TLOG() << m_run_mark.load();
-    port = 0;
 
     // Ethernet header
     // struct rte_ether_hdr eth_hdr = {0};
     // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    for (int board_index = 0; board_index < 1; board_index++) {
+      int batch_count = 0;
+      uint8_t ip = ips[board_index] & 0xff;
+      // TLOG() << "lid = " << lid << " ip = " << ip;
+      while (batch_count < 64) {
+        for (int i = 0; i < m_burst_size && batch_count < 64; i++, batch_count++) {
+          auto channel = channels[batch_count];
 
-    for (int i = 0; i < m_burst_size; i++)
-    {
+          T msg = {};
+          msg.set_timestamp(ts);
+          msg.get_tde_header()->slot = ips_index % 12;
+          msg.get_tde_header()->link = channel;
+          msg.set_adc_samples(channel + 1000 * board_index, 0);
+          // pktgen_packet_ctor(&msg.hdr);
 
-      T msg;
-      msg.set_timestamp(0);
-      // pktgen_packet_ctor(&msg.hdr);
+          // struct rte_ether_hdr eth_hdr;
+          // eth_hdr_ctor(&eth_hdr);
 
-      // struct rte_ether_hdr eth_hdr;
-      // eth_hdr_ctor(&eth_hdr);
+          // rte_ipv4_hdr hdr;
+          // rte_udp_hdr hdr_udp;
+          // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
+          // pktgen_udp_hdr_ctor(&hdr);
 
-      // rte_ipv4_hdr hdr;
-      // rte_udp_hdr hdr_udp;
-      // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
-      // pktgen_udp_hdr_ctor(&hdr);
+          // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
+          // pkt[i]->pkt_len = sizeof(T)+42;
+          // TLOG() << "pkt_len = " << sizeof(T) + 42; 9014 for TDE + 42
 
-      // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
-      // pkt[i]->pkt_len = sizeof(T)+42;
-      // TLOG() << "pkt_len = " << sizeof(T) + 42; 9014 for TDE + 42
-      pkt[i]->data_len = 8996;
+          pkt[i]->data_len = 9014;
 
-      uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, 0x08, 0x00, 0x45, 0x00, 0x23, 0x16, 0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11, 0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip, 0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2, 0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
+          uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // All zeros
+                           0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, // MAC of the sender
+                           0x08, 0x00, 0x45, 0x00, 0x23, 0x16,
+                           0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11,
+                           0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip,
+                           0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2,
+                           0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
 
-      char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-      // char *ether_mbuf_offset2 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr));
-      // char *ether_mbuf_offset3 = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr));
-      char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
+          char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+          char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
 
-      rte_memcpy(ether_mbuf_offset, ary, 42);
-      // rte_memcpy(ether_mbuf_offset2, &hdr, sizeof(struct rte_ipv4_hdr));
-      // rte_memcpy(ether_mbuf_offset3, &hdr_udp, sizeof(struct rte_udp_hdr));
-      rte_memcpy(ether_mbuf_offset4, &msg, sizeof(T));
+          rte_memcpy(ether_mbuf_offset, ary, 42);
+          rte_memcpy(ether_mbuf_offset4, &msg, sizeof(T));
 
-      if (false) {
-        rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+          if (false) {
+            rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
+          }
+        }
+
+        // Send burst of TX packets
+        int sent = 0;
+        uint16_t nb_tx;
+        while(sent < m_burst_size) {
+          nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
+          sent += nb_tx;
+          num_frames += nb_tx;
+        }
+
+        // Free any unsent packets
+        if (unlikely(nb_tx < m_burst_size)) {
+          uint16_t buf;
+          for (buf = nb_tx; buf < m_burst_size; buf++) {
+            rte_pktmbuf_free(pkt[buf]);
+          }
+        }
       }
     }
-    burst_number++;
 
-    // Send burst of TX packets
-    int sent = 0;
-    uint16_t nb_tx;
-    while(sent < m_burst_size)
-    {
-      nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
-      sent += nb_tx;
-      num_frames += nb_tx;
-    }
-
-    // Free any unsent packets
-    if (unlikely(nb_tx < m_burst_size))
-    {
-      uint16_t buf;
-      for (buf = nb_tx; buf < m_burst_size; buf++)
-      {
-        rte_pktmbuf_free(pkt[buf]);
-      }
-    }
     rte_eth_tx_done_cleanup(port, lid-1, 0);
   }
   return 0;
@@ -297,30 +322,33 @@ NICSender::dpdk_configure()
 void
 NICSender::do_configure(const data_t& args)
 {
-    module_conf_t cfg = args.get<module_conf_t>();
+  module_conf_t cfg = args.get<module_conf_t>();
 
-    m_burst_size = cfg.burst_size;
-    m_number_of_cores = cfg.number_of_cores;
-    m_rate = cfg.rate;
-    m_frontend_type = cfg.frontend_type;
+  m_burst_size = cfg.burst_size;
+  m_number_of_cores = cfg.number_of_cores;
+  m_number_of_ips_per_core.store(cfg.number_of_ips_per_core);
+  TLOG() << "m_number_of_ips_per_core = " << m_number_of_ips_per_core;
+  m_rate = cfg.rate;
+  m_frontend_type = cfg.frontend_type;
+  m_time_tick_difference = cfg.time_tick_difference;
 
-    for (auto& [id, ips]: cfg.core_list) {
-      m_core_map[id] = ips;
-      std::vector<uint32_t> vips;
-      for (auto& ip : ips) {
-        size_t ind = 0, current_ind = 0;
-        std::vector<uint8_t> v;
-        for (int i = 0; i < 4; ++i) {
-          v.push_back(std::stoi(ip.substr(current_ind, ip.size() - current_ind), &ind));
-          current_ind += ind + 1;
-        }
-        vips.push_back(RTE_IPV4(v[0], v[1], v[2], v[3]));
+  // Convert the IPs from std::string to uint32_t and put them in the map
+  for (auto& [id, ips]: cfg.core_list) {
+    m_core_map[id] = ips;
+    std::vector<uint32_t> vips;
+    for (auto& ip : ips) {
+      size_t ind = 0, current_ind = 0;
+      std::vector<uint8_t> v;
+      for (int i = 0; i < 4; ++i) {
+        v.push_back(std::stoi(ip.substr(current_ind, ip.size() - current_ind), &ind));
+        current_ind += ind + 1;
       }
-      m_core_map32[id] = vips;
+      vips.push_back(RTE_IPV4(v[0], v[1], v[2], v[3]));
     }
+    m_core_map32[id] = vips;
+  }
 
-
-    dpdk_configure();
+  dpdk_configure();
 }
 
 void
