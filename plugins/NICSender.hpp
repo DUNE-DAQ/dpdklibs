@@ -50,9 +50,13 @@ public:
 
   void init(const nlohmann::json& iniobj) override;
 
+  // Map Core ID (LID) -> IP
   std::map<int, std::vector<std::string>> m_core_map;
+  // MAP Core ID (LID) -> IP (as uint32)
   std::map<int, std::vector<uint32_t>> m_core_map32;
   std::atomic<bool> m_run_mark;
+
+  std::atomic<int> m_number_of_ips_per_core;
 
 private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
