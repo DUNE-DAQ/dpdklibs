@@ -53,6 +53,7 @@ def generate(
                               eal_arg_list=EAL_ARGS,
                               frontend_type='tde',
                               number_of_cores=NUMBER_OF_CORES,
+                              number_of_ips_per_core=NUMBER_OF_IPS_PER_CORE,
                               burst_size=1,
                               rate=1,
                               core_list=core_maps,

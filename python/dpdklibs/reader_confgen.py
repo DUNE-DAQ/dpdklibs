@@ -19,10 +19,11 @@ import dunedaq.readoutlibs.sourceemulatorconfig as sec
 import dunedaq.readoutlibs.readoutconfig as rconf
 import dunedaq.readoutlibs.recorderconfig as bfs
 
-
 from daqconf.core.app import App, ModuleGraph
 from daqconf.core.daqmodule import DAQModule
 from daqconf.core.conf_utils import Endpoint, Direction, Queue
+
+from detchannelmaps._daq_detchannelmaps_py import *
 
 # Time to wait on pop()
 QUEUE_POP_WAIT_MS = 100
@@ -31,6 +32,7 @@ CLOCK_SPEED_HZ = 50000000
 
 
 def generate(
+        DRO_CONFIG=None,
         HOST='localhost',
         ENABLE_SOFTWARE_TPG=False,
         NUMBER_OF_GROUPS=4,
@@ -41,6 +43,8 @@ def generate(
         FRONTEND_TYPE='tde',
         EAL_ARGS='',
 ):
+
+    DRO_CONFIG = []
 
     modules = []
     queues = []
@@ -72,27 +76,29 @@ def generate(
                      f'{FRONTEND_TYPE}_link_{idx}', 100000)
                for idx in range(NUMBER_OF_DATA_PRODUCERS)]
 
-    for idx in range(NUMBER_OF_DATA_PRODUCERS):
+    # for link in DRO_CONFIG.link:
+    for i in range(1):
+        source_id = i
         if ENABLE_SOFTWARE_TPG:
             queues += [Queue(f"datahandler_{idx}.tp_out",f"sw_tp_handler_{idx}.raw_input",f"sw_tp_link_{idx}",100000 )]                
 
-        modules += [DAQModule(name=f"datahandler_{idx}", plugin="DataLinkHandler", conf=rconf.Conf(
+        modules += [DAQModule(name=f"datahandler_{source_id}", plugin="DataLinkHandler", conf=rconf.Conf(
                     readoutmodelconf=rconf.ReadoutModelConf(
                         source_queue_timeout_ms=QUEUE_POP_WAIT_MS,
                         fake_trigger_flag=1,
-                        region_id=0,
-                        element_id=idx,
-                        timesync_connection_name = f"timesync_dlh_{idx}",
+                        # source_id =link.dro_source_id,
+                        source_id=source_id,
+                        timesync_connection_name = f"timesync_dlh_{source_id}",
                         timesync_topic_name = "Timesync",
                     ),
                     latencybufferconf=rconf.LatencyBufferConf(
                         latency_buffer_size=1000,
-                        region_id=0,
-                        element_id=idx,
+                        # source_id=link.dro_source_id,
+                        source_id=source_id,
                     ),
                     rawdataprocessorconf=rconf.RawDataProcessorConf(
-                        region_id=0,
-                        element_id=idx,
+                        # source_id=link.dro_source_id,
+                        source_id=source_id,
                         enable_software_tpg=ENABLE_SOFTWARE_TPG,
                         error_counter_threshold=100,
                         error_reset_freq=10000,
@@ -101,9 +107,9 @@ def generate(
                         latency_buffer_size=1000,
                         pop_limit_pct=0.8,
                         pop_size_pct=0.1,
-                        region_id=0,
-                        element_id=idx,
-                        output_file=f"output_{idx}.out",
+                        # source_id=link.dro_source_id,
+                        source_id=source_id,
+                        output_file=f"output_{source_id}.out",
                         stream_buffer_size=8388608,
                         enable_raw_recording=True,
                     ),
@@ -114,7 +120,7 @@ def generate(
 
     mgraph = ModuleGraph(modules, queues=queues)
 
-    for idx in range(NUMBER_OF_DATA_PRODUCERS):
+    for idx in range(1):
         mgraph.connect_modules(f"datahandler_{idx}.timesync_output", "timesync_consumer.input_queue", "timesync_q")
         mgraph.connect_modules(f"datahandler_{idx}.fragment_queue", "fragment_consumer.input_queue", "data_fragments_q", 100)
         mgraph.add_endpoint(f"requests_{idx}", f"datahandler_{idx}.request_input", Direction.IN)
