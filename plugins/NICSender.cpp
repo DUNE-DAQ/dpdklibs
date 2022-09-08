@@ -286,12 +286,12 @@ NICSender::init(const data_t& args)
 void
 NICSender::dpdk_configure()
 {
-    int argc = 0;
-    std::vector<char*> v{"test"};
-    ealutils::init_eal(argc, v.data());
+  int argc = 0;
+  std::vector<char*> v{"test"};
+  ealutils::init_eal(argc, v.data());
 
-    std::map<int, std::unique_ptr<rte_mempool>> m;
-    ealutils::port_init(0, 0, 2, m);
+  std::map<int, std::unique_ptr<rte_mempool>> m;
+  ealutils::port_init(0, 0, m_number_of_cores, m);
 }
 
 void
