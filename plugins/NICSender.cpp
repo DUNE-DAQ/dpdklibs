@@ -64,76 +64,76 @@ NICSender::NICSender(const std::string& name)
   register_command("scrap", &NICSender::do_scrap);
 }
 
-void
-eth_hdr_ctor(struct rte_ether_hdr *eth_hdr){
+// void
+// eth_hdr_ctor(struct rte_ether_hdr *eth_hdr){
 
-  char mac_address[] = "ec:0d:9a:8e:b9:88";
-  //char router_mac_address[] = "00:25:90:ed:d5:70"; // farm 21
+//   char mac_address[] = "ec:0d:9a:8e:b9:88";
+//   //char router_mac_address[] = "00:25:90:ed:d5:70"; // farm 21
 
-  rte_ether_addr addr;
-  addr.addr_bytes[0] = (int)('e') >> 4 | (int)('c');
-  addr.addr_bytes[1] = (int)('0') >> 4 | (int)('d');
-  addr.addr_bytes[2] = (int)('9') >> 4 | (int)('a');
-  addr.addr_bytes[3] = (int)('8') >> 4 | (int)('e');
-  addr.addr_bytes[4] = (int)('b') >> 4 | (int)('9');
-  addr.addr_bytes[5] = (int)('8') >> 4 | (int)('8');
-  // get_ether_addr6(mac_address, &addr);
+//   rte_ether_addr addr;
+//   addr.addr_bytes[0] = (int)('e') >> 4 | (int)('c');
+//   addr.addr_bytes[1] = (int)('0') >> 4 | (int)('d');
+//   addr.addr_bytes[2] = (int)('9') >> 4 | (int)('a');
+//   addr.addr_bytes[3] = (int)('8') >> 4 | (int)('e');
+//   addr.addr_bytes[4] = (int)('b') >> 4 | (int)('9');
+//   addr.addr_bytes[5] = (int)('8') >> 4 | (int)('8');
+//   // get_ether_addr6(mac_address, &addr);
 
-  eth_hdr->dst_addr = addr;
+//   eth_hdr->dst_addr = addr;
 
-  uint8_t port_id = 0;
-  rte_eth_macaddr_get(port_id, &eth_hdr->src_addr);
-  eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+//   uint8_t port_id = 0;
+//   rte_eth_macaddr_get(port_id, &eth_hdr->src_addr);
+//   eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-  // eth_hdr->src_addr = {10, 73, 139, 16};
-  // eth_hdr->ether_type = ;
-}
+//   // eth_hdr->src_addr = {10, 73, 139, 16};
+//   // eth_hdr->ether_type = ;
+// }
 
-void
-pktgen_udp_hdr_ctor(rte_ipv4_hdr *ipv4, rte_udp_hdr *udp)
-{
-    uint16_t tlen;
+// void
+// pktgen_udp_hdr_ctor(rte_ipv4_hdr *ipv4, rte_udp_hdr *udp)
+// {
+//     uint16_t tlen;
 
-    // struct rte_ipv4_hdr *ipv4 = reinterpret_cast<struct rte_ipv4_hdr *>(hdr);
-    // struct rte_udp_hdr *udp   = (struct rte_udp_hdr *)&ipv4[1];
+//     // struct rte_ipv4_hdr *ipv4 = reinterpret_cast<struct rte_ipv4_hdr *>(hdr);
+//     // struct rte_udp_hdr *udp   = (struct rte_udp_hdr *)&ipv4[1];
 
-    struct rte_ether_addr eth_dst_addr = {10, 73, 139, 17}; /**< Destination Ethernet address */
-    // struct rte_ether_addr eth_src_addr = "10.73.139.16"; /**< Source Ethernet address */
+//     struct rte_ether_addr eth_dst_addr = {10, 73, 139, 17}; /**< Destination Ethernet address */
+//     // struct rte_ether_addr eth_src_addr = "10.73.139.16"; /**< Source Ethernet address */
 
-    // uint16_t ether_hdr_size = ; /**< Size of Ethernet header in packet for VLAN ID */
-    // uint16_t ipProto = ; /**< TCP or UDP or ICMP */
-    // uint16_t pktSize = ;    /**< Size of packet in bytes not counting FCS */
+//     // uint16_t ether_hdr_size = ; /**< Size of Ethernet header in packet for VLAN ID */
+//     // uint16_t ipProto = ; /**< TCP or UDP or ICMP */
+//     // uint16_t pktSize = ;    /**< Size of packet in bytes not counting FCS */
 
-    uint16_t sport = 0;   /**< Source port value */
-    uint16_t dport = 0;   /**< Destination port value */
+//     uint16_t sport = 0;   /**< Source port value */
+//     uint16_t dport = 0;   /**< Destination port value */
 
-    /* Create the UDP header */
-    // ipv4->src_addr = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
-    // ipv4->dst_addr = eth_dst_addr;
+//     /* Create the UDP header */
+//     // ipv4->src_addr = htonl(pkt->ip_src_addr.addr.ipv4.s_addr);
+//     // ipv4->dst_addr = eth_dst_addr;
 
-    // ipv4->version_ihl   = (IPv4_VERSION << 4) | (sizeof(struct rte_ipv4_hdr) / 4);
-    // tlen                = pkt->pktSize - pkt->ether_hdr_size;
-    // ipv4->total_length  = htons(tlen);
-    // ipv4->next_proto_id = pkt->ipProto;
+//     // ipv4->version_ihl   = (IPv4_VERSION << 4) | (sizeof(struct rte_ipv4_hdr) / 4);
+//     // tlen                = pkt->pktSize - pkt->ether_hdr_size;
+//     // ipv4->total_length  = htons(tlen);
+//     // ipv4->next_proto_id = pkt->ipProto;
 
-    // tlen           = pkt->pktSize - (pkt->ether_hdr_size + sizeof(struct rte_ipv4_hdr));
-    // udp->dgram_len = htons(tlen);
-    udp->src_port  = htons(sport);
-    udp->dst_port  = htons(dport);
+//     // tlen           = pkt->pktSize - (pkt->ether_hdr_size + sizeof(struct rte_ipv4_hdr));
+//     // udp->dgram_len = htons(tlen);
+//     udp->src_port  = htons(sport);
+//     udp->dst_port  = htons(dport);
 
-    // if (pkt->dport == VXLAN_PORT_ID) {
-    //     struct vxlan *vxlan = (struct vxlan *)&udp[1];
+//     // if (pkt->dport == VXLAN_PORT_ID) {
+//     //     struct vxlan *vxlan = (struct vxlan *)&udp[1];
 
-    //     vxlan->vni_flags = htons(pkt->vni_flags);
-    //     vxlan->group_id  = htons(pkt->group_id);
-    //     vxlan->vxlan_id  = htonl(pkt->vxlan_id) << 8;
-    // }
+//     //     vxlan->vni_flags = htons(pkt->vni_flags);
+//     //     vxlan->group_id  = htons(pkt->group_id);
+//     //     vxlan->vxlan_id  = htonl(pkt->vxlan_id) << 8;
+//     // }
 
-    udp->dgram_cksum = 0;
-    udp->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4, (const void *)udp);
-    if (udp->dgram_cksum == 0)
-        udp->dgram_cksum = 0xFFFF;
-}
+//     udp->dgram_cksum = 0;
+//     udp->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4, (const void *)udp);
+//     if (udp->dgram_cksum == 0)
+//         udp->dgram_cksum = 0xFFFF;
+// }
 
 struct lcore_args
 {
@@ -170,8 +170,6 @@ int lcore_main(void *arg)
   struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
       MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
   TLOG () << "mbuf done with lid = " << lid;
-
-  uint16_t portid;
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
@@ -277,7 +275,7 @@ int lcore_main(void *arg)
 
         // Send burst of TX packets
         int sent = 0;
-        uint16_t nb_tx;
+        uint16_t nb_tx {};
         while(sent < m_burst_size) {
           nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
           sent += nb_tx;
@@ -304,7 +302,7 @@ NICSender::~NICSender()
 }
 
 void
-NICSender::init(const data_t& args)
+NICSender::init(const data_t&)
 {
 }
 
