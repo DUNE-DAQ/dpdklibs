@@ -56,15 +56,16 @@ public:
   std::map<int, std::vector<uint32_t>> m_core_map32;
   std::atomic<bool> m_run_mark;
 
-  std::atomic<int> m_number_of_ips_per_core;
+  int m_number_of_ips_per_core;
+  int m_burst_size;
 
 private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
-  void do_start(const nlohmann::json& obj); 
-  void do_stop(const nlohmann::json& obj);
-  void do_configure(const nlohmann::json& obj);
-  void do_scrap(const nlohmann::json& obj);
+  void do_configure(const data_t&);
+  void do_start(const data_t&); 
+  void do_stop(const data_t&);
+  void do_scrap(const data_t&);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   void dpdk_configure();
@@ -74,15 +75,12 @@ private:
   void do_work(std::atomic<bool>&);
 
 
-  int m_burst_size;
   int m_number_of_cores;
   int m_time_tick_difference;
   double m_rate;
   std::string m_frontend_type;
-
-
-
 };
+
 } // namespace dpdklibs
 } // namespace dunedaq
 

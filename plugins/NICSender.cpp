@@ -143,11 +143,11 @@ struct lcore_args
 template<typename T>
 int lcore_main(void *arg)
 {
-  lcore_args *largs = static_cast<lcore_args*>(arg);
+  NICSender *ns = static_cast<NICSender*>(arg);
   uint16_t lid = rte_lcore_id();
 
   std::vector<uint32_t> ips;
-  for (auto& [key, val]: largs->ns->m_core_map32) {
+  for (auto& [key, val]: ns->m_core_map32) {
     if (key == lid) {
       ips = val;
       TLOG() << "ips has now size " << ips.size();
@@ -157,12 +157,12 @@ int lcore_main(void *arg)
   }
 
   // TODO: Check why it crashes without this line
-  int m_burst_size = 16;
+  int m_burst_size = ns->m_burst_size;
 
   TLOG() << "lid = " << lid;
 
-  TLOG () << "Going to sleep with lid = " << lid;
-  rte_delay_us_sleep((lid + 1) * 1000021);
+  // TLOG () << "Going to sleep with lid = " << lid;
+  // rte_delay_us_sleep((lid + 1) * 1000021);
   uint16_t port;
 
   unsigned nb_ports = rte_eth_dev_count_avail();
@@ -216,7 +216,7 @@ int lcore_main(void *arg)
   TLOG() << "Got ips with lid " << lid;
   port = 0;
   int m_time_tick_difference = 1000;
-  while (true) {
+  while (ns->m_run_mark) {
     rl.limit();
     ts += m_time_tick_difference;
     // std::shuffle(channels.begin(), channels.end(), rng);
@@ -227,7 +227,7 @@ int lcore_main(void *arg)
     // Ethernet header
     // struct rte_ether_hdr eth_hdr = {0};
     // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-    for (int board_index = 0; board_index < 1; board_index++) {
+    for (int board_index = 0; board_index < ns->m_number_of_ips_per_core; board_index++) {
       int batch_count = 0;
       uint8_t ip = ips[board_index] & 0xff;
       // TLOG() << "lid = " << lid << " ip = " << ip;
@@ -326,7 +326,7 @@ NICSender::do_configure(const data_t& args)
 
   m_burst_size = cfg.burst_size;
   m_number_of_cores = cfg.number_of_cores;
-  m_number_of_ips_per_core.store(cfg.number_of_ips_per_core);
+  m_number_of_ips_per_core = cfg.number_of_ips_per_core;
   TLOG() << "m_number_of_ips_per_core = " << m_number_of_ips_per_core;
   m_rate = cfg.rate;
   m_frontend_type = cfg.frontend_type;
@@ -352,15 +352,14 @@ NICSender::do_configure(const data_t& args)
 }
 
 void
-NICSender::do_start(const data_t& args)
+NICSender::do_start(const data_t&)
 {
   m_run_mark.store(true);
-  lcore_args largs = {this};
   if (m_frontend_type == "tde") {
     auto fun = &lcore_main<detdataformats::tde::TDE16Frame>;
     for (auto& [id, _] : m_core_map) {
         TLOG() << "Starting core " << id;
-        rte_eal_remote_launch(fun, reinterpret_cast<void*>(&largs), id);
+        rte_eal_remote_launch(fun, reinterpret_cast<void*>(this), id);
     }
   }
 
@@ -368,7 +367,7 @@ NICSender::do_start(const data_t& args)
 }
 
 void
-NICSender::do_stop(const data_t& args)
+NICSender::do_stop(const data_t&)
 {
   TLOG() << "Stopping on core " << rte_lcore_id();
   m_run_mark.store(false);
@@ -378,7 +377,7 @@ NICSender::do_stop(const data_t& args)
 }
 
 void
-NICSender::do_scrap(const data_t& args)
+NICSender::do_scrap(const data_t&)
 {
 }
 
