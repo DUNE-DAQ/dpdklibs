@@ -39,6 +39,7 @@ local nicsender = {
         s.field("eal_arg_list", self.string, doc="A string with EAL arguments"),
         s.field("frontend_type", self.string, "", doc="The frontend type (wib, wib2, daphne, tde)"),
         s.field("number_of_cores", self.count, 1, doc="Number of cores that will be used for sending"),
+        s.field("number_of_ips_per_core", self.count, 1, doc="Number of cores that will be used for sending"),
         s.field("burst_size", self.big_count, 1, doc="Burst size used when sending"),
         s.field("rate", self.float, 1, doc="Rate used for the sender"),
         s.field("core_list", self.core_list, doc="Core lists used for sending"),
