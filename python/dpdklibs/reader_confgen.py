@@ -44,6 +44,8 @@ def generate(
         EAL_ARGS='',
 ):
 
+    number_of_dlh = NUMBER_OF_GROUPS
+
     DRO_CONFIG = []
 
     modules = []
@@ -74,10 +76,10 @@ def generate(
     queues += [Queue(f"nic_reader.output_{idx}",
                      f"datahandler_{idx}.raw_input",
                      f'{FRONTEND_TYPE}_link_{idx}', 100000)
-               for idx in range(NUMBER_OF_DATA_PRODUCERS)]
+               for idx in range(number_of_dlh)]
 
     # for link in DRO_CONFIG.link:
-    for i in range(1):
+    for i in range(number_of_dlh):
         source_id = i
         if ENABLE_SOFTWARE_TPG:
             queues += [Queue(f"datahandler_{idx}.tp_out",f"sw_tp_handler_{idx}.raw_input",f"sw_tp_link_{idx}",100000 )]                
@@ -120,7 +122,7 @@ def generate(
 
     mgraph = ModuleGraph(modules, queues=queues)
 
-    for idx in range(1):
+    for idx in range(number_of_dlh):
         mgraph.connect_modules(f"datahandler_{idx}.timesync_output", "timesync_consumer.input_queue", "timesync_q")
         mgraph.connect_modules(f"datahandler_{idx}.fragment_queue", "fragment_consumer.input_queue", "data_fragments_q", 100)
         mgraph.add_endpoint(f"requests_{idx}", f"datahandler_{idx}.request_input", Direction.IN)
