@@ -20,7 +20,6 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
 
   //while(!m_run_marker) {
   while(!ealutils::dpdk_quit_signal){
-
     for (auto q : queues) {
       auto queue = q.first;
       // Get burst from queue
@@ -39,43 +38,43 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
       	  TLOG() << "bufs.pkt_len = " << m_bufs[queue][0]->pkt_len;
           rte_pktmbuf_dump(stdout, m_bufs[queue][0], m_bufs[queue][0]->pkt_len);
  	    once = false;
-	  }
+        }
 
-	  // Iterate on burst packets
-	  for (int i=0; i<nb_rx; ++i) {
+	// Iterate on burst packets
+        for (int i=0; i<nb_rx; ++i) {
 
-	    //// Avoid ARP
-	    //if (udp::foff_arp(m_bufs[queue][i])) {
-	    //  //udp::dump_udp_header(m_bufs[queue][i]);
-	    //  rte_pktmbuf_free(m_bufs[queue][i]);
-   	    //  continue;
-	    //} 
+          //// Avoid ARP
+          //if (udp::foff_arp(m_bufs[queue][i])) {
+          //  //udp::dump_udp_header(m_bufs[queue][i]);
+          //  rte_pktmbuf_free(m_bufs[queue][i]);
+          //  continue;
+          //}
 
-	    //// Avoid non IPV4 packets
-	    //if (not RTE_ETH_IS_IPV4_HDR(m_bufs[queue][i]->packet_type)) {
-	    //  //udp::dump_udp_header(m_bufs[queue][i]);
- 	    //  rte_pktmbuf_free(m_bufs[queue][i]);
-   	    //  continue;
-	    //}
-	  
-	    // Check for JUMBOs (user payloads)
-	    if (true) { // do proper check on data length later
+          //// Avoid non IPV4 packets
+          //if (not RTE_ETH_IS_IPV4_HDR(m_bufs[queue][i]->packet_type)) {
+          //  //udp::dump_udp_header(m_bufs[queue][i]);
+          //  rte_pktmbuf_free(m_bufs[queue][i]);
+          //  continue;
+          //}
+
+          // Check for JUMBOs (user payloads)
+          if (true) { // do proper check on data length later
             m_num_frames[queue]++;
             std::size_t data_len = m_bufs[queue][i]->data_len;
             char* message = udp::get_udp_payload(m_bufs[queue][i]);  //(char *)(udp_packet + 1);
             // Copy data from network stack
             copy_out(queue, message, data_len);
-	    }
+          }
 
           // Clear packet
-          rte_pktmbuf_free(m_bufs[queue][i]);
+          // rte_pktmbuf_free(m_bufs[queue][i]);
 
-	  }
+        }
 
         // Clear message buffers
-	  //for (int i=0; i < nb_rx; i++) {
-        //  rte_pktmbuf_free(m_bufs[queue][i]);
-        //}
+	for (int i=0; i < nb_rx; i++) {
+          rte_pktmbuf_free(m_bufs[queue][i]);
+        }
 
       } // per burst
     } // per Q
