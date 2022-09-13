@@ -16,13 +16,7 @@ from daqconf.core.app import App, ModuleGraph
 from daqconf.core.daqmodule import DAQModule
 from daqconf.core.conf_utils import Endpoint, Direction, Queue
 
-# Time to waait on pop()
-QUEUE_POP_WAIT_MS = 100
-# local clock speed Hz
-CLOCK_SPEED_HZ = 50000000
-
-
-def generate(
+def generate_dpdk_sender_app(
         HOST='localhost',
         NUMBER_OF_CORES=2,
         NUMBER_OF_IPS_PER_CORE=2,

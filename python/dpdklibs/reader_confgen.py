@@ -27,11 +27,9 @@ from detchannelmaps._daq_detchannelmaps_py import *
 
 # Time to wait on pop()
 QUEUE_POP_WAIT_MS = 100
-# local clock speed Hz
-CLOCK_SPEED_HZ = 50000000
 
 
-def generate(
+def generate_dpdk_reader_app(
         DRO_CONFIG=None,
         HOST='localhost',
         ENABLE_SOFTWARE_TPG=False,

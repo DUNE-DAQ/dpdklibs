@@ -93,14 +93,14 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender,
    
     # add app
     if enable_sender:
-        the_system.apps["dpdk_sender"] = sender_confgen.generate(
+        the_system.apps["dpdk_sender"] = sender_confgen.generate_dpdk_sender_app(
             HOST=host_sender,
             NUMBER_OF_CORES=sender_cores,
             NUMBER_OF_IPS_PER_CORE=sender_boards // sender_cores,
             TIME_TICK_DIFFERENCE=sender_time_tick_difference,
         )
     if enable_receiver:
-        the_system.apps["dpdk_reader"] = reader_confgen.generate(
+        the_system.apps["dpdk_reader"] = reader_confgen.generate_dpdk_reader_app(
             HOST=host_reader,
             EAL_ARGS=eal_args,
         )
@@ -137,7 +137,7 @@ def cli(partition_name, opmon_impl, ers_impl, pocket_url, eal_args, only_sender,
 
     console.log(f"dpdklibs app config generated in {json_dir}")
     
-    write_metadata_file(json_dir, "app_confgen")
+    write_metadata_file(json_dir, "dpdklibs_confgen")
 
 if __name__ == '__main__':
     try:
