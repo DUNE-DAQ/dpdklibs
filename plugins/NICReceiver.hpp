@@ -20,6 +20,7 @@
 #include "detdataformats/tde/TDE16Frame.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 #include "dpdklibs/EALSetup.hpp"
 
 #include <folly/ProducerConsumerQueue.h>
@@ -56,10 +57,10 @@ private:
   using amc_frame_queue_ptr_t = std::unique_ptr<amc_frame_queue_t>;
 
   // Commands
-  void do_configure(const data_t& args);
-  void do_start(const data_t& args);
-  void do_stop(const data_t& args);
-  void do_scrap(const data_t& args);
+  void do_configure(const data_t&);
+  void do_start(const data_t&);
+  void do_stop(const data_t&);
+  void do_scrap(const data_t&);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   // Internals
@@ -77,7 +78,7 @@ private:
 
   // TDE specifics
   inline static const std::string m_parser_thread_name = "ipp";
-  inline static const std::size_t m_amc_queue_capacity = 1000000;
+  inline static const std::size_t m_amc_queue_capacity = 100;
   std::map<int, amc_frame_queue_ptr_t> m_amc_data_queues;
   std::map<int, std::unique_ptr<readoutlibs::ReusableThread>> m_amc_frame_handlers;
   //std::map<int, std::atomic<uint64_t>> m_amc_frame_dropped;
@@ -93,10 +94,9 @@ private:
   std::thread m_stat_thread;
 
   // DPDK
-  const int m_burst_size = 512; 
+  const int m_burst_size = 64;
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;
-  //struct rte_mbuf **m_bufs;
   unsigned m_nb_ports;
   uint16_t m_portid;
   volatile uint8_t m_dpdk_quit_signal;
@@ -107,11 +107,13 @@ private:
 
   std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDE_AMC_STRUCT>> m_sender;
 
+  // Opmon
+  std::atomic<int> m_total_groups_sent {0};
+  std::atomic<int> m_groups_sent {0};
 };
 
 } // namespace dunedaq::dpdklibs
 
-// Declarations
 #include "detail/NICReceiver.hxx"
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

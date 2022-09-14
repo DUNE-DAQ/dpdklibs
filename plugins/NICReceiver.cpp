@@ -46,6 +46,24 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
+class TDEFrameGrouper
+{
+public:
+  void group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v,
+             detdataformats::tde::TDE16Frame* frames);
+
+private:
+};
+
+void
+TDEFrameGrouper::group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v,
+                       detdataformats::tde::TDE16Frame* frames)
+{
+  for (int i = 0; i < 12 * 64; i++) {
+    v[frames[i].get_tde_header()->slot][frames[i].get_tde_header()->link] = frames[i];
+  }
+}
+
 NICReceiver::NICReceiver(const std::string& name)
   : DAQModule(name),
     m_run_marker{ false }
@@ -63,9 +81,8 @@ NICReceiver::~NICReceiver()
 }
 
 void
-NICReceiver::init(const data_t& args)
+NICReceiver::init(const data_t&)
 {
-  TLOG() << get_name() << ": Entering init() method";
 }
 
 void
@@ -111,11 +128,10 @@ NICReceiver::do_configure(const data_t& args)
   TLOG() << "Setting up EAL with params from config.";
   std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
   ealutils::init_eal(eal_params.size(), eal_params.data());
-  int nb_ports = ealutils::get_available_ports();
 
   // Allocate pools and mbufs per queue
   TLOG() << "Allocating pools and mbufs.";
-  for (int i=0; i<m_rx_qs.size(); ++i) {
+  for (size_t i=0; i<m_rx_qs.size(); ++i) {
     std::stringstream ss;
     ss << "MBP-" << i; 
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
@@ -173,7 +189,7 @@ NICReceiver::do_configure(const data_t& args)
 }
 
 void
-NICReceiver::do_start(const data_t& args)
+NICReceiver::do_start(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_start() method";
   if (!m_run_marker.load()) {
@@ -196,9 +212,9 @@ NICReceiver::do_start(const data_t& args)
     });
 
     TLOG() << "Starting frame processors.";
-    for (unsigned int i=0; i<m_amc_frame_handlers.size(); ++i) {
-      m_amc_frame_handlers[i]->set_work(&NICReceiver::handle_frame_queue, this, i);
-    }
+    // for (unsigned int i=0; i<m_amc_frame_handlers.size(); ++i) {
+    //   m_amc_frame_handlers[i]->set_work(&NICReceiver::handle_frame_queue, this, i);
+    // }
 
     TLOG() << "Starting LCore processors:";
     for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
@@ -212,7 +228,7 @@ NICReceiver::do_start(const data_t& args)
 }
 
 void
-NICReceiver::do_stop(const data_t& args)
+NICReceiver::do_stop(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_stop() method";
   if (m_run_marker.load()) {
@@ -220,7 +236,7 @@ NICReceiver::do_stop(const data_t& args)
     set_running(false);
     m_dpdk_quit_signal = 1;
     ealutils::dpdk_quit_signal = 1;
-    int ret = ealutils::wait_for_lcores();
+    ealutils::wait_for_lcores();
     TLOG() << "Stoppped DPDK lcore processors...";
     struct rte_flow_error error;
     rte_flow_flush(0, &error);
@@ -230,7 +246,7 @@ NICReceiver::do_stop(const data_t& args)
 }
 
 void
-NICReceiver::do_scrap(const data_t& args)
+NICReceiver::do_scrap(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
 }
@@ -238,7 +254,9 @@ NICReceiver::do_scrap(const data_t& args)
 void
 NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 {
-
+  nicreaderinfo::Info nri;
+  nri.groups_sent = m_groups_sent.exchange(0);
+  nri.total_groups_sent = m_total_groups_sent.load();
 }
 
 void 
@@ -276,14 +294,26 @@ dump_to_buffer(const char* data,
 
 void
 NICReceiver::copy_out(int queue, char* message, std::size_t size) {
-  // detdataformats::tde::TDE16Frame target_payload;
-  fdreadoutlibs::types::TDE_AMC_STRUCT target_payload;
+  detdataformats::tde::TDE16Frame target_payload;
   uint32_t bytes_copied = 0;
   dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-  // m_amc_data_queues[queue]->write(std::move(target_payload));
-  m_sender->send(std::move(target_payload), std::chrono::milliseconds(100));
-  TLOG() << "SENDING";
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  m_amc_data_queues[queue]->write(std::move(target_payload));
+  fdreadoutlibs::types::TDE_AMC_STRUCT amc_struct;
+  if (m_amc_data_queues[queue]->sizeGuess() == 64) {
+    for (int i = 0; i < 64; i++) {
+      auto ptr = m_amc_data_queues[queue]->frontPtr();
+      memcpy(amc_struct.data + ptr->get_tde_header()->link, ptr, sizeof(detdataformats::tde::TDE16Frame));
+      m_amc_data_queues[queue]->popFront();
+      // TLOG() << "(" << queue << "): Found frame with ts = " << ptr->get_timestamp() << " and link = " << ptr->get_tde_header()->link << " and ADC = " << ptr->get_adc_samples(0);
+    }
+    TLOG() << "SENDING";
+    m_sender->send(std::move(amc_struct), std::chrono::milliseconds(100));
+  }
+  // else {
+  //   TLOG() << "Size of the queue is " << queue << " " << m_amc_data_queues[queue]->sizeGuess();
+  // }
+  // target_payload.set_first_timestamp(ts++);
+  // std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 void 

@@ -150,7 +150,7 @@ std::vector<char*>
 string_to_eal_args(const std::string& params)
 {
   auto parts = boost::program_options::split_unix(params);
-  std::vector<char*> cstrings ;
+  std::vector<char*> cstrings;
   for(auto& str : parts){
     cstrings.push_back(const_cast<char*> (str.c_str()));
   }

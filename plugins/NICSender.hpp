@@ -50,32 +50,37 @@ public:
 
   void init(const nlohmann::json& iniobj) override;
 
+  // Map Core ID (LID) -> IP
+  std::map<int, std::vector<std::string>> m_core_map;
+  // MAP Core ID (LID) -> IP (as uint32)
+  std::map<int, std::vector<uint32_t>> m_core_map32;
+  std::atomic<bool> m_run_mark;
+
+  int m_number_of_ips_per_core;
+  int m_burst_size;
+
 private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
-  void do_start(const nlohmann::json& obj); 
-  void do_stop(const nlohmann::json& obj);
-  void do_configure(const nlohmann::json& obj);
-  void do_scrap(const nlohmann::json& obj);
+  void do_configure(const data_t&);
+  void do_start(const data_t&); 
+  void do_stop(const data_t&);
+  void do_scrap(const data_t&);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   void dpdk_configure();
 
-  void lcore_main(void *arg);
+  // template<typename T> int lcore_main(void *arg);
 
   void do_work(std::atomic<bool>&);
 
-  std::atomic<bool> m_run_mark;
 
-  int m_burst_size;
   int m_number_of_cores;
+  int m_time_tick_difference;
   double m_rate;
-
-  std::map<int, std::vector<std::string>> m_core_map;
-  std::map<int, std::vector<uint32_t>> m_core_map32;
-
-
+  std::string m_frontend_type;
 };
+
 } // namespace dpdklibs
 } // namespace dunedaq
 
