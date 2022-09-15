@@ -72,6 +72,8 @@ jobs:
           export DPDK_INSTALL_DIR=/cvmfs/dunedaq.opensciencegrid.org/spack-externals/spack-0.17.1/opt/spack/gcc-8.2.0/dpdk-22.03-pnovz2nkvc2r75qdoyxmjoo2vjnhcvmx
           export DPDK_LIB=${DPDK_INSTALL_DIR}/lib
           export DPDK_INC=${DPDK_INSTALL_DIR}/include
+          echo $DPDK_LIB
+          echo $DPDK_INC
           dbt-build --unittest
 
     - name: upload build log file
