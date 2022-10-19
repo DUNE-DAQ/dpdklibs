@@ -105,7 +105,7 @@ private:
   //template<class T> 
   int rx_runner(void *arg __rte_unused);
 
-  std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDE_AMC_STRUCT>> m_sender;
+  std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>> m_sender;
 
   // Opmon
   std::atomic<int> m_total_groups_sent {0};
