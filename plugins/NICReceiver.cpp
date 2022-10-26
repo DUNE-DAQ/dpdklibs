@@ -15,7 +15,7 @@
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
 
-#include "fdreadoutlibs/FDReadoutTypes.hpp"
+#include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
 
 #include "NICReceiver.hpp"
 
@@ -103,7 +103,7 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
-  m_sender = get_iom_sender<fdreadoutlibs::types::TDE_AMC_STRUCT>("tde_link_0");
+  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
 
 
   // Setup expected IP sources
@@ -296,7 +296,7 @@ NICReceiver::copy_out(int queue, char* message, std::size_t size) {
   uint32_t bytes_copied = 0;
   dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
   m_amc_data_queues[queue]->write(std::move(target_payload));
-  fdreadoutlibs::types::TDE_AMC_STRUCT amc_struct;
+  fdreadoutlibs::types::TDEAMCFrameTypeAdapter amc_struct;
   if (m_amc_data_queues[queue]->sizeGuess() == 64) {
     for (int i = 0; i < 64; i++) {
       auto ptr = m_amc_data_queues[queue]->frontPtr();
