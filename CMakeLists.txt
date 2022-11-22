@@ -15,6 +15,7 @@ find_package(fdreadoutlibs REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DPDK REQUIRED libdpdk)
 
+daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 daq_codegen( confgen.jsonnet DEP_PKGS daqconf TEMPLATES Structs.hpp.j2)
 
