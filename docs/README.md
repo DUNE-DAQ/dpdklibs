@@ -32,7 +32,16 @@ nanorc dpdk_app partition_name
 ```
 
 Only the sender and only the receiver can be started with the parameters
-`only_sender` and `only_receiver` respectively.
+`only_sender` and `only_receiver` respectively. This is an example for the
+`conf.json` that enables only the sender:
+
+```
+{
+    "dpdklibs": {
+        "only_sender": true
+    }
+}
+```
 
 # Setting up dpdk
 For convenience, there is a set of scripts in this repo to set up dpdk, assuming
