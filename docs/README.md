@@ -1,18 +1,47 @@
 # dpdklibs - DPDK UIO software and utilities 
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
-# How to run a system with a transmitter and a receiver:
+# Setting up DPDK on NP04
+At the time of writing (22-11-2022), there is only a working setup available in
+021 and 022, which are connected with 100G Mellanox NICs and a 100G switch.
+
+To run, log in to 021 and 022 as root. Set up a workarea and do
+`dbt-workarea-env`. Then, export the following environment variables:
+
+```
+export DPDK_LIB=/usr/local/lib64
+export LD_LIBRARY_PATH=/usr/local/lib64/:$LD_LIBRARY_PATH
+```
+
+compiling `dpdklibs` should work. If it was compiled before (withouth the env
+variables) it will be necessary to do a clean build.
+
+
+## How to run a system with a transmitter and/or a receiver:
 Generate the config with
 ```
-python sourcecode/dpdklibs/scripts/dpdklibs_gen.py dpdk_app
+python sourcecode/dpdklibs/scripts/dpdklibs_gen.py -c conf.json dpdk_app
 ```
-and then run it
+
+where `conf.json` has the parameters that we want to use (see
+`schema/dpdklibs/confgen.jsonnet` for a complete list of all the parameters) and
+then run it (as root)
+
 ```
 nanorc dpdk_app partition_name
 ```
 
-For debugging, only the sender and only the receiver can be started with
-`--only-sender` and `--only-receiver` respectively.
+Only the sender and only the receiver can be started with the parameters
+`only_sender` and `only_receiver` respectively. This is an example for the
+`conf.json` that enables only the sender:
+
+```
+{
+    "dpdklibs": {
+        "only_sender": true
+    }
+}
+```
 
 # Setting up dpdk
 For convenience, there is a set of scripts in this repo to set up dpdk, assuming

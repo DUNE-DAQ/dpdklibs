@@ -6,8 +6,6 @@
  * received with this code.
  */
 
-#include "dpdklibs/nicreader/Nljs.hpp"
-
 #include "logging/Logging.hpp"
 #include "dpdklibs/EALSetup.hpp"
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(dpdklibs VERSION 0.0.1)
+project(dpdklibs VERSION 0.0.2)
 
 find_package(daq-cmake REQUIRED)
 
@@ -15,12 +15,9 @@ find_package(fdreadoutlibs REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DPDK REQUIRED libdpdk)
 
-
-daq_codegen(*.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
+daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
-
-# RS -> This was needed at some point?
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
+daq_codegen( confgen.jsonnet DEP_PKGS daqconf TEMPLATES Structs.hpp.j2)
 
 ##############################################################################
 # Dependency sets
