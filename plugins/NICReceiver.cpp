@@ -103,9 +103,7 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
-  dunedaq::iomanager::ConnectionRef cref;
-  cref.uid = "tde_link_0";
-  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>(cref);
+  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
 
 
   // Setup expected IP sources
