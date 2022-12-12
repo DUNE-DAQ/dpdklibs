@@ -1,16 +1,16 @@
 #include <inttypes.h>
+#include <iomanip>
+#include <iostream>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <stdint.h>
-#include <iostream>
-#include <iomanip>
 
-#include "logging/Logging.hpp"
 #include "detdataformats/wib/WIBFrame.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
+#include "logging/Logging.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -32,12 +32,11 @@ using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
 
-static const struct rte_eth_conf port_conf_default = {
-    .rxmode = {
-        .mtu = 9000,
-        .offloads = (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
-        }
-};
+static const struct rte_eth_conf port_conf_default = { .rxmode = {
+                                                         .mtu = 9000,
+                                                         .offloads =
+                                                           (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
+                                                       } };
 
 static inline int
 port_init(uint16_t port, struct rte_mempool* mbuf_pool)
@@ -68,7 +67,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   if (retval != 0)
     return retval;
 
-    rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
   { /* scope */
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
@@ -124,7 +123,7 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 }
 
 static int
-lcore_main(struct rte_mempool *mbuf_pool)
+lcore_main(struct rte_mempool* mbuf_pool)
 {
   // int* is_running = (int*)arg;
   uint16_t port;
@@ -140,8 +139,6 @@ lcore_main(struct rte_mempool *mbuf_pool)
            "not be optimal.\n",
            port);
 
-
-
   /* Run until the application is quit or killed. */
   int burst_number = 0;
   int sum = 0;
@@ -149,16 +146,17 @@ lcore_main(struct rte_mempool *mbuf_pool)
 
   auto stats = std::thread([&]() {
     while (true) {
-      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      // TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames /
+      // 1e6 * 8; TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
       TLOG() << "Rate is " << (size_t)9000 * num_frames / 1e6 * 8;
-      // printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
+      // printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames /
+      // 1e6 * 8);
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
-  struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf** bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
   bool once = true;
   while (true) {
@@ -181,8 +179,8 @@ lcore_main(struct rte_mempool *mbuf_pool)
             ss << bufs[i]->pkt_len << " ";
             // TLOG() << "Found other data" << ss.str();
             if (false) {
-            rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
-            once = false;
+              rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
+              once = false;
             }
           }
           // continue;
@@ -191,7 +189,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
         // if (burst_number % 1000 == 0) {
         //   TLOG() << "burst_number =" << burst_number;
         // }
-        for (int i=0; i<nb_rx; ++i) {
+        for (int i = 0; i < nb_rx; ++i) {
           num_frames++;
           // auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
           // if (fr->get_timestamp() != burst_number) {
@@ -209,8 +207,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
           // }
         }
 
-        for (int i=0; i < nb_rx; i++)
-        {
+        for (int i = 0; i < nb_rx; i++) {
           rte_pktmbuf_free(bufs[i]);
         }
       }
@@ -222,50 +219,55 @@ lcore_main(struct rte_mempool *mbuf_pool)
 int
 main(int argc, char* argv[])
 {
-    struct rte_mempool *mbuf_pool;
-    unsigned nb_ports;
-    uint16_t portid;
+  struct rte_mempool* mbuf_pool;
+  unsigned nb_ports;
+  uint16_t portid;
 
-    // Init EAL
-    int ret = rte_eal_init(argc, argv);
-    if (ret < 0) {
-        rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+  // Init EAL
+  int ret = rte_eal_init(argc, argv);
+  if (ret < 0) {
+    rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+  }
+
+  argc -= ret;
+  argv += ret;
+
+  // Check that there is an even number of ports to send/receive on
+  nb_ports = rte_eth_dev_count_avail();
+  if (nb_ports < 2 || (nb_ports & 1)) {
+    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+  }
+
+  printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+
+  mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL",
+                                      NUM_MBUFS * nb_ports,
+                                      // MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+                                      MBUF_CACHE_SIZE,
+                                      0,
+                                      9800,
+                                      rte_socket_id());
+
+  if (mbuf_pool == NULL) {
+    rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %" PRIu16 "\n", portid);
+  }
+
+  // Initialize all ports
+  RTE_ETH_FOREACH_DEV(portid)
+  {
+    if (port_init(portid, mbuf_pool) != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %" PRIu16 "\n", portid);
     }
+  }
 
-    argc -= ret;
-    argv += ret;
+  // Call lcore_main on the main core only
+  // for (int i=0; i < 2; ++i) {
+  //   rte_eal_remote_launch(lcore_main, mbuf_pool, i);
+  // }
+  lcore_main(mbuf_pool);
 
-    // Check that there is an even number of ports to send/receive on
-    nb_ports = rte_eth_dev_count_avail();
-    if (nb_ports < 2 || (nb_ports & 1)) {
-        rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-    }
+  // clean up the EAL
+  rte_eal_cleanup();
 
-    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
-
-    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-        // MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-        MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
-
-    if (mbuf_pool == NULL) {
-        rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-    }
-
-    // Initialize all ports
-    RTE_ETH_FOREACH_DEV(portid) {
-        if (port_init(portid, mbuf_pool) != 0) {
-            rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-        }
-    }
-
-    // Call lcore_main on the main core only
-    // for (int i=0; i < 2; ++i) {
-    //   rte_eal_remote_launch(lcore_main, mbuf_pool, i);
-    // }
-    lcore_main(mbuf_pool);
-
-    // clean up the EAL
-    rte_eal_cleanup();
-
-    return 0;
+  return 0;
 }
