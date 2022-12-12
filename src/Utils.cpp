@@ -1,4 +1,3 @@
-void
-foo()
-{
+void foo() {
+
 }
