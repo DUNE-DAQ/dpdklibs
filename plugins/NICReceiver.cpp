@@ -7,22 +7,22 @@
  */
 #include "dpdklibs/nicreader/Nljs.hpp"
 
-#include "logging/Logging.hpp"
 #include "detdataformats/tde/TDE16Frame.hpp"
+#include "logging/Logging.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/udp/Utils.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
 #include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
 
 #include "NICReceiver.hpp"
 
-#include <cinttypes>
 #include <chrono>
-#include <sstream>
+#include <cinttypes>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -49,8 +49,7 @@ namespace dpdklibs {
 class TDEFrameGrouper
 {
 public:
-  void group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v,
-             detdataformats::tde::TDE16Frame* frames);
+  void group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v, detdataformats::tde::TDE16Frame* frames);
 
 private:
 };
@@ -65,8 +64,8 @@ TDEFrameGrouper::group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>
 }
 
 NICReceiver::NICReceiver(const std::string& name)
-  : DAQModule(name),
-    m_run_marker{ false }
+  : DAQModule(name)
+  , m_run_marker{ false }
 {
   register_command("conf", &NICReceiver::do_configure);
   register_command("start", &NICReceiver::do_start);
@@ -92,7 +91,7 @@ NICReceiver::do_configure(const data_t& args)
   m_cfg = args.get<module_conf_t>();
   m_dest_ip = m_cfg.dest_ip;
   auto ip_sources = m_cfg.ip_sources;
-  auto rx_cores = m_cfg.rx_cores; 
+  auto rx_cores = m_cfg.rx_cores;
   m_num_ip_sources = ip_sources.size();
   m_num_rx_cores = rx_cores.size();
 
@@ -105,12 +104,11 @@ NICReceiver::do_configure(const data_t& args)
 
   m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
 
-
   // Setup expected IP sources
   for (auto src : ip_sources) {
     TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
     // Extend mapping
-    m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
+    m_rx_core_map[src.lcore][src.rx_q] = src.ip;
     m_rx_qs.insert(src.rx_q);
 
     // Create frame counter metric
@@ -129,11 +127,11 @@ NICReceiver::do_configure(const data_t& args)
 
   // Allocate pools and mbufs per queue
   TLOG() << "Allocating pools and mbufs.";
-  for (size_t i=0; i<m_rx_qs.size(); ++i) {
+  for (size_t i = 0; i < m_rx_qs.size(); ++i) {
     std::stringstream ss;
-    ss << "MBP-" << i; 
+    ss << "MBP-" << i;
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
-    m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+    m_bufs[i] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
 
@@ -144,7 +142,7 @@ NICReceiver::do_configure(const data_t& args)
   // Flow steering setup
   TLOG() << "Configuring Flow steering rules.";
   struct rte_flow_error error;
-  struct rte_flow *flow;
+  struct rte_flow* flow;
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
 
@@ -158,15 +156,11 @@ NICReceiver::do_configure(const data_t& args)
         current_ind += ind + 1;
       }
 
-      flow = generate_ipv4_flow(0, rxqid, 
-		                RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff,
-				0, 0,
-				&error);
+      flow = generate_ipv4_flow(0, rxqid, RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
       if (not flow) { // ers::fatal
-        TLOG() << "Flow can't be created for " << rxqid
-	       << " Error type: " << (unsigned)error.type
-	       << " Message: " << error.message;
-    	rte_exit(EXIT_FAILURE, "error in creating flow");
+        TLOG() << "Flow can't be created for " << rxqid << " Error type: " << (unsigned)error.type
+               << " Message: " << error.message;
+        rte_exit(EXIT_FAILURE, "error in creating flow");
       }
     }
   }
@@ -177,12 +171,11 @@ NICReceiver::do_configure(const data_t& args)
     flow = generate_drop_flow(0, &error);
     if (not flow) { // ers::fatal
       TLOG() << "Drop flow can't be created for port0!"
-             << " Error type: " << (unsigned)error.type
-             << " Message: " << error.message;
+             << " Error type: " << (unsigned)error.type << " Message: " << error.message;
       rte_exit(EXIT_FAILURE, "error in creating flow");
     }
   }
-  
+
   TLOG() << "DPDK EAL & RTE configured.";
 }
 
@@ -198,13 +191,14 @@ NICReceiver::do_start(const data_t&)
     TLOG() << "Starting stats thread.";
     m_stat_thread = std::thread([&]() {
       while (m_run_marker.load()) {
-        // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-	for (auto& [qid, nframes] : m_num_frames) { // fixme for proper payload size
-	  TLOG() << "Received Rate of q[" << qid << "] is " << size_t(9000) * nframes.load() / 1e6 * 8;
-	  nframes.exchange(0);
-	}
-	TLOG() << "CLEARED  Rate is " << size_t(9000) * m_cleaned / 1e6 * 8;
-	m_cleaned.exchange(0);
+        // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames /
+        // 1e6 * 8;
+        for (auto& [qid, nframes] : m_num_frames) { // fixme for proper payload size
+          TLOG() << "Received Rate of q[" << qid << "] is " << size_t(9000) * nframes.load() / 1e6 * 8;
+          nframes.exchange(0);
+        }
+        TLOG() << "CLEARED  Rate is " << size_t(9000) * m_cleaned / 1e6 * 8;
+        m_cleaned.exchange(0);
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     });
@@ -257,7 +251,7 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
   nri.total_groups_sent = m_total_groups_sent.load();
 }
 
-void 
+void
 NICReceiver::handle_frame_queue(int id)
 {
   TLOG() << "frame_proc[" << id << "] starting to handle frames in corresponding queue!";
@@ -291,7 +285,8 @@ dump_to_buffer(const char* data,
 }
 
 void
-NICReceiver::copy_out(int queue, char* message, std::size_t size) {
+NICReceiver::copy_out(int queue, char* message, std::size_t size)
+{
   detdataformats::tde::TDE16Frame target_payload;
   uint32_t bytes_copied = 0;
   dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
@@ -302,7 +297,8 @@ NICReceiver::copy_out(int queue, char* message, std::size_t size) {
       auto ptr = m_amc_data_queues[queue]->frontPtr();
       memcpy(amc_struct.data + ptr->get_tde_header()->link, ptr, sizeof(detdataformats::tde::TDE16Frame));
       m_amc_data_queues[queue]->popFront();
-      // TLOG() << "(" << queue << "): Found frame with ts = " << ptr->get_timestamp() << " and link = " << ptr->get_tde_header()->link << " and ADC = " << ptr->get_adc_samples(0);
+      // TLOG() << "(" << queue << "): Found frame with ts = " << ptr->get_timestamp() << " and link = " <<
+      // ptr->get_tde_header()->link << " and ADC = " << ptr->get_adc_samples(0);
     }
     TLOG() << "SENDING";
     m_sender->send(std::move(amc_struct), std::chrono::milliseconds(100));
@@ -314,7 +310,7 @@ NICReceiver::copy_out(int queue, char* message, std::size_t size) {
   // std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
-void 
+void
 NICReceiver::set_running(bool should_run)
 {
   bool was_running = m_run_marker.exchange(should_run);

@@ -6,28 +6,28 @@
  * received with this code.
  */
 
-#include "logging/Logging.hpp"
 #include "dpdklibs/EALSetup.hpp"
+#include "logging/Logging.hpp"
 
 #include "NICSender.hpp"
 
-#include <cinttypes>
+#include <algorithm>
 #include <chrono>
-#include <sstream>
+#include <cinttypes>
 #include <memory>
+#include <random>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
-#include <random>
-#include <algorithm>
 
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
 
-#include "dpdklibs/udp/PacketCtor.hpp"
 #include "detdataformats/tde/TDE16Frame.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
 
 #include "readoutlibs/utils/RateLimiter.hpp"
 
@@ -135,17 +135,18 @@ NICSender::NICSender(const std::string& name)
 
 struct lcore_args
 {
-  NICSender *ns;
+  NICSender* ns;
 };
 
 template<typename T>
-int lcore_main(void *arg)
+int
+lcore_main(void* arg)
 {
-  NICSender *ns = static_cast<NICSender*>(arg);
+  NICSender* ns = static_cast<NICSender*>(arg);
   uint16_t lid = rte_lcore_id();
 
   std::vector<uint32_t> ips;
-  for (auto& [key, val]: ns->m_core_map32) {
+  for (auto& [key, val] : ns->m_core_map32) {
     if (key == lid) {
       ips = val;
       TLOG() << "ips has now size " << ips.size();
@@ -164,10 +165,14 @@ int lcore_main(void *arg)
   uint16_t port;
 
   unsigned nb_ports = rte_eth_dev_count_avail();
-  TLOG () << "mbuf with lid = " << lid;
-  struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
-      MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
-  TLOG () << "mbuf done with lid = " << lid;
+  TLOG() << "mbuf with lid = " << lid;
+  struct rte_mempool* mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(),
+                                                          NUM_MBUFS * nb_ports,
+                                                          MBUF_CACHE_SIZE,
+                                                          0,
+                                                          9800,
+                                                          rte_socket_id());
+  TLOG() << "mbuf done with lid = " << lid;
 
   /*
    * Check that the port is on the same NUMA node as the polling thread
@@ -187,14 +192,15 @@ int lcore_main(void *arg)
 
   auto stats = std::thread([&]() {
     while (true) {
-      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      TLOG() << "Rate is " << (sizeof(T)+42) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames /
+      // 1e6 * 8;
+      TLOG() << "Rate is " << (sizeof(T) + 42) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
-  struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  struct rte_mbuf** pkt = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
 
   readoutlibs::RateLimiter rl(1.0 / 2.290);
@@ -246,22 +252,19 @@ int lcore_main(void *arg)
           // pktgen_udp_hdr_ctor(&hdr, &hdr_udp);
           // pktgen_udp_hdr_ctor(&hdr);
 
-          // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct ipv4_udp_packet);
-          // pkt[i]->pkt_len = sizeof(T)+42;
-          // TLOG() << "pkt_len = " << sizeof(T) + 42; 9014 for TDE + 42
+          // pkt[i]->pkt_len = sizeof(rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) +
+          // sizeof(struct ipv4_udp_packet); pkt[i]->pkt_len = sizeof(T)+42; TLOG() << "pkt_len = " << sizeof(T) + 42;
+          // 9014 for TDE + 42
 
           pkt[i]->data_len = 9014;
 
-          uint8_t ary[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // All zeros
-                           0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, // MAC of the sender
-                           0x08, 0x00, 0x45, 0x00, 0x23, 0x16,
-                           0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11,
-                           0x6C, 0x4C, 0x0A, 0x49, 0x8B, ip,
-                           0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2,
-                           0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E};
+          uint8_t ary[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // All zeros
+                            0xEC, 0x0D, 0x9A, 0x8E, 0xBA, 0x10, // MAC of the sender
+                            0x08, 0x00, 0x45, 0x00, 0x23, 0x16, 0xFB, 0xD7, 0x00, 0x00, 0x05, 0x11, 0x6C, 0x4C, 0x0A,
+                            0x49, 0x8B, ip,   0x0A, 0x49, 0x8B, 0x11, 0x04, 0xD2, 0x16, 0x2E, 0x23, 0x02, 0xF8, 0x4E };
 
-          char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-          char *ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42) ;
+          char* ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
+          char* ether_mbuf_offset4 = rte_pktmbuf_mtod_offset(pkt[i], char*, 42);
 
           rte_memcpy(ether_mbuf_offset, ary, 42);
           rte_memcpy(ether_mbuf_offset4, &msg, sizeof(T));
@@ -273,9 +276,9 @@ int lcore_main(void *arg)
 
         // Send burst of TX packets
         int sent = 0;
-        uint16_t nb_tx {};
-        while(sent < m_burst_size) {
-          nb_tx = rte_eth_tx_burst(port, lid-1, pkt, m_burst_size - sent);
+        uint16_t nb_tx{};
+        while (sent < m_burst_size) {
+          nb_tx = rte_eth_tx_burst(port, lid - 1, pkt, m_burst_size - sent);
           sent += nb_tx;
           num_frames += nb_tx;
         }
@@ -290,14 +293,12 @@ int lcore_main(void *arg)
       }
     }
 
-    rte_eth_tx_done_cleanup(port, lid-1, 0);
+    rte_eth_tx_done_cleanup(port, lid - 1, 0);
   }
   return 0;
 }
 
-NICSender::~NICSender()
-{
-}
+NICSender::~NICSender() {}
 
 void
 NICSender::init(const data_t&)
@@ -308,7 +309,7 @@ void
 NICSender::dpdk_configure()
 {
   int argc = 0;
-  std::vector<char*> v{"test"};
+  std::vector<char*> v{ "test" };
   ealutils::init_eal(argc, v.data());
 
   std::map<int, std::unique_ptr<rte_mempool>> m;
@@ -329,7 +330,7 @@ NICSender::do_configure(const data_t& args)
   m_time_tick_difference = cfg.time_tick_difference;
 
   // Convert the IPs from std::string to uint32_t and put them in the map
-  for (auto& [id, ips]: cfg.core_list) {
+  for (auto& [id, ips] : cfg.core_list) {
     m_core_map[id] = ips;
     std::vector<uint32_t> vips;
     for (auto& ip : ips) {
@@ -354,8 +355,8 @@ NICSender::do_start(const data_t&)
   if (m_frontend_type == "tde") {
     auto fun = &lcore_main<detdataformats::tde::TDE16Frame>;
     for (auto& [id, _] : m_core_map) {
-        TLOG() << "Starting core " << id;
-        rte_eal_remote_launch(fun, reinterpret_cast<void*>(this), id);
+      TLOG() << "Starting core " << id;
+      rte_eal_remote_launch(fun, reinterpret_cast<void*>(this), id);
     }
   }
 
@@ -380,7 +381,6 @@ NICSender::do_scrap(const data_t&)
 void
 NICSender::get_info(opmonlib::InfoCollector& ci, int level)
 {
-
 }
 
 } // namespace dpdklibs

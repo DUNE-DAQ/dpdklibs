@@ -1,5 +1,5 @@
 /**
- * @file PacketCtor.hpp Functions to construct 
+ * @file PacketCtor.hpp Functions to construct
  * IPV4 UDP Packets and headers
  *
  * This is part of the DUNE DAQ , copyright 2020.
@@ -9,22 +9,27 @@
 #ifndef DPDKLIBS_INCLUDE_DPDKLIBS_UDP_PACKETCTOR_HPP_
 #define DPDKLIBS_INCLUDE_DPDKLIBS_UDP_PACKETCTOR_HPP_
 
-#include <rte_byteorder.h>
 #include "IPV4UDPPacket.hpp"
+#include <rte_byteorder.h>
 
 namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
 
-rte_le16_t packet_fill(struct ipv4_udp_packet_hdr * packet_hdr);
+rte_le16_t
+packet_fill(struct ipv4_udp_packet_hdr* packet_hdr);
 
-void pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len);
+void
+pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr* packet_hdr, rte_le16_t packet_len);
 
-void pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len);
+void
+pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr* packet_hdr, rte_le16_t packet_len);
 
-void pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
+void
+pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr* packet_hdr);
 
-rte_le16_t pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
+rte_le16_t
+pktgen_packet_ctor(struct ipv4_udp_packet_hdr* packet_hdr);
 
 } // namespace udp
 } // namespace dpdklibs
