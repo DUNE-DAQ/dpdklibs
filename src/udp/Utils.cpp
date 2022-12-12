@@ -14,23 +14,24 @@ namespace dpdklibs {
 namespace udp {
 
 uint16_t
-get_payload_size_udp_hdr(struct rte_udp_hdr* udp_hdr)
+get_payload_size_udp_hdr(struct rte_udp_hdr * udp_hdr)
 {
   return rte_be_to_cpu_16(udp_hdr->dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
 uint16_t
-get_payload_size(struct ipv4_udp_packet_hdr* ipv4_udp_hdr)
+get_payload_size(struct ipv4_udp_packet_hdr * ipv4_udp_hdr)
 {
   return rte_be_to_cpu_16(ipv4_udp_hdr->udp_hdr.dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
 rte_be32_t
 ip_address_dotdecimal_to_binary(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4)
-{
+{ 
   rte_le32_t ip_address = (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4;
   return rte_cpu_to_be_32(ip_address);
 }
+
 
 struct ipaddr
 ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address)
@@ -41,22 +42,21 @@ ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address)
 }
 
 void
-print_ipv4_decimal_addr(struct ipaddr ipv4_address)
-{
+print_ipv4_decimal_addr(struct ipaddr ipv4_address) {
   printf("%i.%i.%i.%i",
-         ipv4_address.addr_bytes[4],
-         ipv4_address.addr_bytes[3],
-         ipv4_address.addr_bytes[1],
-         ipv4_address.addr_bytes[0]);
+        ipv4_address.addr_bytes[4],
+        ipv4_address.addr_bytes[3],
+        ipv4_address.addr_bytes[1],
+        ipv4_address.addr_bytes[0]);
 }
 
-char*
-get_udp_payload(struct rte_mbuf* mbuf)
+char *
+get_udp_payload(struct rte_mbuf *mbuf)
 {
-  struct ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr*);
-  // dump_udp_header(udp_packet);
-  // uint16_t payload_size = get_payload_size(udp_packet);
-  char* payload = (char*)(udp_packet + 1);
+  struct ipv4_udp_packet_hdr * udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  //dump_udp_header(udp_packet);
+  //uint16_t payload_size = get_payload_size(udp_packet);
+  char* payload = (char *)(udp_packet + 1);
   return payload;
 
   /*
@@ -81,20 +81,20 @@ get_udp_payload(struct rte_mbuf* mbuf)
   */
 }
 
-void
-// dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
-dump_udp_header(struct rte_mbuf* mbuf)
+void 
+//dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
+dump_udp_header(struct rte_mbuf *mbuf)
 {
-  struct ipv4_udp_packet_hdr* pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr*);
+  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
 
   printf("------ start of packet ----- \n");
-  // static void
-  // print_ethaddr(const char *name, struct rte_ether_addr *eth_addr)
+  //static void
+  //print_ethaddr(const char *name, struct rte_ether_addr *eth_addr)
   //{
-  //     char buf[RTE_ETHER_ADDR_FMT_SIZE];
-  //     rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, eth_addr);
-  //     printf("%s%s", name, buf);
-  // }
+  //    char buf[RTE_ETHER_ADDR_FMT_SIZE];
+  //    rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, eth_addr);
+  //    printf("%s%s", name, buf);
+  //} 
   printf("dst mac addr: %02X:%02X:%02X:%02X:%02X:%02X\n",
          pkt->eth_hdr.dst_addr.addr_bytes[0],
          pkt->eth_hdr.dst_addr.addr_bytes[1],
@@ -133,20 +133,20 @@ dump_udp_header(struct rte_mbuf* mbuf)
   printf("UDP len: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.dgram_len));
   printf("UDP checksum: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.dgram_cksum));
 
-  char* payload = (char*)(pkt);
+  char* payload = (char *)(pkt);
   uint byte;
   for (byte = 0; byte < rte_be_to_cpu_16(pkt->udp_hdr.dgram_len); byte++) {
     printf("%02x ", *(payload + byte) & 0xFF);
-    // printf("%s", (payload + byte));
+    //printf("%s", (payload + byte));
   }
   printf("\n");
   return;
 }
 
-bool
-foff_arp(struct rte_mbuf* mbuf)
+bool 
+foff_arp(struct rte_mbuf *mbuf)
 {
-  struct rte_ether_hdr* eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr*);
+  struct rte_ether_hdr * eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
   if (eth->ether_type == RTE_ETHER_TYPE_ARP) {
     return true;
   }

@@ -39,10 +39,14 @@ public:
   explicit NICSender(const std::string& name);
   ~NICSender();
 
-  NICSender(const NICSender&) = delete;            ///< NICSender is not copy-constructible
-  NICSender& operator=(const NICSender&) = delete; ///< NICSender is not copy-assignable
-  NICSender(NICSender&&) = delete;                 ///< NICSender is not move-constructible
-  NICSender& operator=(NICSender&&) = delete;      ///< NICSender is not move-assignable
+  NICSender(const NICSender&) =
+    delete; ///< NICSender is not copy-constructible
+  NICSender& operator=(const NICSender&) =
+    delete; ///< NICSender is not copy-assignable
+  NICSender(NICSender&&) =
+    delete; ///< NICSender is not move-constructible
+  NICSender& operator=(NICSender&&) =
+    delete; ///< NICSender is not move-assignable
 
   void init(const nlohmann::json& iniobj) override;
 
@@ -59,7 +63,7 @@ private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
   void do_configure(const data_t&);
-  void do_start(const data_t&);
+  void do_start(const data_t&); 
   void do_stop(const data_t&);
   void do_scrap(const data_t&);
   void get_info(opmonlib::InfoCollector& ci, int level);
@@ -69,6 +73,7 @@ private:
   // template<typename T> int lcore_main(void *arg);
 
   void do_work(std::atomic<bool>&);
+
 
   int m_number_of_cores;
   int m_time_tick_difference;
