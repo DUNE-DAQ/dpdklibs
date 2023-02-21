@@ -48,7 +48,7 @@ def main():
         i+=1;
         if i%100000 ==0:
             dtnow = time.time()
-            print(f'Received {i} packets; throughput = {7192*i/(1000000*(dtnow-dtstart)):.2f} MB/s')
+            print(f'Received {i} packets; throughput = {7192*i/(1000000*(dtnow-dtstart)):.3f} MB/s')
 
 if __name__ == '__main__':
     main()
