@@ -35,13 +35,13 @@ def main():
         header = wf.get_daqheader()
         if header.stream_id == 0:
             stream0_ts = header.timestamp
-            if (stream0_ts-prev_stream0_ts) != 4096:
+            if (stream0_ts-prev_stream0_ts) != 2048:
                 print(f'{stream0_ts-prev_stream0_ts=} for {header.stream_id=} ')
                 #print_header(wf)
             prev_stream0_ts = stream0_ts
         if header.stream_id == 1:
             stream1_ts = header.timestamp
-            if (stream1_ts-prev_stream1_ts) != 4096:
+            if (stream1_ts-prev_stream1_ts) != 2048:
                 print(f'{stream1_ts-prev_stream1_ts=} for {header.stream_id=} ')
                 #print_header(wf)
             prev_stream1_ts = stream1_ts
