@@ -12,11 +12,13 @@ find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 find_package(fdreadoutlibs REQUIRED)
 #find_package(dpdk REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(DPDK REQUIRED libdpdk)
+#find_package(PkgConfig REQUIRED)
+#pkg_check_modules(DPDK REQUIRED libdpdk)
 
 daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 
 ##############################################################################
 # Dependency sets
