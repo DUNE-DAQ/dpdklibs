@@ -10,7 +10,8 @@
 #include "logging/Logging.hpp"
 #include "detdataformats/tde/TDE16Frame.hpp"
 
-#include "readoutlibs/ReadoutIssues.hpp" 
+#include "readoutlibs/ReadoutIssues.hpp"
+#include "readoutlibs/utils/BufferCopy.hpp" 
 #include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
 #include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
 
@@ -18,8 +19,7 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
-
-
+#include "CreateSource.hpp"
 #include "NICReceiver.hpp"
 
 #include <cinttypes>
@@ -47,9 +47,6 @@ enum
 };
 
 namespace dunedaq {
-
-DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::DUNEWIBEthTypeAdapter, "WIBEthFrame")
-
 namespace dpdklibs {
 
 class TDEFrameGrouper
@@ -329,32 +326,13 @@ NICReceiver::handle_frame_queue(int id)
   }
 }
 
-inline void
-dump_to_buffer(const char* data,
-               std::size_t size,
-               void* buffer,
-               uint32_t buffer_pos, // NOLINT
-               const std::size_t& buffer_size)
-{
-  auto bytes_to_copy = size; // NOLINT
-  while (bytes_to_copy > 0) {
-    auto n = std::min(bytes_to_copy, buffer_size - buffer_pos); // NOLINT
-    std::memcpy(static_cast<char*>(buffer) + buffer_pos, data, n);
-    buffer_pos += n;
-    bytes_to_copy -= n;
-    if (buffer_pos == buffer_size) {
-      buffer_pos = 0;
-    }
-  }
-}
-
 void
 NICReceiver::copy_out(int queue, char* message, std::size_t size) {
   //detdataformats::tde::TDE16Frame target_payload;
 
   fdreadoutlibs::types::DUNEWIBEthTypeAdapter target_payload;
   uint32_t bytes_copied = 0;
-  dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
+  readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
 
   // first frame's streamID:
   auto streamid = (unsigned)target_payload.begin()->daq_header.stream_id;
