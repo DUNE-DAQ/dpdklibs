@@ -237,9 +237,10 @@ main(int argc, char* argv[])
 
     // Check that there is an even number of ports to send/receive on
     nb_ports = rte_eth_dev_count_avail();
-    if (nb_ports < 2 || (nb_ports & 1)) {
-        rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-    }
+    printf("Available ports: %d\n", nb_ports);
+    //if (nb_ports < 2 || (nb_ports & 1)) {
+    //    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+    //}
 
     printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
 

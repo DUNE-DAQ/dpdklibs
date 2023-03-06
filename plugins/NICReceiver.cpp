@@ -10,13 +10,16 @@
 #include "logging/Logging.hpp"
 #include "detdataformats/tde/TDE16Frame.hpp"
 
+#include "readoutlibs/ReadoutIssues.hpp"
+#include "readoutlibs/utils/BufferCopy.hpp" 
+#include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
+#include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
+
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
-
-#include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
-
+#include "CreateSource.hpp"
 #include "NICReceiver.hpp"
 
 #include <cinttypes>
@@ -80,9 +83,60 @@ NICReceiver::~NICReceiver()
   ealutils::finish_eal();
 }
 
-void
-NICReceiver::init(const data_t&)
+inline void
+tokenize(std::string const& str, const char delim, std::vector<std::string>& out)
 {
+  std::size_t start;
+  std::size_t end = 0;
+  while ((start = str.find_first_not_of(delim, end)) != std::string::npos) {
+    end = str.find(delim, start);
+    out.push_back(str.substr(start, end - start));
+  }
+}
+
+void
+NICReceiver::init(const data_t& args)
+{
+ auto ini = args.get<appfwk::app::ModInit>();
+ for (const auto& qi : ini.conn_refs) {
+    if (qi.uid == "errored_chunks_q") {
+      continue;
+    } else {
+      TLOG_DEBUG(TLVL_WORK_STEPS) << ": NICCardReader output queue is " << qi.uid;
+      const char delim = '_';
+      std::string target = qi.uid;
+      std::vector<std::string> words;
+      tokenize(target, delim, words);
+      int linkid = -1;
+      try {
+        linkid = std::stoi(words.back());
+      } catch (const std::exception& ex) {
+        ers::fatal(dunedaq::readoutlibs::InitializationError(ERS_HERE, "Link ID could not be parsed on queue instance name! "));
+      }
+      TLOG() << "Creating link for target queue: " << target << " DLH number: " << linkid;
+			//m_elinks[linkid] = createElinkModel(qi.uid);
+			// RS FIXME: Introduce LinkConcepts for different FE types, as this will be a nightmare on the long run...
+      m_wib_sender[linkid] = get_iom_sender<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>(qi.uid);
+
+      //if (m_wib_sender[qi.uid] == nullptr) {
+      //  ers::fatal(InitializationError(ERS_HERE, "CreateElink failed to provide an appropriate model for queue!"));
+      //}
+      //m_elinks[linkid]->init(args, m_block_queue_capacity);
+    }
+  }
+
+  //auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
+  //if (datatypes.size() != 1) {
+  //  ers::error(dunedaq::readoutlibs::GenericConfigurationError(ERS_HERE,
+  //    "Multiple output data types specified! Expected only a single type!"));
+  //}
+  //std::string raw_dt{ *datatypes.begin() };
+  //TLOG() << "Choosing specializations for ElinkModel for output connection "
+  //       << " [uid:" << conn_uid << " , data_type:" << raw_dt << ']';
+
+
+  // RS FIXME: Remove this attrocity
+  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
 }
 
 void
@@ -102,9 +156,6 @@ NICReceiver::do_configure(const data_t& args)
       m_rx_core_map[rxc.lcore_id][qid] = "";
     }
   }
-
-  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
-
 
   // Setup expected IP sources
   for (auto src : ip_sources) {
@@ -131,7 +182,8 @@ NICReceiver::do_configure(const data_t& args)
   TLOG() << "Allocating pools and mbufs.";
   for (size_t i=0; i<m_rx_qs.size(); ++i) {
     std::stringstream ss;
-    ss << "MBP-" << i; 
+    ss << "MBP-" << i;
+    TLOG() << "Pool acquire: " << ss.str(); 
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
@@ -142,9 +194,11 @@ NICReceiver::do_configure(const data_t& args)
   ealutils::port_init(0, m_rx_qs.size(), 0, m_mbuf_pools); // just init port0, no TX queues
 
   // Flow steering setup
+// RS FIXME: DISABLE FOR NOW!
   TLOG() << "Configuring Flow steering rules.";
   struct rte_flow_error error;
   struct rte_flow *flow;
+if (false) {
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
 
@@ -170,6 +224,7 @@ NICReceiver::do_configure(const data_t& args)
       }
     }
   }
+}
 
   if (m_cfg.with_drop_flow) {
     // Adding drop flow
@@ -271,47 +326,18 @@ NICReceiver::handle_frame_queue(int id)
   }
 }
 
-inline void
-dump_to_buffer(const char* data,
-               std::size_t size,
-               void* buffer,
-               uint32_t buffer_pos, // NOLINT
-               const std::size_t& buffer_size)
-{
-  auto bytes_to_copy = size; // NOLINT
-  while (bytes_to_copy > 0) {
-    auto n = std::min(bytes_to_copy, buffer_size - buffer_pos); // NOLINT
-    std::memcpy(static_cast<char*>(buffer) + buffer_pos, data, n);
-    buffer_pos += n;
-    bytes_to_copy -= n;
-    if (buffer_pos == buffer_size) {
-      buffer_pos = 0;
-    }
-  }
-}
-
 void
 NICReceiver::copy_out(int queue, char* message, std::size_t size) {
-  detdataformats::tde::TDE16Frame target_payload;
+  //detdataformats::tde::TDE16Frame target_payload;
+
+  fdreadoutlibs::types::DUNEWIBEthTypeAdapter target_payload;
   uint32_t bytes_copied = 0;
-  dump_to_buffer(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-  m_amc_data_queues[queue]->write(std::move(target_payload));
-  fdreadoutlibs::types::TDEAMCFrameTypeAdapter amc_struct;
-  if (m_amc_data_queues[queue]->sizeGuess() == 64) {
-    for (int i = 0; i < 64; i++) {
-      auto ptr = m_amc_data_queues[queue]->frontPtr();
-      memcpy(amc_struct.data + ptr->get_tde_header()->link, ptr, sizeof(detdataformats::tde::TDE16Frame));
-      m_amc_data_queues[queue]->popFront();
-      // TLOG() << "(" << queue << "): Found frame with ts = " << ptr->get_timestamp() << " and link = " << ptr->get_tde_header()->link << " and ADC = " << ptr->get_adc_samples(0);
-    }
-    TLOG() << "SENDING";
-    m_sender->send(std::move(amc_struct), std::chrono::milliseconds(100));
-  }
-  // else {
-  //   TLOG() << "Size of the queue is " << queue << " " << m_amc_data_queues[queue]->sizeGuess();
-  // }
-  // target_payload.set_first_timestamp(ts++);
-  // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
+
+  // first frame's streamID:
+  auto streamid = (unsigned)target_payload.begin()->daq_header.stream_id;
+  m_wib_sender[streamid]->send(std::move(target_payload), std::chrono::milliseconds(100));
+
 }
 
 void 

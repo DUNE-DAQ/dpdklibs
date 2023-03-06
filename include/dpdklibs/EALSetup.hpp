@@ -73,7 +73,7 @@ port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
 
   // Set MTU
-  rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+  rte_eth_dev_set_mtu(port, 9000);//RTE_JUMBO_ETHER_MTU);
   { /* scope */
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
@@ -137,7 +137,7 @@ get_mempool(const std::string& pool_name) {
   struct rte_mempool *mbuf_pool;
   mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ports,
     //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
+    MBUF_CACHE_SIZE, 0, 9800, 4); //rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
 
   if (mbuf_pool == NULL) {
     // ers fatal

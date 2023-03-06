@@ -106,6 +106,7 @@ private:
   int rx_runner(void *arg __rte_unused);
 
   std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>> m_sender;
+  std::map<int, std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>> m_wib_sender;
 
   // Opmon
   std::atomic<int> m_total_groups_sent {0};
