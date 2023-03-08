@@ -23,15 +23,15 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats fdreadoutlibs::fdreadoutlibs)
 
 # Provide override functionality for DPDK dependencies
-option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
+option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" ON)
 
 if(WITH_DPDK_AS_PACKAGE)
-  pkg_check_modules(DPDK REQUIRED IMPORTED_TARGET DPDK)
+	pkg_check_modules(libdpdk REQUIRED IMPORTED_TARGET libdpdk)
   set(DPDK_LIBRARIES
-	  PkgConfig::DPDK
+	  PkgConfig::libdpdk
   )
 else()
-  pkg_check_modules(libbsd REQUIRED IMPORTED_TARGET libbsd)
+  pkg_check_modules(libbsd REQUIRED libbsd)
   # From env
   set(DPDK_LIBRARIES
     $ENV{DPDK_LIB}/librte_eal.so
@@ -40,8 +40,6 @@ else()
     $ENV{DPDK_LIB}/librte_mempool.so
     $ENV{DPDK_LIB}/librte_jobstats.so
     $ENV{DPDK_LIB}/librte_timer.so
-    logging::logging
-    bsd
   )
 endif()
 
@@ -53,7 +51,7 @@ if(WITH_DPDK_AS_PACKAGE)
   # All good
 else()
   # Hack target
-  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
+  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC} ${libbsd_INCLUDE_DIRS})
 endif()
 
 ##############################################################################
