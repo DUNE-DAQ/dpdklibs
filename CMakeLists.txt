@@ -23,7 +23,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats fdreadoutlibs::fdreadoutlibs)
 
 # Provide override functionality for DPDK dependencies
-option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" ON)
+option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
 if(WITH_DPDK_AS_PACKAGE)
 	pkg_check_modules(libdpdk REQUIRED IMPORTED_TARGET libdpdk)
