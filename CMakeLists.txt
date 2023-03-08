@@ -11,9 +11,7 @@ find_package(daqdataformats REQUIRED)
 find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 find_package(fdreadoutlibs REQUIRED)
-#find_package(dpdk REQUIRED)
-#find_package(PkgConfig REQUIRED)
-#pkg_check_modules(DPDK REQUIRED libdpdk)
+find_package(PkgConfig REQUIRED)
 
 daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
@@ -28,10 +26,12 @@ set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
 if(WITH_DPDK_AS_PACKAGE)
+  pkg_check_modules(DPDK REQUIRED IMPORTED_TARGET DPDK)
   set(DPDK_LIBRARIES
-    # dpdk::dpdk
+	  PkgConfig::DPDK
   )
 else()
+  pkg_check_modules(libbsd REQUIRED IMPORTED_TARGET libbsd)
   # From env
   set(DPDK_LIBRARIES
     $ENV{DPDK_LIB}/librte_eal.so
@@ -41,6 +41,7 @@ else()
     $ENV{DPDK_LIB}/librte_jobstats.so
     $ENV{DPDK_LIB}/librte_timer.so
     logging::logging
+    bsd
   )
 endif()
 
