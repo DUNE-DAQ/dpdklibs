@@ -40,6 +40,7 @@ else()
     $ENV{DPDK_LIB}/librte_mempool.so
     $ENV{DPDK_LIB}/librte_jobstats.so
     $ENV{DPDK_LIB}/librte_timer.so
+    logging::logging
   )
 endif()
 
