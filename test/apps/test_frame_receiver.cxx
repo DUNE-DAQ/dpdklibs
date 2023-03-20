@@ -1,15 +1,22 @@
+
+/* Application will run until quit or killed. */
+
 #include <inttypes.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
+
+#include <sstream>
 #include <stdint.h>
-#include <iostream>
+#include <limits>
 #include <iomanip>
+#include <fstream>
+#include <csignal>
 
 #include "logging/Logging.hpp"
-#include "detdataformats/wib/WIBFrame.hpp"
+#include "detdataformats/DAQEthHeader.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 
 #define RX_RING_SIZE 1024
@@ -23,14 +30,40 @@
 #define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
 #endif
 
-// Apparently only 8 and above works
-int burst_size = 256;
-bool jumbo_enabled = false;
-bool is_debug = true;
-
 using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
+
+namespace {
+
+  // Apparently only 8 and above works for "burst_size"
+
+  // From the dpdk documentation, describing the rte_eth_rx_burst
+  // function (and keeping in mind that their "nb_pkts" variable is the
+  // same as our "burst size" variable below):
+  // "Some drivers using vector instructions require that nb_pkts is
+  // divisible by 4 or 8, depending on the driver implementation."
+  
+  constexpr int burst_size = 256;
+
+  constexpr int expected_packet_size = 7188;   // i.e., every packet that isn't the initial one
+  constexpr uint32_t expected_packet_type = 0x291;
+
+  constexpr int default_mbuf_size = 9000;  // As opposed to RTE_MBUF_DEFAULT_BUF_SIZE
+
+  constexpr int max_packets_to_dump = 10; 
+  int dumped_packet_count = 0;
+  
+  bool is_verbose = false;
+  
+  std::atomic<int> num_packets = 0;
+  std::atomic<int> num_bytes = 0;
+  std::atomic<int64_t> total_packets = 0;
+  std::atomic<int64_t> failed_packets = 0;
+
+  std::ofstream datafile;
+  const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
+} // namespace ""
 
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
@@ -123,150 +156,166 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
   return 0;
 }
 
+static inline int check_packet(const struct rte_mbuf& packet, int expected_size, uint32_t expected_type) {
+
+  if (packet.nb_segs > 1) {
+    TLOG(TLVL_WARNING) << "It appears a packet is spread across more than one receiving buffer; there's currently no logic in this program to handle this";
+    return 1;
+  }
+  
+  if (packet.packet_type != expected_type) {
+    return 2;
+  }
+  
+  if (packet.pkt_len != expected_size) {
+    return 3;
+  }
+  
+  return 0;
+}
+
 static int
 lcore_main(struct rte_mempool *mbuf_pool)
 {
-  // int* is_running = (int*)arg;
-  uint16_t port;
-
   /*
    * Check that the port is on the same NUMA node as the polling thread
    * for best performance.
    */
+
+  uint16_t port = std::numeric_limits<uint16_t>::max();
+
   RTE_ETH_FOREACH_DEV(port)
-  if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id())
-    printf("WARNING, port %u is on remote NUMA node to "
-           "polling thread.\n\tPerformance will "
-           "not be optimal.\n",
-           port);
-
-
-
-  /* Run until the application is quit or killed. */
-  int burst_number = 0;
-  int sum = 0;
-  std::atomic<int> num_frames = 0;
+    if (rte_eth_dev_socket_id(port) >= 0 &&
+	rte_eth_dev_socket_id(port) != static_cast<int>(rte_socket_id())) {
+      TLOG(TLVL_WARNING) << "WARNING, port " << port << " is on remote NUMA node to polling thread.\n\tPerformance will not be optimal.\n";
+    } 
 
   auto stats = std::thread([&]() {
     while (true) {
-      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      // TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
-      TLOG() << "Rate is " << (size_t)9000 * num_frames / 1e6 * 8;
-      // printf("Rate is %f\n", (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8);
-      num_frames.exchange(0);
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets;
+      num_packets.exchange(0);
+      num_bytes.exchange(0);
+      std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
     }
   });
 
   struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
-  bool once = true;
+
+  datafile.open(output_data_filename, std::ios::out | std::ios::binary);
+  if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
+    TLOG(TLVL_WARNING) << "Unable to open output file \"" << output_data_filename << "\"";
+  }
+  
   while (true) {
-    // printf("hello\n");
+
     RTE_ETH_FOREACH_DEV(port)
     {
 
       /* Get burst of RX packets, from first port of pair. */
-      // struct rte_mbuf* bufs[burst_size];
       const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
 
-      if (nb_rx != 0) {
-        // TLOG() << "nb_rx = " << nb_rx;
-        // TLOG() << "bufs.buf_len = " << bufs[0]->data_len;
+      num_packets += nb_rx;
+      total_packets += nb_rx;
+      
+      for (int i_b = 0; i_b < nb_rx; ++i_b) {
+	
+	num_bytes += bufs[i_b]->pkt_len;
 
-        // Doesn't correspond to the packets we are expecting to receive
-        if (bufs[0]->data_len != sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) {
-          std::stringstream ss;
-          for (int i = 0; i < nb_rx; i++) {
-            ss << bufs[i]->pkt_len << " ";
-            // TLOG() << "Found other data" << ss.str();
-            if (false) {
-            rte_pktmbuf_dump(stdout, bufs[i], bufs[i]->pkt_len);
-            once = false;
-            }
-          }
-          // continue;
-        }
+	bool dump_packet = false;
 
-        // if (burst_number % 1000 == 0) {
-        //   TLOG() << "burst_number =" << burst_number;
-        // }
-        for (int i=0; i<nb_rx; ++i) {
-          num_frames++;
-          // auto fr = rte_pktmbuf_mtod_offset(bufs[i], detdataformats::wib::WIBFrame*, sizeof(struct rte_ether_hdr));
-          // if (fr->get_timestamp() != burst_number) {
-          //   TLOG() << "Packets are lost";
-          //   burst_number = fr->get_timestamp();
-          //   sum = fr->get_channel(190);
-          // }
-          // else {
-          //   sum += fr->get_channel(190);
-          //   if (sum == 28) {
-          //     // TLOG() << "All frames received for burst number " << burst_number;
-          //     burst_number++;
-          //     sum = 0;
-          //   }
-          // }
-        }
+	if (is_verbose) {
+	  dump_packet = true;
+	}
 
-        for (int i=0; i < nb_rx; i++)
-        {
-          rte_pktmbuf_free(bufs[i]);
-        }
+	if (check_packet(*bufs[i_b], expected_packet_size, expected_packet_type) != 0) {
+	  dump_packet = true;
+	  failed_packets++;
+	}
+
+	if (dump_packet && dumped_packet_count < max_packets_to_dump) {
+
+	  dumped_packet_count++;
+
+	  rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+
+	  const detdataformats::DAQEthHeader* daq_header =
+	    rte_pktmbuf_mtod_offset(bufs[i_b], detdataformats::DAQEthHeader*, sizeof(struct rte_ether_hdr));
+	  TLOG() << *daq_header;
+
+	  datafile.write(reinterpret_cast<const char*>(bufs[i_b]), bufs[i_b]->pkt_len);
+	}
       }
+
+      rte_pktmbuf_free_bulk(bufs, nb_rx);
     }
   }
   return 0;
 }
 
+// Define the function to be called when ctrl-c (SIGINT) is sent to process
+void signal_callback_handler(int signum) {
+  TLOG() << "Caught signal " << signum;
+
+  if (datafile.is_open()) {
+    datafile.close();
+  }
+
+  // Terminate program
+  std::exit(signum);
+}
+
 int
 main(int argc, char* argv[])
 {
-    struct rte_mempool *mbuf_pool;
-    unsigned nb_ports;
-    uint16_t portid;
+  if (argc == 1) {
+    ;
+  } else if (argc == 2 && std::string(argv[1]) == "--verbose") {
+    is_verbose = true;
+  } else {
+    TLOG(TLVL_ERROR) << "Usage: <this program> [--verbose]";
+    std::exit(1);
+  }
 
-    // Init EAL
-    int ret = rte_eal_init(argc, argv);
-    if (ret < 0) {
-        rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+  std::signal(SIGINT, signal_callback_handler);
+  
+  //int ret = rte_eal_init(argc, argv);
+  int ret = rte_eal_init(1, argv);
+  if (ret < 0) {
+    rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+  }
+  
+  auto nb_ports = rte_eth_dev_count_avail();
+  TLOG() << "# of available ports: " << nb_ports;
+
+  // // Check that there is an even number of ports to send/receive on
+  //if (nb_ports < 2 || (nb_ports & 1)) {
+  //    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+  //}
+  
+  struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+							    MBUF_CACHE_SIZE, 0, default_mbuf_size, rte_socket_id());
+
+  if (mbuf_pool == NULL) {
+    rte_exit(EXIT_FAILURE, "ERROR: rte_pktmbuf_pool_create returned null");
+  }
+
+  // Initialize all ports
+  uint16_t portid = std::numeric_limits<uint16_t>::max();
+  RTE_ETH_FOREACH_DEV(portid) {
+    int retval = port_init(portid, mbuf_pool);
+    if (retval != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "; port_init returned nonzero (%d)\n", portid, retval);
     }
-
-    argc -= ret;
-    argv += ret;
-
-    // Check that there is an even number of ports to send/receive on
-    nb_ports = rte_eth_dev_count_avail();
-    printf("Available ports: %d\n", nb_ports);
-    //if (nb_ports < 2 || (nb_ports & 1)) {
-    //    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-    //}
-
-    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
-
-    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-        // MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-        MBUF_CACHE_SIZE, 0, 9800, rte_socket_id());
-
-    if (mbuf_pool == NULL) {
-        rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-    }
-
-    // Initialize all ports
-    RTE_ETH_FOREACH_DEV(portid) {
-        if (port_init(portid, mbuf_pool) != 0) {
-            rte_exit(EXIT_FAILURE, "ERROR: Cannot init port %"PRIu16 "\n", portid);
-        }
-    }
-
-    // Call lcore_main on the main core only
-    // for (int i=0; i < 2; ++i) {
-    //   rte_eal_remote_launch(lcore_main, mbuf_pool, i);
-    // }
-    lcore_main(mbuf_pool);
-
-    // clean up the EAL
-    rte_eal_cleanup();
-
-    return 0;
+  }
+  
+  // Call lcore_main on the main core only
+  // for (int i=0; i < 2; ++i) {
+  //   rte_eal_remote_launch(lcore_main, mbuf_pool, i);
+  // }
+  lcore_main(mbuf_pool);
+  
+  rte_eal_cleanup();
+  
+  return 0;
 }
