@@ -56,7 +56,7 @@ namespace {
 	constexpr int max_packets_to_dump = 10; 
 	int dumped_packet_count = 0;
 
-	uint16_t prev_timestamp_of_stream [NSTREAM];
+	uint64_t prev_timestamp_of_stream [NSTREAM];
 	bool prev_stream_exists = false;
 	
 	std::atomic<int> num_packets = 0;
@@ -191,7 +191,12 @@ static inline int check_against_previous_stream(const detdataformats::DAQEthHead
 			ret_val=1;
 			}
 	} else {prev_stream_exists = true;}
+	std::cout<<"\n";
+	TLOG() << "prev timestamp of stream before: " << prev_timestamp_of_stream[stream_id];
+	TLOG() << "current timestamp of stream: " << stream_ts;
 	prev_timestamp_of_stream[stream_id] = stream_ts;
+	TLOG() << "prev timestamp of stream after: " << prev_timestamp_of_stream[stream_id];
+	std::cout<<"\n";
 	return ret_val;
 }
 
