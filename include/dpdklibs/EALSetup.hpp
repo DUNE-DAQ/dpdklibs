@@ -48,7 +48,7 @@ static const struct rte_eth_conf port_conf_default = {
 
 static inline int
 port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings, 
-	  std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool) //struct rte_mempool* mbuf_pool)
+	  std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool, uint16_t  jumbo_ether_mtu = 9000) //struct rte_mempool* mbuf_pool)
 {
   struct rte_eth_conf port_conf = port_conf_default;
   uint16_t nb_rxd = RX_RING_SIZE;
@@ -73,7 +73,7 @@ port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
 
   // Set MTU
-  rte_eth_dev_set_mtu(port, 9000);//RTE_JUMBO_ETHER_MTU);
+  rte_eth_dev_set_mtu(port, jumbo_ether_mtu);//RTE_JUMBO_ETHER_MTU);
   { /* scope */
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
