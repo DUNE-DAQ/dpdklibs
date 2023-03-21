@@ -178,7 +178,6 @@ static inline int check_packet(const struct rte_mbuf& packet, int expected_size,
 }
 
 static inline int check_against_previous_stream(const detdataformats::DAQEthHeader* daq_header){
-	TLOG() << "\nIN check against previous stream\n";
 	uint64_t stream_id = daq_header -> stream_id;
 	uint64_t stream_ts = daq_header -> timestamp;
 	int ret_val = 0;
@@ -245,20 +244,19 @@ lcore_main(struct rte_mempool *mbuf_pool)
 			total_packets += nb_rx;
 			
 			for (int i_b = 0; i_b < nb_rx; ++i_b) {
-	TLOG() << "\nin loop\n";
 	num_bytes += bufs[i_b]->pkt_len;
 
 	bool dump_packet = false;
-
+	const detdataformats::DAQEthHeader* daq_header =
+			rte_pktmbuf_mtod_offset(bufs[i_b], detdataformats::DAQEthHeader*, sizeof(struct rte_ether_hdr));
 	if (check_packet(*bufs[i_b], expected_packet_size, expected_packet_type) != 0) {
 		dump_packet = true;
 		failed_packets++;
-	}
-	const detdataformats::DAQEthHeader* daq_header =
-		rte_pktmbuf_mtod_offset(bufs[i_b], detdataformats::DAQEthHeader*, sizeof(struct rte_ether_hdr));
-	if (check_against_previous_stream(daq_header) != 0){
-		dump_packet = true;
-		failed_packets++;
+	} else {
+		if (check_against_previous_stream(daq_header) != 0){
+			dump_packet = true;
+			failed_packets++;
+		}
 	}
 	
 	if (dump_packet && dumped_packet_count < max_packets_to_dump) {
