@@ -1,9 +1,11 @@
+#!/usr/bin/env python
 import socket
 import sys
 import binascii
 import detdataformats
 import time
 
+N_STREAM = 128
 
 def print_header(wib_frame,prefix="\t"):
     header = wib_frame.get_daqheader()
@@ -25,30 +27,46 @@ def main():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
     s.bind(('0.0.0.0', 0x4444))
-    prev_stream0_ts = 0
-    prev_stream1_ts = 0
+    prev_stream = [None]*N_STREAM
     i=0
     dtstart = time.time()
+    dtlast = dtstart
+    sampling = 100000
+    print('Starting receiver')
     while i>=0:
         data, address = s.recvfrom(20000)
         wf = detdataformats.wibeth.WIBEthFrame(data)
         header = wf.get_daqheader()
-        if header.stream_id == 0:
-            stream0_ts = header.timestamp
-            if (stream0_ts-prev_stream0_ts) != 2048:
-                print(f'{stream0_ts-prev_stream0_ts=} for {header.stream_id=} ')
-                #print_header(wf)
-            prev_stream0_ts = stream0_ts
-        if header.stream_id == 1:
-            stream1_ts = header.timestamp
-            if (stream1_ts-prev_stream1_ts) != 2048:
-                print(f'{stream1_ts-prev_stream1_ts=} for {header.stream_id=} ')
-                #print_header(wf)
-            prev_stream1_ts = stream1_ts
+
+
+        hdr_id = header.stream_id
+        if hdr_id < N_STREAM:
+            stream_ts = header.timestamp
+            if prev_stream[hdr_id] is None:
+                pass
+            elif (stream_ts-prev_stream[hdr_id]) != 2048:
+                print(f'delta_ts {stream_ts-prev_stream[hdr_id]} for det {header.det_id} strm {hdr_id} ')
+            prev_stream[hdr_id] = stream_ts
+
+
         i+=1;
         if i%100000 ==0:
             dtnow = time.time()
-            print(f'Received {i} packets; throughput = {7192*i/(1000000*(dtnow-dtstart)):.3f} MB/s')
+            avg_throughput = 7192*i/(1000000*(dtnow-dtstart))
+            throughput = 7192*sampling/(1000000*(dtnow-dtlast))
+            print(f'Received {i} packets; throughput = {throughput:.3f} MB/s [avg = {avg_throughput:.3f} MB/s]')
+            dtlast = dtnow
+            print_header(wf)
+            for i,ts in enumerate( prev_stream ):
+                if ts is None:
+                    continue
+                print(f"stream {i}: last_ts {ts}")
+
+            # b = data
+            # for i in range(len(b)//8):
+            #     w = [f"{s:02x}" for s in b[8*i:8*(i+1)]]
+            #     w.reverse()
+            #     print("0x"+''.join(w))
 
 if __name__ == '__main__':
     main()
