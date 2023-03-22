@@ -48,21 +48,24 @@ namespace {
 	
 	constexpr int burst_size = 256;
 
-	constexpr int expected_packet_size = 7188;	 // i.e., every packet that isn't the initial one
+	constexpr int expected_packet_size      = 7188;	 // i.e., every packet that isn't the initial one
 	constexpr uint32_t expected_packet_type = 0x291;
 
 	constexpr int default_mbuf_size = 9000;	// As opposed to RTE_MBUF_DEFAULT_BUF_SIZE
 
 	constexpr int max_packets_to_dump = 10; 
-	int dumped_packet_count = 0;
+	int dumped_packet_count           = 0;
 
 	uint64_t prev_timestamp_of_stream [NSTREAM];
 	bool prev_stream_exists = false;
 	
 	std::atomic<int> num_packets = 0;
-	std::atomic<int> num_bytes = 0;
-	std::atomic<int64_t> total_packets = 0;
+	std::atomic<int> num_bytes   = 0;
+
+	std::atomic<int64_t> total_packets  = 0;
 	std::atomic<int64_t> failed_packets = 0;
+	std::atomic<int64_t> invalid_size   = 0;
+	std::atomic<int64_t> invalid_type   = 0;
 
 	std::ofstream datafile;
 	const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
@@ -167,10 +170,12 @@ static inline int check_packet(const struct rte_mbuf& packet, int expected_size,
 	}
 	
 	if (packet.packet_type != expected_type) {
+		invalid_type++;
 		return 2;
 	}
 	
 	if (packet.pkt_len != expected_size) {
+		invalid_size++;
 		return 3;
 	}
 	
@@ -217,7 +222,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
 
 	auto stats = std::thread([&]() {
 		while (true) {
-			TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets;
+			TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets << " Invalid Type: " << invalid_type << " Invalid Size: " << invalid_size;
 			num_packets.exchange(0);
 			num_bytes.exchange(0);
 			std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
@@ -244,31 +249,31 @@ lcore_main(struct rte_mempool *mbuf_pool)
 			total_packets += nb_rx;
 			
 			for (int i_b = 0; i_b < nb_rx; ++i_b) {
-	num_bytes += bufs[i_b]->pkt_len;
+				num_bytes += bufs[i_b]->pkt_len;
 
-	bool dump_packet = false;
-	const detdataformats::DAQEthHeader* daq_header =
-			rte_pktmbuf_mtod_offset(bufs[i_b], detdataformats::DAQEthHeader*, sizeof(struct rte_ether_hdr));
-	if (check_packet(*bufs[i_b], expected_packet_size, expected_packet_type) != 0) {
-		dump_packet = true;
-		failed_packets++;
-	} else {
-		if (check_against_previous_stream(daq_header) != 0){
-			dump_packet = true;
-			failed_packets++;
-		}
-	}
-	
-	if (dump_packet && dumped_packet_count < max_packets_to_dump) {
+				bool dump_packet = false;
+				const detdataformats::DAQEthHeader* daq_header =
+						rte_pktmbuf_mtod_offset(bufs[i_b], detdataformats::DAQEthHeader*, sizeof(struct rte_ether_hdr));
+				if (check_packet(*bufs[i_b], expected_packet_size, expected_packet_type) != 0) {
+					dump_packet = true;
+					failed_packets++;
+				} else {
+					if (check_against_previous_stream(daq_header) != 0){
+						dump_packet = true;
+						failed_packets++;
+					}
+				}
+				
+				if (dump_packet && dumped_packet_count < max_packets_to_dump) {
 
-		dumped_packet_count++;
+					dumped_packet_count++;
 
-		rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+					rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
 
-		TLOG() << *daq_header;
+					TLOG() << *daq_header;
 
-		datafile.write(reinterpret_cast<const char*>(bufs[i_b]), bufs[i_b]->pkt_len);
-	}
+					datafile.write(reinterpret_cast<const char*>(bufs[i_b]), bufs[i_b]->pkt_len);
+				}
 			}
 
 			rte_pktmbuf_free_bulk(bufs, nb_rx);
@@ -306,7 +311,7 @@ int main(int argc, char** argv){
 		"MBUF_POOL", NUM_MBUFS * nb_ports, MBUF_CACHE_SIZE, 0, default_mbuf_size, rte_socket_id()
 	);
 
-	if (mbuf_pool == NULL) {rte_exit(EXIT_FAILURE, "ERROR: rte_pktmbuf_pool_create returned null");}
+	if (mbuf_pool == NULL) {rte_exit(EXIT_FAILURE, "ERROR: rte_pktmbuf_pool_create returned null\n");}
 
 	// Initialize all ports
 	uint16_t portid = std::numeric_limits<uint16_t>::max();
