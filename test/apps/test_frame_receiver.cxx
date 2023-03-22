@@ -54,18 +54,16 @@ constexpr uint32_t expected_packet_type = 0x291;
 
 constexpr int default_mbuf_size = 9000; // As opposed to RTE_MBUF_DEFAULT_BUF_SIZE
 
-constexpr int max_packets_to_dump = 10;
-int dumped_packet_count = 0;
+constexpr int max_packets_to_dump = 10; 
+int dumped_packet_count           = 0;
 
-// uint64_t prev_timestamp_of_stream[NSTREAM] = { 0 };
 std::array<std::atomic<uint64_t>, NSTREAM> prev_timestamp_of_stream = {0};
-// bool prev_stream_exists = false;
 
 std::atomic<int> num_packets = 0;
-std::atomic<int> num_bytes = 0;
-std::atomic<uint64_t> total_packets = 0;
+std::atomic<int> num_bytes   = 0;
+std::atomic<uint64_t> total_packets    = 0;
 std::atomic<uint64_t> non_ipv4_packets = 0;
-std::atomic<uint64_t> failed_packets = 0;
+std::atomic<uint64_t> failed_packets   = 0;
 
 std::ofstream datafile;
 const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
@@ -154,31 +152,8 @@ port_init(uint16_t port, struct rte_mempool* mbuf_pool)
 }
 
 static inline int
-check_packet(const struct rte_mbuf& packet, int expected_size, uint32_t expected_type)
-{
-  if (packet.nb_segs > 1) {
-    TLOG(TLVL_WARNING) << "It appears a packet is spread across more than one receiving "
-                          "buffer; there's currently no logic in this program to handle this";
-    return 1;
-  }
-
-  if (packet.packet_type != expected_type) {
-    TLOG(TLVL_WARNING) << fmt::format("Found packet type 0x{:x}, expected 0x{:x} ", packet.packet_type, expected_type);
-    return 2;
-  }
-
-  if (packet.pkt_len != expected_size) {
-    TLOG(TLVL_WARNING) << fmt::format("Found packet of size {}, expected {} ", packet.pkt_len, expected_size);
-    return 3;
-  }
-
-  return 0;
-}
-
-static inline int
 check_against_previous_stream(const detdataformats::DAQEthHeader* daq_header, uint64_t exp_ts_diff)
 {
-  // TLOG() << "\nIN check against previous stream\n";
   uint64_t stream_id = daq_header->stream_id;
   uint64_t stream_ts = daq_header->timestamp;
   int ret_val = 0;
@@ -187,92 +162,79 @@ check_against_previous_stream(const detdataformats::DAQEthHeader* daq_header, ui
     return ret_val;
   }
 
-//   if (prev_stream_exists) {
   TLOG() << fmt::format("0x{:016x} 0x{:016x}", prev_timestamp_of_stream[stream_id], stream_ts);
-  // TLOG() << "current timestamp of stream: " << stream_ts;
   uint64_t ts_difference = stream_ts - prev_timestamp_of_stream[stream_id];
   if (ts_difference != exp_ts_diff) {
       TLOG() << fmt::format("WARNING: wrong timestamp difference {} for stream {} expected ({}) 0x{:016x} 0x{:016x}", ts_difference, stream_id, exp_ts_diff, stream_ts,prev_timestamp_of_stream[stream_id]);
       ret_val = 1;
   }
 
-   
-//   else {
-//     prev_stream_exists = true;
-//   }
-  // std::cout << "\n";
-  // TLOG() << "prev timestamp of stream before: " << prev_timestamp_of_stream[stream_id];
-  // TLOG() << "current timestamp of stream: " << stream_ts;
   prev_timestamp_of_stream[stream_id] = stream_ts;
-  // TLOG() << "prev timestamp of stream after: " << prev_timestamp_of_stream[stream_id];
-  // std::cout << "\n";
   return ret_val;
 }
 
 static int
-lcore_main(struct rte_mempool* mbuf_pool)
-{
-  /*
-   * Check that the port is on the same NUMA node as the polling thread
-   * for best performance.
-   */
+lcore_main(struct rte_mempool* mbuf_pool){
+	/*
+	 * Check that the port is on the same NUMA node as the polling thread
+	 * for best performance.
+	 */
 
-  uint16_t port = std::numeric_limits<uint16_t>::max();
+	uint16_t port;
 
-  RTE_ETH_FOREACH_DEV(port)
-  if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != static_cast<int>(rte_socket_id())) {
-    TLOG(TLVL_WARNING) << "WARNING, port " << port
-                       << " is on remote NUMA node to polling "
-                          "thread.\n\tPerformance will not be optimal.\n";
+	RTE_ETH_FOREACH_DEV(port)
+		if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != static_cast<int>(rte_socket_id())) {
+			TLOG(TLVL_WARNING) << "WARNING, port " << port
+				<< " is on remote NUMA node to polling thread.\n\tPerformance will not be optimal.\n";
   }
 
-  auto stats = std::thread([&]() {
-    while (true) {
-      TLOG() << fmt::format("Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} "
-                            "Failed packets: {}",
-                            num_packets,
-                            num_bytes,
-                            total_packets,
-                            non_ipv4_packets,
-                            failed_packets);
-      num_packets.exchange(0);
-      num_bytes.exchange(0);
-      std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s,
-                                                            // the rate calculation will need to change
-    }
+	auto stats = std::thread([&]() {
+		while (true) {
+			TLOG() << fmt::format(
+				"Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Failed packets: {}",
+         num_packets,
+         num_bytes,
+         total_packets,
+         non_ipv4_packets,
+         failed_packets
+			);
+			num_packets.exchange(0);
+			num_bytes.exchange(0);
+			std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s,
+    }                                                      // the rate calculation will need to change
   });
 
-  struct rte_mbuf** bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
-  rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
+	struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+	rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
 
-  datafile.open(output_data_filename, std::ios::out | std::ios::binary);
-  if ((datafile.rdstate() & std::ofstream::failbit) != 0) {
-    TLOG(TLVL_WARNING) << "Unable to open output file \"" << output_data_filename << "\"";
-  }
+	datafile.open(output_data_filename, std::ios::out | std::ios::binary);
+	if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
+		TLOG(TLVL_WARNING) << "Unable to open output file \"" << output_data_filename << "\"";
+	}
+  
+	uint64_t udp_pkt_counter = 0;
+	while (true) {
 
-  uint64_t udp_pkt_counter = 0;
-  while (true) {
-    RTE_ETH_FOREACH_DEV(port)
-    {
-      /* Get burst of RX packets, from first port of pair. */
-      const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
+		RTE_ETH_FOREACH_DEV(port)
+		{
 
-      num_packets += nb_rx;
-      total_packets += nb_rx;
+			/* Get burst of RX packets, from first port of pair. */
+			const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
 
-      for (int i_b = 0; i_b < nb_rx; ++i_b) {
-        // TLOG() << "\nin loop\n";
-        num_bytes += bufs[i_b]->pkt_len;
+			num_packets   += nb_rx;
+			total_packets += nb_rx;
+			
+			for (int i_b = 0; i_b < nb_rx; ++i_b) {
+				num_bytes += bufs[i_b]->pkt_len;
 
-        bool dump_packet = false;
-        if (not RTE_ETH_IS_IPV4_HDR(bufs[i_b]->packet_type)) {
-          non_ipv4_packets++;
-          dump_packet = true;
-          continue;
-        }
-
+				bool dump_packet = false;
+				if (not RTE_ETH_IS_IPV4_HDR(bufs[i_b]->packet_type)) {
+					non_ipv4_packets++;
+					dump_packet = true;
+					continue;
+				}
         ++udp_pkt_counter;
-
+        
         char* message = udp::get_udp_payload(bufs[i_b]); //(char *)(udp_packet + 1);
         const detdataformats::DAQEthHeader* daq_header = reinterpret_cast<const detdataformats::DAQEthHeader*>(message);
 
@@ -288,25 +250,10 @@ lcore_main(struct rte_mempool* mbuf_pool)
         }
 
 
-        // if (check_packet(*bufs[i_b], expected_packet_size,
-        // expected_packet_type) != 0) { 	dump_packet = true; 	failed_packets++;
-        // }
-        // else {
-        // 	if (check_against_previous_stream(daq_header) != 0){
-        // 	dump_packet = true;
-        // 	failed_packets++;
-        // 	}
-        // }
-
         if (dump_packet && dumped_packet_count < max_packets_to_dump) {
           dumped_packet_count++;
 
           rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
-
-          // TLOG() << *daq_header;
-
-          // datafile.write(reinterpret_cast<const char*>(bufs[i_b]),
-          // bufs[i_b]->pkt_len);
         }
       }
 
@@ -328,11 +275,11 @@ signal_callback_handler(int signum)
   std::exit(signum);
 }
 
-int
-main(int argc, char** argv)
+int main(int argc, char** argv)
 {
   //	define function to be called when ctrl+c is called.
   std::signal(SIGINT, signal_callback_handler);
+  
   // initialise eal with argc and argv
   int ret = rte_eal_init(argc, argv);
   if (ret < 0) {
@@ -342,13 +289,10 @@ main(int argc, char** argv)
   auto nb_ports = rte_eth_dev_count_avail();
   TLOG() << "# of available ports: " << nb_ports;
 
-  // // Check that there is an even number of ports to send/receive on
-  // if (nb_ports < 2 || (nb_ports & 1)) {
-  //	rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-  //}
-
-  struct rte_mempool* mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports, MBUF_CACHE_SIZE, 0, default_mbuf_size, rte_socket_id());
-
+  struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
+		"MBUF_POOL", NUM_MBUFS * nb_ports, MBUF_CACHE_SIZE, 0, default_mbuf_size, rte_socket_id()
+	);
+  
   if (mbuf_pool == NULL) {
     rte_exit(EXIT_FAILURE, "ERROR: rte_pktmbuf_pool_create returned null");
   }
