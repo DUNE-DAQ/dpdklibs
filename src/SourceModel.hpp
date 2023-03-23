@@ -62,12 +62,12 @@ public:
 
   //std::shared_ptr<err_sink_t>& get_error_sink() { return m_error_sink_queue; }
 
-  void init(const data_t& /*args*/, const size_t block_queue_capacity)
+  void init(const data_t& /*args*/)
   {
     //m_block_addr_queue = std::make_unique<folly::ProducerConsumerQueue<uint64_t>>(block_queue_capacity); // NOLINT
   }
 
-  void conf(const data_t& /*args*/, size_t block_size, bool is_32b_trailers)
+  void conf(const data_t& /*args*/)
   {
     if (m_configured) {
       TLOG_DEBUG(5) << "SourceModel is already configured!";
@@ -129,8 +129,18 @@ public:
   }*/
 
 
-  bool handle_payload(uint64_t block_addr) // NOLINT(build/unsigned)
+  bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
   {
+    TargetPayloadType target_payload;
+    //TLOG() << "Type of target_payload: " << typeid(target_payload).name();
+    //TLOG() << "Size of target_payload: " << (unsigned)sizeof(target_payload);
+    //TLOG() << "Bytes to be copied: " << size;
+    uint32_t bytes_copied = 0;
+    readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
+    //TLOG() << "PAYLOAD READY WITH SIZE: " << bytes_copied;
+    m_sink_queue->send(std::move(target_payload), std::chrono::milliseconds(100));
+    //TLOG() << "SENT!";
+    return true;
     //if (m_block_addr_queue->write(block_addr)) { // ok write
     //  return true;
     //} else { // failed write

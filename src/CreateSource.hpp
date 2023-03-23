@@ -64,7 +64,6 @@ createSourceModel(const std::string& conn_uid)
     auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>>();
     source_model->set_sink(conn_uid);
     //auto& parser = source_model->get_parser();
-    auto& sink = source_model->get_sink();
     //parser.process_chunk_func = parsers::fixsizedChunkInto<fdreadoutlibs::types::DUNEWIBSuperChunkTypeAdapter>(sink);
     return source_model;
   }
