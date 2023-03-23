@@ -32,7 +32,7 @@ namespace ealutils {
 
 static volatile uint8_t dpdk_quit_signal; 
 
-static const struct rte_eth_conf port_conf_default = {
+static const struct rte_eth_conf iface_conf_default = {
   .rxmode = {
     //.mq_mode = ETH_MQ_RX_NONE, // Deprecated
     .mtu = 9000,
@@ -47,82 +47,77 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 static inline int
-port_init(uint16_t port, uint16_t rx_rings, uint16_t tx_rings, 
-	  std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool) //struct rte_mempool* mbuf_pool)
+iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
+	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool)
 {
-  struct rte_eth_conf port_conf = port_conf_default;
+  struct rte_eth_conf iface_conf = iface_conf_default;
   uint16_t nb_rxd = RX_RING_SIZE;
   uint16_t nb_txd = TX_RING_SIZE;
-  int retval;
+  int retval = -1;
   uint16_t q;
   struct rte_eth_dev_info dev_info;
   struct rte_eth_txconf txconf;
 
-  if (!rte_eth_dev_is_valid_port(port))
-    return -1;
+  // Get interface validity
+  if (!rte_eth_dev_is_valid_port(iface)) {
+    TLOG() << "Specified interface " << iface << " is not valid in EAL!";
+    return retval;
+  }
   
-  retval = rte_eth_dev_info_get(port, &dev_info);
+  // Get interface info
+  retval = rte_eth_dev_info_get(iface, &dev_info);
   if (retval != 0) {
-    TLOG() << "Error during getting device (port " << port << ") retval: " << retval;
+    TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
     return retval;
   }
 
-  /* Configure the Ethernet device. */
-  retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
+  // Configure the Ethernet interface
+  retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf);
   if (retval != 0)
     return retval;
 
-  // Set MTU
-  rte_eth_dev_set_mtu(port, 9000);//RTE_JUMBO_ETHER_MTU);
-  { /* scope */
+  // Set MTU of interface
+  rte_eth_dev_set_mtu(iface, RTE_JUMBO_ETHER_MTU);
+  {
     uint16_t mtu;
-    rte_eth_dev_get_mtu(port, &mtu);
-    TLOG() << "Port: " << port << " MTU: " << mtu;
+    rte_eth_dev_get_mtu(iface, &mtu);
+    TLOG() << "Interface: " << iface << " MTU: " << mtu;
   }
 
-  retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
+  // Adjust RX/TX ring sizes
+  retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
   if (retval != 0)
     return retval;
 
-  /* Allocate and set up 1 RX queue per Ethernet port. */
+  // Allocate and set up 1 RX queue per Ethernet interface.
   for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(port, q, nb_rxd, rte_eth_dev_socket_id(port), NULL, mbuf_pool[q].get());
+    retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
     if (retval < 0)
       return retval;
   }
 
   txconf = dev_info.default_txconf;
-  txconf.offloads = port_conf.txmode.offloads;
-  /* Allocate and set up 1 TX queue per Ethernet port. */
+  txconf.offloads = iface_conf.txmode.offloads;
+  // Allocate and set up 1 TX queue per Ethernet interface.
   for (q = 0; q < tx_rings; q++) {
-    retval = rte_eth_tx_queue_setup(port, q, nb_txd, rte_eth_dev_socket_id(port), &txconf);
+    retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf);
     if (retval < 0)
       return retval;
   }
 
-  /* Start the Ethernet port. */
-  retval = rte_eth_dev_start(port);
+  // Start the Ethernet interface.
+  retval = rte_eth_dev_start(iface);
   if (retval < 0)
     return retval;
 
-  /* Display the port MAC address. */
+  // Display the interface MAC address.
   struct rte_ether_addr addr;
-  retval = rte_eth_macaddr_get(port, &addr);
+  retval = rte_eth_macaddr_get(iface, &addr);
   if (retval != 0)
     return retval;
- 
-  printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-         port,
-         addr.addr_bytes[0],
-         addr.addr_bytes[1],
-         addr.addr_bytes[2],
-         addr.addr_bytes[3],
-         addr.addr_bytes[4],
-         addr.addr_bytes[5]);
-  
 
-  /* Enable RX in promiscuous mode for the Ethernet device. */
-  retval = rte_eth_promiscuous_enable(port);
+  // Enable RX in promiscuous mode for the Ethernet device.
+  retval = rte_eth_promiscuous_enable(iface);
   if (retval != 0)
     return retval;
 
@@ -135,9 +130,9 @@ get_mempool(const std::string& pool_name) {
   TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
 
   struct rte_mempool *mbuf_pool;
-  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ports,
+  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ifaces,
     //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, 4); //rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
+    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
 
   if (mbuf_pool == NULL) {
     // ers fatal
@@ -169,16 +164,12 @@ init_eal(int argc, char* argv[]) {
 }
 
 int
-get_available_ports() {
-  // Check that there is an even number of ports to send/receive on
-  unsigned nb_ports;
-  nb_ports = rte_eth_dev_count_avail();
-  TLOG() << "Available PORTS: " << nb_ports;
-  if (nb_ports < 2 || (nb_ports & 1)) {
-    rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
-  }
-
-  return nb_ports;
+get_available_ifaces() {
+  // Check that there is an even number of interfaces to send/receive on
+  unsigned nb_ifaces;
+  nb_ifaces = rte_eth_dev_count_avail();
+  TLOG() << "Available interfaces: " << nb_ifaces;
+  return nb_ifaces;
 }
 
 int 
