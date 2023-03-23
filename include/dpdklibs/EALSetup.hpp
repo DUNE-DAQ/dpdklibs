@@ -137,7 +137,7 @@ get_mempool(const std::string& pool_name) {
   struct rte_mempool *mbuf_pool;
   mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ports,
     //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, 4); //rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
+    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); //rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
 
   if (mbuf_pool == NULL) {
     // ers fatal
