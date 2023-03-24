@@ -1,9 +1,40 @@
-# dpdklibs - DPDK UIO software and utilities 
-Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
+# dpdklibs - Data Plane Development Kit userspace I/O software and utilities 
 
-# Setting up DPDK on NP04
-Ensure that the NIC is configured for DPDK based applications:
+## Overview
+
+The dpdklibs package makes use of the [Data Plane Development
+Kit](https://www.dpdk.org/)(DPDK) to allow for faster dataflow in the
+DUNE DAQ. DPDK increases packet processing speed on multi-core
+CPUs by allowing a userspace software application to communicate
+directly with a Network Interface Card (NIC) _without_ needing to go through the OS
+kernel. dpdklibs consists of:
+
+1. Utilities and scripts for testing UDP packet flow (`dpdklibs_test_frame_receiver`, etc.)
+1. DAQ modules for communication (`NICSender` and `NICReceiver`)
+1. A general-purpose library containing functions others can use for communication (`get_udp_payload`, etc.)
+
+## Preparing A System
+
+More than most DUNE DAQ packages, this one gets "close to the metal";
+as such, some preparation of the nodes is needed for this package to
+work on them. The steps described/linked to in this section should
+only be performed by experts with root access to the system they're
+on; users who are on a system which has already been prepared can skip
+to the next section. Note that some of the steps need to be done not
+just once, but every time a server reboots.  
+
+1. Ensure that the NIC is configured for DPDK based applications on np04:
 https://github.com/DUNE-DAQ/dpdklibs/wiki/DPDK-based-NIC-configuration-on-servers
+
+1. Install both DPDK and [OpenFabrics Enterprise
+Distribution](https://www.openfabrics.org/ofed-for-linux/)'s kernel
+bypass software; instructions on the dpdklibs Wiki
+[here](https://github.com/DUNE-DAQ/dpdklibs/wiki/OFED-&-DPDK-installation)
+
+1. Ensure that an Input-Output Memory Management Unit (IOMMU),
+connecting a DMA-capable IO bus to the main memory, is on in the BIOS
+when your server boots. Instructions [here](https://github.com/DUNE-DAQ/dpdklibs/wiki/IOMMU-configuration). 
+
 
 ## How to run a system with a transmitter and/or a receiver:
 Generate the config with
