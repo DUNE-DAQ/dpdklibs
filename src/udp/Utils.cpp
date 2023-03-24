@@ -1,5 +1,5 @@
 /**
- * @file Utils.cpp Utility functions' implementations
+ * @file Utils.cpp UDP related utility functions' implementations
  *
  * This is part of the DUNE DAQ , copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
@@ -8,25 +8,28 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include <algorithm>
 #include <cstring>
+#include <sstream>
+#include <iomanip>
 
 namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
 
-uint16_t
+std::uint16_t
 get_payload_size_udp_hdr(struct rte_udp_hdr * udp_hdr)
 {
   return rte_be_to_cpu_16(udp_hdr->dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
-uint16_t
+std::uint16_t
 get_payload_size(struct ipv4_udp_packet_hdr * ipv4_udp_hdr)
 {
   return rte_be_to_cpu_16(ipv4_udp_hdr->udp_hdr.dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
 rte_be32_t
-ip_address_dotdecimal_to_binary(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4)
+ip_address_dotdecimal_to_binary(std::uint8_t byte1, std::uint8_t byte2, 
+                                std::uint8_t byte3, std::uint8_t byte4)
 { 
   rte_le32_t ip_address = (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4;
   return rte_cpu_to_be_32(ip_address);
@@ -41,13 +44,20 @@ ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address)
   return addr;
 }
 
-void
-print_ipv4_decimal_addr(struct ipaddr ipv4_address) {
-  printf("%i.%i.%i.%i",
-        ipv4_address.addr_bytes[4],
+std::string
+get_ipv4_decimal_addr_str(struct ipaddr ipv4_address) {
+  std::ostringstream ostrs;
+  ostrs << (unsigned)ipv4_address.addr_bytes[3] << '.'
+        << (unsigned)ipv4_address.addr_bytes[2] << '.'
+        << (unsigned)ipv4_address.addr_bytes[1] << '.'
+        << (unsigned)ipv4_address.addr_bytes[0];
+  return ostrs.str();
+  /*printf("%i.%i.%i.%i",
         ipv4_address.addr_bytes[3],
+        ipv4_address.addr_bytes[2],
         ipv4_address.addr_bytes[1],
         ipv4_address.addr_bytes[0]);
+  */
 }
 
 char *
@@ -81,76 +91,72 @@ get_udp_payload(struct rte_mbuf *mbuf)
   */
 }
 
-void 
-//dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
-dump_udp_header(struct rte_mbuf *mbuf)
-{
-  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
-
-  printf("------ start of packet ----- \n");
-  //static void
-  //print_ethaddr(const char *name, struct rte_ether_addr *eth_addr)
-  //{
-  //    char buf[RTE_ETHER_ADDR_FMT_SIZE];
-  //    rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, eth_addr);
-  //    printf("%s%s", name, buf);
-  //} 
-  printf("dst mac addr: %02X:%02X:%02X:%02X:%02X:%02X\n",
-         pkt->eth_hdr.dst_addr.addr_bytes[0],
-         pkt->eth_hdr.dst_addr.addr_bytes[1],
-         pkt->eth_hdr.dst_addr.addr_bytes[2],
-         pkt->eth_hdr.dst_addr.addr_bytes[3],
-         pkt->eth_hdr.dst_addr.addr_bytes[4],
-         pkt->eth_hdr.dst_addr.addr_bytes[5]);
-  printf("src mac addr: %02X:%02X:%02X:%02X:%02X:%02X\n",
-         pkt->eth_hdr.src_addr.addr_bytes[0],
-         pkt->eth_hdr.src_addr.addr_bytes[1],
-         pkt->eth_hdr.src_addr.addr_bytes[2],
-         pkt->eth_hdr.src_addr.addr_bytes[3],
-         pkt->eth_hdr.src_addr.addr_bytes[4],
-         pkt->eth_hdr.src_addr.addr_bytes[5]);
-  printf("ethtype: %i\n", pkt->eth_hdr.ether_type);
-
-  printf("------ IP header ----- \n");
-  printf("ipv4 version: %i\n", pkt->ipv4_hdr.version_ihl);
-  printf("ipv4 type_of_service %i\n", pkt->ipv4_hdr.type_of_service);
-  printf("ipv4 total lenght: %i\n", rte_be_to_cpu_16(pkt->ipv4_hdr.total_length));
-  printf("ipv4 packet_id %i\n", pkt->ipv4_hdr.packet_id);
-  printf("ipv4 fragment_offset %i\n", pkt->ipv4_hdr.fragment_offset);
-  printf("ipv4 time_to_live %i\n", pkt->ipv4_hdr.time_to_live);
-  printf("ipv4 next_proto_id %i\n", pkt->ipv4_hdr.next_proto_id);
-  printf("ipv4 checksum: %i\n", rte_be_to_cpu_16(pkt->ipv4_hdr.hdr_checksum));
-  printf("src_addr: ");
-  print_ipv4_decimal_addr(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
-  printf("\n");
-  printf("dst_addr: ");
-  print_ipv4_decimal_addr(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
-  printf("\n");
-
-  printf("------ UDP header ----- \n");
-  printf("UDP src_port: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.src_port));
-  printf("UDP dst_port: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.dst_port));
-  printf("UDP len: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.dgram_len));
-  printf("UDP checksum: %i\n", rte_be_to_cpu_16(pkt->udp_hdr.dgram_cksum));
-
-  char* payload = (char *)(pkt);
-  uint byte;
-  for (byte = 0; byte < rte_be_to_cpu_16(pkt->udp_hdr.dgram_len); byte++) {
-    printf("%02x ", *(payload + byte) & 0xFF);
-    //printf("%s", (payload + byte));
-  }
-  printf("\n");
-  return;
+inline void 
+hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ':', char fill = '0', int digits = 2) {
+  ostrs << std::setfill(fill) << std::setw(digits) << std::hex << value << std::dec << separator;
 }
 
-bool 
-foff_arp(struct rte_mbuf *mbuf)
+std::string
+//dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
+get_udp_header_str(struct rte_mbuf *mbuf)
 {
-  struct rte_ether_hdr * eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
-  if (eth->ether_type == RTE_ETHER_TYPE_ARP) {
-    return true;
+  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  std::ostringstream ostrs;
+  ostrs << "\n------ start of packet ----- \n";
+  ostrs << "dst mac addr: ";
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[0]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[1]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[2]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[3]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[4]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.dst_addr.addr_bytes[5], '\n');
+  ostrs << "src mac addr: ";
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[0]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[1]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[2]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[3]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[4]);
+  hex_digits_to_stream(ostrs, (int)pkt->eth_hdr.src_addr.addr_bytes[5], '\n');
+  ostrs << "ethtype: " << (unsigned)pkt->eth_hdr.ether_type << '\n';
+
+  ostrs << "------ IP header ----- \n";
+  ostrs << "ipv4 version: " << (unsigned)pkt->ipv4_hdr.version_ihl << '\n';
+  ostrs << "ipv4 type_of_service: " << (unsigned)pkt->ipv4_hdr.type_of_service << '\n';
+  ostrs << "ipv4 total lenght: " << (unsigned)rte_be_to_cpu_16(pkt->ipv4_hdr.total_length) << '\n';
+  ostrs << "ipv4 packet_id: " << (unsigned)pkt->ipv4_hdr.packet_id << '\n';
+  ostrs << "ipv4 fragment_offset: " << (unsigned)pkt->ipv4_hdr.fragment_offset << '\n';
+  ostrs << "ipv4 time_to_live: " << (unsigned)pkt->ipv4_hdr.time_to_live << '\n';
+  ostrs << "ipv4 next_proto_id: " << (unsigned)pkt->ipv4_hdr.next_proto_id << '\n';
+  ostrs << "ipv4 checksum: " << (unsigned)rte_be_to_cpu_16(pkt->ipv4_hdr.hdr_checksum) << '\n';
+  std::string srcaddr = get_ipv4_decimal_addr_str(
+    ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
+  std::string dstaddr = get_ipv4_decimal_addr_str(
+    ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
+  ostrs << "src_addr: " << srcaddr << '\n';
+  ostrs << "dst_addr: " << dstaddr << '\n';
+
+  ostrs << "------ UDP header ----- \n";
+  ostrs << "UDP src_port: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.src_port) << '\n';
+  ostrs << "UDP dst_port: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dst_port) << '\n';
+  ostrs << "UDP len: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dgram_len) << '\n';
+  ostrs << "UDP checksum: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dgram_cksum) << '\n';
+  
+  return ostrs.str();
+}
+
+std::string
+get_udp_packet_str(struct rte_mbuf *mbuf)
+{
+  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  char* payload = (char *)(pkt);
+  std::ostringstream ostrs;
+  std::uint8_t byte;
+  for (byte = 0; byte < rte_be_to_cpu_16(pkt->udp_hdr.dgram_len); byte++) {
+    hex_digits_to_stream(ostrs, (unsigned)(*(payload + byte)), ' ');
+    //printf("%02x ", *(payload + byte) & 0xFF);
+    //printf("%s", (payload + byte));
   }
-  return false;
+  return ostrs.str();
 }
 
 } // namespace udp

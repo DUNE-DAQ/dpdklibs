@@ -2,85 +2,91 @@
 namespace dunedaq {
 namespace dpdklibs {
 
-//template<class T> 
 int 
 NICReceiver::rx_runner(void *arg __rte_unused) {
-  TLOG() << "Launching RX runner lcore.";
-  bool once = true;
-  uint16_t port = 0;
+  bool once = true; // One shot action variable.
+  uint16_t iface = m_iface_id;
 
   const uint16_t lid = rte_lcore_id();
-
   auto queues = m_rx_core_map[lid];
 
-  if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != (int)rte_socket_id()) {
-    TLOG() << "WARNING, port " << port << " is on remote NUMA node to polling thread! "
+  if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != (int)rte_socket_id()) {
+    TLOG() << "WARNING, iface " << iface << " is on remote NUMA node to polling thread! "
            << "Performance will not be optimal.";
   }
 
-  //while(!m_run_marker) {
-  while(!ealutils::dpdk_quit_signal){
+  TLOG() << "LCore RX runner on CPU[" << lid << "]: Main loop starts for iface " << iface << " !";
+
+  //while(!m_dpdk_quit_signal) {
+  while(!ealutils::dpdk_quit_signal) {
     for (auto q : queues) {
-      auto queue = q.first;
+      auto src_rx_q = q.first;
       // Get burst from queue
-      const uint16_t nb_rx = rte_eth_rx_burst(port, queue, m_bufs[queue], m_burst_size);
+      const uint16_t nb_rx = rte_eth_rx_burst(iface, src_rx_q, m_bufs[src_rx_q], m_burst_size);
       if (nb_rx != 0) {
-
-        if (once && m_bufs[queue][0]->pkt_len > 8000) { // Print first packet for FYI
-          //const std::type_info& ti = typeid(T);
-          //TLOG() << "Serialize into type: " << ti.name();
-          //char[] target_payload;
-	    //TLOG() << "Size of target payload: " << sizeof(target_payload);
+        // Print first packet for FYI
+        if (once && m_bufs[src_rx_q][0]->pkt_len > 7000) {
           TLOG() << "lid = " << lid;
-          TLOG() << "queue = " << queue;
+          TLOG() << "src_rx_q = " << src_rx_q;
           TLOG() << "nb_rx = " << nb_rx;
-          TLOG() << "bufs.dta_len = " << m_bufs[queue][0]->data_len;
-      	  TLOG() << "bufs.pkt_len = " << m_bufs[queue][0]->pkt_len;
-          rte_pktmbuf_dump(stdout, m_bufs[queue][0], m_bufs[queue][0]->pkt_len);
- 	    once = false;
+          TLOG() << "bufs.dta_len = " << m_bufs[src_rx_q][0]->data_len;
+      	  TLOG() << "bufs.pkt_len = " << m_bufs[src_rx_q][0]->pkt_len;
+          rte_pktmbuf_dump(stdout, m_bufs[src_rx_q][0], m_bufs[src_rx_q][0]->pkt_len);
+          std::string udp_hdr_str = udp::get_udp_header_str(m_bufs[src_rx_q][0]);
+          TLOG() << "UDP Header: " << udp_hdr_str;
+    	    once = false;
         }
+        
 
-	// Iterate on burst packets
-        for (int i=0; i<nb_rx; ++i) {
+	      // Iterate on burst packets
+        for (int i_b=0; i_b<nb_rx; ++i_b) {
 
-          //// Avoid ARP
-          //if (udp::foff_arp(m_bufs[queue][i])) {
-          //  //udp::dump_udp_header(m_bufs[queue][i]);
-          //  rte_pktmbuf_free(m_bufs[queue][i]);
-          //  continue;
-          //}
+          if (m_bufs[src_rx_q][i_b]->nb_segs > 1) {
+	          TLOG() << "It appears a packet is spread across more than one receiving buffer;" 
+                   << " there's currently no logic in this program to handle this";
+	        }
 
-          //// Avoid non IPV4 packets
-          //if (not RTE_ETH_IS_IPV4_HDR(m_bufs[queue][i]->packet_type)) {
-          //  //udp::dump_udp_header(m_bufs[queue][i]);
-          //  rte_pktmbuf_free(m_bufs[queue][i]);
-          //  continue;
-          //}
-
-          // Check for JUMBOs (user payloads)
-          if (true) { // do proper check on data length later
-            m_num_frames[queue]++;
-            std::size_t data_len = m_bufs[queue][i]->data_len;
-            char* message = udp::get_udp_payload(m_bufs[queue][i]);  //(char *)(udp_packet + 1);
-            // Copy data from network stack
-            copy_out(queue, message, data_len);
+          // Check packet type
+          auto pkt_type = m_bufs[src_rx_q][i_b]->packet_type;
+          //// Handle non IPV4 packets
+          if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
+            TLOG() << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+            if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
+              TLOG() << "TODO: Handle ARP request!";
+            } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
+              TLOG() << "TODO: Handle LLDP packet!";
+            } else {
+              TLOG() << "Unidentified! Dumping...";
+              rte_pktmbuf_dump(stdout, m_bufs[src_rx_q][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+            }
+            continue;
           }
 
-          // Clear packet
-          // rte_pktmbuf_free(m_bufs[queue][i]);
-
+          // Check for UDP frames
+          //if (pkt_type == RTE_PTYPE_L4_UDP) {
+            // Check for JUMBO frames
+          if (m_bufs[src_rx_q][i_b]->pkt_len > 7000) { // do proper check on data length later
+            // Handle them.
+            std::size_t data_len = m_bufs[src_rx_q][i_b]->data_len;
+            char* message = udp::get_udp_payload(m_bufs[src_rx_q][i_b]);
+            handle_eth_payload(src_rx_q, message, data_len);
+            m_num_frames[src_rx_q]++;
+            m_num_bytes[src_rx_q] += data_len;
+          }
         }
 
+        // From John's example: more efficient bulk free
+        rte_pktmbuf_free_bulk(m_bufs[src_rx_q], nb_rx);
         // Clear message buffers
-	for (int i=0; i < nb_rx; i++) {
-          rte_pktmbuf_free(m_bufs[queue][i]);
-        }
+       	//for (int i=0; i < nb_rx; i++) {
+        //  rte_pktmbuf_free(m_bufs[src_rx_q][i]);
+        //}
 
       } // per burst
     } // per Q
-  }
+  } // main loop
  
-  TLOG() << "Rx runner returned.";
+  TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
   return 0;
 }
 

@@ -76,37 +76,39 @@ private:
   std::set<int> m_rx_qs;
   std::map<int, std::map<int, std::string>> m_rx_core_map;
 
-  // TDE specifics
-  inline static const std::string m_parser_thread_name = "ipp";
-  inline static const std::size_t m_amc_queue_capacity = 100;
-  std::map<int, amc_frame_queue_ptr_t> m_amc_data_queues;
-  std::map<int, std::unique_ptr<readoutlibs::ReusableThread>> m_amc_frame_handlers;
-  //std::map<int, std::atomic<uint64_t>> m_amc_frame_dropped;
-  void handle_frame_queue(int id);
-  void copy_out(int queue, char* message, std::size_t size);
+  // Routing policy
+  std::string m_routing_policy;
+  int m_prev_sink;
+  int m_next_sink; 
+
+  // What to do with every payload
+  void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
 
   // Stats
   int m_burst_number = 0;
   int m_sum = 0;
-  std::map<int, std::atomic<int>> m_num_frames;
-  
-  std::atomic<int> m_cleaned;
+  std::map<int, std::atomic<std::size_t>> m_num_frames;
+  std::map<int, std::atomic<std::size_t>> m_num_bytes;
+  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
   std::thread m_stat_thread;
 
   // DPDK
-  const int m_burst_size = 64;
+  unsigned m_num_ifaces;
+  uint16_t m_iface_id;
+  volatile uint8_t m_dpdk_quit_signal;
+  const int m_burst_size = 256;
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;
-  unsigned m_nb_ports;
-  uint16_t m_portid;
-  volatile uint8_t m_dpdk_quit_signal;
 
   // Lcore processor
   //template<class T> 
   int rx_runner(void *arg __rte_unused);
 
-  std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>> m_sender;
-  std::map<int, std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>> m_wib_sender;
+  // Sinks (SourceConcepts)
+  std::map<int, std::unique_ptr<SourceConcept>> m_sources;
+
+  //std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>> m_sender;
+  //std::map<int, std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>> m_wib_sender;
 
   // Opmon
   std::atomic<int> m_total_groups_sent {0};

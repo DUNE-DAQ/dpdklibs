@@ -12,9 +12,7 @@ find_package(daqdataformats REQUIRED)
 find_package(detdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 find_package(fdreadoutlibs REQUIRED)
-#find_package(dpdk REQUIRED)
-#find_package(PkgConfig REQUIRED)
-#pkg_check_modules(DPDK REQUIRED libdpdk)
+find_package(PkgConfig REQUIRED)
 
 daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
@@ -29,10 +27,12 @@ set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)
 
 if(WITH_DPDK_AS_PACKAGE)
+	pkg_check_modules(libdpdk REQUIRED IMPORTED_TARGET libdpdk)
   set(DPDK_LIBRARIES
-    # dpdk::dpdk
+	  PkgConfig::libdpdk
   )
 else()
+  pkg_check_modules(libbsd REQUIRED libbsd)
   # From env
   set(DPDK_LIBRARIES
     $ENV{DPDK_LIB}/librte_eal.so
@@ -53,7 +53,7 @@ if(WITH_DPDK_AS_PACKAGE)
   # All good
 else()
   # Hack target
-  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC})
+  target_include_directories(dpdklibs PUBLIC $ENV{DPDK_INC} ${libbsd_INCLUDE_DIRS})
 endif()
 
 ##############################################################################
