@@ -72,7 +72,7 @@ namespace {
     const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
 } // namespace
 
-static const struct rte_eth_conf port_conf_default = { 
+static const struct rte_eth_conf iface_conf_default = { 
     .rxmode = {
         .mtu = 9000,
         .offloads = (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
@@ -116,16 +116,17 @@ check_against_previous_stream(const detdataformats::DAQEthHeader* daq_header, ui
 static int
 lcore_main(struct rte_mempool* mbuf_pool){
     /*
-     * Check that the port is on the same NUMA node as the polling thread
+     * Check that the iface is on the same NUMA node as the polling thread
      * for best performance.
      */
 
-    uint16_t port;
+    uint16_t iface;
 
-    RTE_ETH_FOREACH_DEV(port)
-        if (rte_eth_dev_socket_id(port) >= 0 && rte_eth_dev_socket_id(port) != static_cast<int>(rte_socket_id())) {
-            TLOG(TLVL_WARNING) << "WARNING, port " << port
-                << " is on remote NUMA node to polling thread.\n\tPerformance will not be optimal.\n";
+    RTE_ETH_FOREACH_DEV(iface)
+        if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != static_cast<int>(rte_socket_id())) {
+            TLOG(TLVL_WARNING) << fmt::format(
+                "WARNING, iface {} is on remote NUMA node to polling thread.\n\tPerformance will not be optimal.\n", iface
+            );
     }
 
     auto stats = std::thread([&]() {
@@ -155,17 +156,17 @@ lcore_main(struct rte_mempool* mbuf_pool){
 
     datafile.open(output_data_filename, std::ios::out | std::ios::binary);
     if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
-        TLOG(TLVL_WARNING) << "Unable to open output file \"" << output_data_filename << "\"";
+        TLOG(TLVL_WARNING) <<  fmt::format("Unable to open output file \"{}\"", output_data_filename);
     }
 
     uint64_t udp_pkt_counter = 0;
     while (true) {
 
-        RTE_ETH_FOREACH_DEV(port)
+        RTE_ETH_FOREACH_DEV(iface)
         {
 
-            /* Get burst of RX packets, from first port of pair. */
-            const uint16_t nb_rx = rte_eth_rx_burst(port, 0, bufs, burst_size);
+            /* Get burst of RX packets, from first iface of pair. */
+            const uint16_t nb_rx = rte_eth_rx_burst(iface, 0, bufs, burst_size);
 
             num_packets   += nb_rx;
             total_packets += nb_rx;
@@ -198,8 +199,6 @@ lcore_main(struct rte_mempool* mbuf_pool){
                 
                 if (check_against_previous_stream(daq_header, 2048) != 0){
                     std::cout<<"\n";
-                    //TLOG() << udp_pkt_counter;
-                    //TLOG() << "UDP HEADER of wrong timestamp packet:\n" << *daq_header;
                     dump_packet = true;
                     wrong_timestamp++;
                 }
@@ -239,8 +238,8 @@ int main(int argc, char** argv){
     int ret = rte_eal_init(argc, argv);
     if (ret < 0) {rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");}
 
-    auto nb_ports = rte_eth_dev_count_avail();
-    TLOG() << "# of available ports: " << nb_ports;
+    auto nb_ifaces = rte_eth_dev_count_avail();
+    TLOG() << "# of available ifaces: " << nb_ifaces;
 
     // Allocate pools and mbufs per queue
     std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
@@ -257,9 +256,9 @@ int main(int argc, char** argv){
         rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
     }
 
-    // Setting up only port0
-    TLOG() << "Initialize only port 0!";
-    ealutils::port_init(0, n_rx_qs, 0, mbuf_pools); // just init port0, no TX queues
+    // Setting up only iface0
+    TLOG() << "Initialize only iface 0!";
+    ealutils::iface_init(0, n_rx_qs, 0, mbuf_pools); // just init iface0, no TX queues
 
     lcore_main(mbuf_pools[0].get());
 

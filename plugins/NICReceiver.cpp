@@ -191,7 +191,7 @@ NICReceiver::do_configure(const data_t& args)
 
   // Setting up only port0
   TLOG() << "Initialize only port 0!";
-  ealutils::port_init(0, m_rx_qs.size(), 0, m_mbuf_pools); // just init port0, no TX queues
+  ealutils::iface_init(0, m_rx_qs.size(), 0, m_mbuf_pools); // just init port0, no TX queues
 
   // Flow steering setup
 // RS FIXME: DISABLE FOR NOW!
