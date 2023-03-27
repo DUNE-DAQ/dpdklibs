@@ -47,6 +47,26 @@ static const struct rte_eth_conf iface_conf_default = {
 };
 
 static inline int
+iface_promiscuous_mode(std::uint16_t iface, bool mode = false) 
+{
+  // Enable RX in promiscuous mode for the Ethernet device.
+  int retval = -1;
+  retval = rte_eth_promiscuous_get(iface);
+  TLOG() << "Before modification attempt, promiscuous mode is: " << retval;
+  if (mode) {
+    retval = rte_eth_promiscuous_enable(iface);
+  } else {
+    retval = rte_eth_promiscuous_disable(iface); 
+  }
+  if (retval != 0) {
+    TLOG() << "Couldn't modify promiscuous mode of iface[" << iface << "]! Error code: " << retval;
+  }
+  retval = rte_eth_promiscuous_get(iface);
+  TLOG() << "New promiscuous mode of iface[" << iface << "] is: " << retval;
+  return retval; 
+}
+
+static inline int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
 	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool)
 {
@@ -113,11 +133,6 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   // Display the interface MAC address.
   struct rte_ether_addr addr;
   retval = rte_eth_macaddr_get(iface, &addr);
-  if (retval != 0)
-    return retval;
-
-  // Enable RX in promiscuous mode for the Ethernet device.
-  retval = rte_eth_promiscuous_enable(iface);
   if (retval != 0)
     return retval;
 
