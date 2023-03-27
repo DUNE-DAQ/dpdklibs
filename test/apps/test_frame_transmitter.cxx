@@ -138,6 +138,9 @@ void lcore_main(void *arg) {
     TLOG () << "mbuf with lid = " << lid;
     struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * nb_ports,
         MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+    if (mbuf_pool == NULL) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_pool_create failed, info: %s\n", rte_strerror(rte_errno));
+    }
     TLOG () << "mbuf done with lid = " << lid;
 
     uint16_t portid;
@@ -162,7 +165,7 @@ void lcore_main(void *arg) {
   //     printf("INFO: Port %u has socket id: %u.\n", port, rte_eth_dev_socket_id(port));
   // }
 
-  printf("\n\nCore %u transmitting packets. [Ctrl+C to quit]\n\n", rte_lcore_id());
+    TLOG() << "\n\nCore " << rte_lcore_id() << " transmitting packets. [Ctrl+C to quit]\n\n";
 
   /* Run until the application is quit or killed. */
   int burst_number = 0;
@@ -171,7 +174,7 @@ void lcore_main(void *arg) {
   auto stats = std::thread([&]() {
     while (true) {
       // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+      TLOG() << "[DO NOT TRUST] Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -179,9 +182,16 @@ void lcore_main(void *arg) {
 
   // std::this_thread::sleep_for(std::chrono::milliseconds(5));
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
-  if (lid == 2) TLOG() << "Allocation with lid = " << lid;
-  rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
-  if (lid == 2) TLOG() << "Allocation done with lid = " << lid;
+  if (pkt == NULL) {
+    TLOG(TLVL_ERROR) << "Call to malloc failed; exiting...";
+    std::exit(1);
+  }
+  
+  int retval = rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
+
+  if (retval != 0) {
+    rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_alloc_bulk failed, info: %s\n", strerror(abs(retval)));
+  }
 
   std::string first_string = std::string(8000, '9');
   std::string second_string = std::string(8000, '7');
@@ -253,7 +263,7 @@ void lcore_main(void *arg) {
       uint16_t nb_tx;
       while(sent < burst_size)
       {
-            nb_tx = rte_eth_tx_burst(port, lid-1, pkt, burst_size - sent);
+	nb_tx = rte_eth_tx_burst(port, lid-1, pkt, burst_size - sent);
         sent += nb_tx;
         num_frames += nb_tx;
       }
@@ -267,7 +277,10 @@ void lcore_main(void *arg) {
           rte_pktmbuf_free(pkt[buf]);
         }
       }
-      rte_eth_tx_done_cleanup(port, lid-1, 0);
+      retval = rte_eth_tx_done_cleanup(port, lid-1, 0);
+      if (retval != 0) {
+	rte_exit(EXIT_FAILURE, "ERROR: failure calling rte_eth_tx_done_cleanup, info: %s\n", strerror(abs(retval)));
+      }
   }
 }
 
@@ -276,31 +289,26 @@ int main(int argc, char* argv[]) {
     unsigned nb_ports;
     uint16_t portid;
 
-    // Init EAL
-    int ret = rte_eal_init(argc, argv);
-    if (ret < 0) {
-        rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+    // Do *not* try to use argv after call to rte_eal_init; this function can modify the array
+    int retval = rte_eal_init(argc, argv);
+    if (retval < 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed, info: %s\n", strerror(abs(retval)));
     }
-
-    argc -= ret;
-    argv += ret;
 
     // Check that there is an even number of ports to send/receive on
     nb_ports = rte_eth_dev_count_avail();
-    TLOG() << "There are " << nb_ports << " ports available";
-    if (nb_ports < 2 || (nb_ports & 1)) {
-        TLOG() << "There are " << nb_ports << " ports available";
-        TLOG() << "There are " << rte_eth_dev_count_total() << " ports in total";
-        rte_exit(EXIT_FAILURE, "ERROR: number of ports must be even\n");
+    TLOG() << "There are " << nb_ports << " ports available out of a total of " << rte_eth_dev_count_total();
+    if (nb_ports == 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: 0 ports are available. This can be caused either by someone else currently\nusing dpdk-based code or the necessary drivers not being bound to the NICs\n(see https://github.com/DUNE-DAQ/dpdklibs#readme for more)\n");
     }
-
-    printf("RTE_MBUF_DEFAULT_BUF_SIZE = %d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+    if (nb_ports < 2 || (nb_ports & 1)) {
+        rte_exit(EXIT_FAILURE, "ERROR: number of available ports must be even and greater than 0\n");
+    }
 
     struct rte_eth_conf port_conf = port_conf_default;
     const uint16_t rx_rings = 0, tx_rings = 2;
     uint16_t nb_rxd = RX_RING_SIZE;
     uint16_t nb_txd = TX_RING_SIZE;
-    int retval;
     uint16_t q;
     struct rte_eth_dev_info dev_info;
     struct rte_eth_txconf txconf;
@@ -311,31 +319,36 @@ int main(int argc, char* argv[]) {
 
     /* Configure the Ethernet device. */
     retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
-    if (retval != 0)
-        return retval;
+    if (retval < 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_configure failed, info: %s\n", strerror(abs(retval)));
+    }
 
     retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
-    if (retval != 0)
-      return retval;
+    if (retval != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_adjust_nb_rx_tx_desc failed, info: %s\n", strerror(abs(retval)));
+    }
 
     txconf = dev_info.default_txconf;
     txconf.offloads = port_conf.txmode.offloads;
     /* Allocate and set up 1 TX queue per Ethernet port. */
     for (q = 0; q < tx_rings; q++) {
       retval = rte_eth_tx_queue_setup(port, q, nb_txd, rte_eth_dev_socket_id(port), &txconf);
-      if (retval < 0)
-        return retval;
+      if (retval < 0) {
+	rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_tx_queue_setup failed, info: %s\n", strerror(abs(retval)));
+      }
     }
 
     retval = rte_eth_dev_start(port);
-    if (retval < 0)
-      return retval;
+    if (retval < 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_start failed, info: %s\n", strerror(abs(retval)));
+    }
 
     /* Display the port MAC address. */
     struct rte_ether_addr addr;
     retval = rte_eth_macaddr_get(port, &addr);
-    if (retval != 0)
-      return retval;
+    if (retval != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_macaddr_get failed, info: %s\n", strerror(abs(retval)));
+    }
 
     printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
            port,
@@ -346,7 +359,10 @@ int main(int argc, char* argv[]) {
            addr.addr_bytes[4],
            addr.addr_bytes[5]);
 
-    rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+    retval = rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+    if (retval != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_set_mtu failed, info: %s\n", strerror(abs(retval)));
+    }
     
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
