@@ -2,20 +2,8 @@
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
 # Setting up DPDK on NP04
-At the time of writing (22-11-2022), there is only a working setup available in
-021 and 022, which are connected with 100G Mellanox NICs and a 100G switch.
-
-To run, log in to 021 and 022 as root. Set up a workarea and do
-`dbt-workarea-env`. Then, export the following environment variables:
-
-```
-export DPDK_LIB=/usr/local/lib64
-export LD_LIBRARY_PATH=/usr/local/lib64/:$LD_LIBRARY_PATH
-```
-
-compiling `dpdklibs` should work. If it was compiled before (withouth the env
-variables) it will be necessary to do a clean build.
-
+Ensure that the NIC is configured for DPDK based applications:
+https://github.com/DUNE-DAQ/dpdklibs/wiki/DPDK-based-NIC-configuration-on-servers
 
 ## How to run a system with a transmitter and/or a receiver:
 Generate the config with

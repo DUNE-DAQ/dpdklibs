@@ -45,14 +45,14 @@ public:
   SourceConcept(SourceConcept&&) = delete;                 ///< SourceConcept is not move-constructible
   SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
 
-  virtual void init(const nlohmann::json& args, const size_t block_queue_capacity) = 0;
+  virtual void init(const nlohmann::json& args) = 0;
   virtual void set_sink(const std::string& sink_name) = 0;
-  virtual void conf(const nlohmann::json& args, size_t block_size, bool is_32b_trailers) = 0;
+  virtual void conf(const nlohmann::json& args) = 0;
   virtual void start(const nlohmann::json& args) = 0;
   virtual void stop(const nlohmann::json& args) = 0;
   virtual void get_info(opmonlib::InfoCollector& ci, int level) = 0;
 
-  virtual bool handle_payload(uint64_t eth_frame) = 0;
+  virtual bool handle_payload(char* message, std::size_t size) = 0;
   //virtual bool queue_in_block_address(uint64_t block_addr) = 0; // NOLINT
 
   //DefaultParserImpl& get_parser() { return std::ref(m_parser_impl); }

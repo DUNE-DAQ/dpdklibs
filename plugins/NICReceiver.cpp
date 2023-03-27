@@ -30,6 +30,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <ios>
 
 /**
  * @brief Name used by TRACE TLOG calls from this source file
@@ -49,27 +50,12 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-class TDEFrameGrouper
-{
-public:
-  void group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v,
-             detdataformats::tde::TDE16Frame* frames);
-
-private:
-};
-
-void
-TDEFrameGrouper::group(std::vector<std::vector<detdataformats::tde::TDE16Frame>>& v,
-                       detdataformats::tde::TDE16Frame* frames)
-{
-  for (int i = 0; i < 12 * 64; i++) {
-    v[frames[i].get_tde_header()->slot][frames[i].get_tde_header()->link] = frames[i];
-  }
-}
-
 NICReceiver::NICReceiver(const std::string& name)
   : DAQModule(name),
-    m_run_marker{ false }
+    m_run_marker{ false },
+    m_routing_policy{ "incremental" },
+    m_prev_sink(0),
+    m_next_sink(0)
 {
   register_command("conf", &NICReceiver::do_configure);
   register_command("start", &NICReceiver::do_start);
@@ -107,36 +93,22 @@ NICReceiver::init(const data_t& args)
       std::string target = qi.uid;
       std::vector<std::string> words;
       tokenize(target, delim, words);
-      int linkid = -1;
+      int sourceid = -1;
       try {
-        linkid = std::stoi(words.back());
+        sourceid = std::stoi(words.back());
       } catch (const std::exception& ex) {
-        ers::fatal(dunedaq::readoutlibs::InitializationError(ERS_HERE, "Link ID could not be parsed on queue instance name! "));
+        ers::fatal(dunedaq::readoutlibs::InitializationError(
+          ERS_HERE, "Output link ID could not be parsed on queue instance name! "));
       }
-      TLOG() << "Creating link for target queue: " << target << " DLH number: " << linkid;
-			//m_elinks[linkid] = createElinkModel(qi.uid);
-			// RS FIXME: Introduce LinkConcepts for different FE types, as this will be a nightmare on the long run...
-      m_wib_sender[linkid] = get_iom_sender<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>(qi.uid);
-
-      //if (m_wib_sender[qi.uid] == nullptr) {
-      //  ers::fatal(InitializationError(ERS_HERE, "CreateElink failed to provide an appropriate model for queue!"));
-      //}
-      //m_elinks[linkid]->init(args, m_block_queue_capacity);
+      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid;
+      m_sources[sourceid] = createSourceModel(qi.uid);
+      if (m_sources[sourceid] == nullptr) {
+        ers::fatal(dunedaq::readoutlibs::InitializationError(
+          ERS_HERE, "CreateSource failed to provide an appropriate model for queue!"));
+      }
+      m_sources[sourceid]->init(args);
     }
   }
-
-  //auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
-  //if (datatypes.size() != 1) {
-  //  ers::error(dunedaq::readoutlibs::GenericConfigurationError(ERS_HERE,
-  //    "Multiple output data types specified! Expected only a single type!"));
-  //}
-  //std::string raw_dt{ *datatypes.begin() };
-  //TLOG() << "Choosing specializations for ElinkModel for output connection "
-  //       << " [uid:" << conn_uid << " , data_type:" << raw_dt << ']';
-
-
-  // RS FIXME: Remove this attrocity
-  m_sender = get_iom_sender<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>("tde_link_0");
 }
 
 void
@@ -144,6 +116,7 @@ NICReceiver::do_configure(const data_t& args)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   m_cfg = args.get<module_conf_t>();
+  m_iface_id = (uint16_t)m_cfg.card_id;
   m_dest_ip = m_cfg.dest_ip;
   auto ip_sources = m_cfg.ip_sources;
   auto rx_cores = m_cfg.rx_cores; 
@@ -163,15 +136,13 @@ NICReceiver::do_configure(const data_t& args)
     // Extend mapping
     m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
     m_rx_qs.insert(src.rx_q);
-
     // Create frame counter metric
     m_num_frames[src.id] = { 0 };
-    // Creating AMC handler
-    TLOG() << "Setting up AMC[" << src.id << "] data queue and parser...";
-    m_amc_data_queues[src.id] = std::make_unique<amc_frame_queue_t>(m_amc_queue_capacity);
-    m_amc_frame_handlers[src.id] = std::make_unique<readoutlibs::ReusableThread>(0);
-    m_amc_frame_handlers[src.id]->set_name(m_parser_thread_name, src.id);
+    m_num_bytes[src.id] = { 0 };
   }
+
+  // Setup SourceConcepts
+  // m_sources[]->configure if needed!?
 
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
@@ -189,16 +160,19 @@ NICReceiver::do_configure(const data_t& args)
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
 
-  // Setting up only port0
-  TLOG() << "Initialize only port 0!";
-  ealutils::port_init(0, m_rx_qs.size(), 0, m_mbuf_pools); // just init port0, no TX queues
+  // Setting up interface
+  TLOG() << "Initialize interface " << m_iface_id;
+  ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools); // 0 = no TX queues
+  // Promiscuous mode
+  ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
 
   // Flow steering setup
-// RS FIXME: DISABLE FOR NOW!
   TLOG() << "Configuring Flow steering rules.";
   struct rte_flow_error error;
   struct rte_flow *flow;
-if (false) {
+  TLOG() << "Attempt to flush previous flow rules...";
+  rte_flow_flush(m_iface_id, &error);
+#warning RS: FIXME -> Check for flow flush return!
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
 
@@ -207,31 +181,30 @@ if (false) {
       size_t ind = 0, current_ind = 0;
       std::vector<uint8_t> v;
       for (int i = 0; i < 4; ++i) {
-        TLOG() << "Calling stoi with argument " << srcip.substr(current_ind, srcip.size() - current_ind);
         v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
         current_ind += ind + 1;
       }
 
-      flow = generate_ipv4_flow(0, rxqid, 
-		                RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff,
-				0, 0,
-				&error);
+      flow = generate_ipv4_flow(m_iface_id, rxqid, 
+		    RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
+
       if (not flow) { // ers::fatal
         TLOG() << "Flow can't be created for " << rxqid
 	       << " Error type: " << (unsigned)error.type
 	       << " Message: " << error.message;
-    	rte_exit(EXIT_FAILURE, "error in creating flow");
+        ers::fatal(dunedaq::readoutlibs::InitializationError(
+          ERS_HERE, "Couldn't create Flow API rules!"));
+    	  rte_exit(EXIT_FAILURE, "error in creating flow");
       }
     }
   }
-}
 
   if (m_cfg.with_drop_flow) {
     // Adding drop flow
     TLOG() << "Adding Drop Flow.";
-    flow = generate_drop_flow(0, &error);
+    flow = generate_drop_flow(m_iface_id, &error);
     if (not flow) { // ers::fatal
-      TLOG() << "Drop flow can't be created for port0!"
+      TLOG() << "Drop flow can't be created for interface!"
              << " Error type: " << (unsigned)error.type
              << " Message: " << error.message;
       rte_exit(EXIT_FAILURE, "error in creating flow");
@@ -251,23 +224,27 @@ NICReceiver::do_start(const data_t&)
     ealutils::dpdk_quit_signal = 0;
 
     TLOG() << "Starting stats thread.";
+
     m_stat_thread = std::thread([&]() {
       while (m_run_marker.load()) {
-        // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-	for (auto& [qid, nframes] : m_num_frames) { // fixme for proper payload size
-	  TLOG() << "Received Rate of q[" << qid << "] is " << size_t(9000) * nframes.load() / 1e6 * 8;
-	  nframes.exchange(0);
-	}
-	TLOG() << "CLEARED  Rate is " << size_t(9000) * m_cleaned / 1e6 * 8;
-	m_cleaned.exchange(0);
+	      for (auto& [qid, nframes] : m_num_frames) { // check for new frames
+          if (nframes.load() > 0) {
+            auto nbytes = m_num_bytes[qid].load();
+  	        TLOG() << "Received payloads of q[" << qid << "] is: " << nframes.load()
+                   << " Bytes: " << nbytes << " Rate: " << nbytes / 1e6 * 8 << " Mbps";
+	          nframes.exchange(0);
+            m_num_bytes[qid].exchange(0);
+          }
+        }
+        for (auto& [strid, nframes] : m_num_unexid_frames) { // check for unexpected StreamID frames
+          if (nframes.load() > 0) {
+            TLOG() << "Unexpected StreamID frames with strid[" << strid << "]! Num: " << nframes.load();
+            nframes.exchange(0);
+          }
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     });
-
-    TLOG() << "Starting frame processors.";
-    // for (unsigned int i=0; i<m_amc_frame_handlers.size(); ++i) {
-    //   m_amc_frame_handlers[i]->set_work(&NICReceiver::handle_frame_queue, this, i);
-    // }
 
     TLOG() << "Starting LCore processors:";
     for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
@@ -290,9 +267,12 @@ NICReceiver::do_stop(const data_t&)
     m_dpdk_quit_signal = 1;
     ealutils::dpdk_quit_signal = 1;
     ealutils::wait_for_lcores();
-    TLOG() << "Stoppped DPDK lcore processors...";
-    struct rte_flow_error error;
-    rte_flow_flush(0, &error);
+    if (m_stat_thread.joinable()) {
+      m_stat_thread.join();
+    } else {
+      TLOG() << "Stats thread is not joinable!";
+    }
+    TLOG() << "Stoppped DPDK lcore processors and internal threads...";
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
@@ -302,6 +282,8 @@ void
 NICReceiver::do_scrap(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
+  struct rte_flow_error error;
+  rte_flow_flush(m_iface_id, &error);
 }
 
 void
@@ -312,32 +294,22 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
   nri.total_groups_sent = m_total_groups_sent.load();
 }
 
-void 
-NICReceiver::handle_frame_queue(int id)
-{
-  TLOG() << "frame_proc[" << id << "] starting to handle frames in corresponding queue!";
-  while (m_run_marker.load()) {
-    detdataformats::tde::TDE16Frame frame;
-    if (m_amc_data_queues[id]->read(frame)) {
-      m_cleaned++;
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  }
-}
-
 void
-NICReceiver::copy_out(int queue, char* message, std::size_t size) {
-  //detdataformats::tde::TDE16Frame target_payload;
-
-  fdreadoutlibs::types::DUNEWIBEthTypeAdapter target_payload;
-  uint32_t bytes_copied = 0;
-  readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-
-  // first frame's streamID:
-  auto streamid = (unsigned)target_payload.begin()->daq_header.stream_id;
-  m_wib_sender[streamid]->send(std::move(target_payload), std::chrono::milliseconds(100));
-
+NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
+  // Get DAQ Header and its StreamID
+  auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
+  auto strid = (unsigned)daq_header->stream_id;
+  if (m_sources.count(strid) != 0) {
+    auto ret = m_sources[strid]->handle_payload(payload, size);
+  } else {
+    // Really bad -> unexpeced StreamID in UDP Payload.
+    // This check is needed in order to avoid dynamically add thousands
+    // of Sources on the fly, in case the data corruption is extremely severe.
+    if (m_num_unexid_frames.count(strid) == 0) {
+      m_num_unexid_frames[strid] = 0;
+    }
+    m_num_unexid_frames[strid]++;
+  }
 }
 
 void 

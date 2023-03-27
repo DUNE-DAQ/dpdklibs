@@ -312,7 +312,7 @@ NICSender::dpdk_configure()
   ealutils::init_eal(argc, v.data());
 
   std::map<int, std::unique_ptr<rte_mempool>> m;
-  ealutils::port_init(0, 0, m_number_of_cores, m);
+  ealutils::iface_init(0, 0, m_number_of_cores, m);
 }
 
 void

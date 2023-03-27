@@ -63,6 +63,7 @@ struct ipv4_udp_packet_hdr {
 
 struct ipv4_udp_packet {
     struct ipv4_udp_packet_hdr hdr;
+#warning RS FIXME -> Hardcoded IPV4 UDP packet payload size!
     char payload[8000]; // TODO jumbo Mind the padding
 };
 
