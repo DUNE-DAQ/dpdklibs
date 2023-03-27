@@ -163,6 +163,8 @@ NICReceiver::do_configure(const data_t& args)
   // Setting up interface
   TLOG() << "Initialize interface " << m_iface_id;
   ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools); // 0 = no TX queues
+  // Promiscuous mode
+  ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
 
   // Flow steering setup
   TLOG() << "Configuring Flow steering rules.";
