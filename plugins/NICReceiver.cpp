@@ -8,11 +8,10 @@
 #include "dpdklibs/nicreader/Nljs.hpp"
 
 #include "logging/Logging.hpp"
-#include "detdataformats/tde/TDE16Frame.hpp"
 
 #include "readoutlibs/ReadoutIssues.hpp"
 #include "readoutlibs/utils/BufferCopy.hpp" 
-#include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
+#include "fdreadoutlibs/TDEFrameTypeAdapter.hpp"
 #include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
