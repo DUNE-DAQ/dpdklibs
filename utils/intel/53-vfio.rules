@@ -1,0 +1,1 @@
+ACTION=="add", SUBSYSTEM=="vfio" OWNER="root", GROUP="root", MODE="777"

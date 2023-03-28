@@ -1,0 +1,1 @@
+KERNEL=="hugepages*", OWNER="root", GROUP="root", MODE="077"
