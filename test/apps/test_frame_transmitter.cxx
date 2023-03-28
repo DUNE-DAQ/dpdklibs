@@ -27,7 +27,7 @@
 
 
 // Apparently only 8 and above works
-int burst_size = 1;
+int burst_size = 256;
 bool is_debug = false;
 
 using namespace dunedaq;
@@ -171,26 +171,30 @@ void lcore_main(void *arg) {
   int burst_number = 0;
   std::atomic<int> num_frames = 0;
 
-  auto stats = std::thread([&]() {
-    while (true) {
-      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
-      TLOG() << "[DO NOT TRUST] Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
-      num_frames.exchange(0);
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  });
+  // auto stats = std::thread([&]() {
+  //   while (true) {
+  //     // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
+  //     TLOG() << "[DO NOT TRUST] Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
+  //     num_frames.exchange(0);
+  //     std::this_thread::sleep_for(std::chrono::seconds(1));
+  //   }
+  // });
 
   // std::this_thread::sleep_for(std::chrono::milliseconds(5));
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
   if (pkt == NULL) {
     TLOG(TLVL_ERROR) << "Call to malloc failed; exiting...";
     std::exit(1);
+  } else {
+    TLOG() << "Call to malloc for array of pointers-to-rte_mbuf succeeded";
   }
   
   int retval = rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
 
   if (retval != 0) {
     rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_alloc_bulk failed, info: %s\n", strerror(abs(retval)));
+  } else {
+    TLOG() << "Call to rte_pktmbuf_alloc_bulk succeeded";
   }
 
   std::string first_string = std::string(8000, '9');
@@ -198,6 +202,7 @@ void lcore_main(void *arg) {
 
 
   for (;;) {
+
     /*
      * Transmit packets on port.
      */
@@ -205,24 +210,11 @@ void lcore_main(void *arg) {
 
       // std::this_thread::sleep_for(std::chrono::microseconds(5));
 
-      // Message struct
-      // struct Message {
-      //   // detdataformats::wib::WIBFrame fr;
-      //   char ch[16];
-      // };
-
       // Ethernet header
       // struct rte_ether_hdr eth_hdr = {0};
       // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
       /* Dummy message to transmit */
-
-
-      //struct rte_mbuf *pkt[burst_size];
-
-      // if (burst_number % 1000 == 0) {
-      //   TLOG() << "burst_number =" << burst_number;
-      // }
 
       for (int i = 0; i < burst_size; i++)
       {
@@ -297,12 +289,12 @@ int main(int argc, char* argv[]) {
 
     // Check that there is an even number of ports to send/receive on
     nb_ports = rte_eth_dev_count_avail();
-    TLOG() << "There are " << nb_ports << " ports available out of a total of " << rte_eth_dev_count_total();
+    TLOG() << "There are " << nb_ports << " ethernet ports available out of a total of " << rte_eth_dev_count_total();
     if (nb_ports == 0) {
-      rte_exit(EXIT_FAILURE, "ERROR: 0 ports are available. This can be caused either by someone else currently\nusing dpdk-based code or the necessary drivers not being bound to the NICs\n(see https://github.com/DUNE-DAQ/dpdklibs#readme for more)\n");
+      rte_exit(EXIT_FAILURE, "ERROR: 0 ethernet ports are available. This can be caused either by someone else currently\nusing dpdk-based code or the necessary drivers not being bound to the NICs\n(see https://github.com/DUNE-DAQ/dpdklibs#readme for more)\n");
     }
     if (nb_ports < 2 || (nb_ports & 1)) {
-        rte_exit(EXIT_FAILURE, "ERROR: number of available ports must be even and greater than 0\n");
+        rte_exit(EXIT_FAILURE, "ERROR: number of available ethernet ports must be even and greater than 0\n");
     }
 
     struct rte_eth_conf port_conf = port_conf_default;
@@ -330,6 +322,8 @@ int main(int argc, char* argv[]) {
 
     txconf = dev_info.default_txconf;
     txconf.offloads = port_conf.txmode.offloads;
+    txconf.tx_rs_thresh = 0;
+    txconf.tx_thresh.wthresh = 0;
     /* Allocate and set up 1 TX queue per Ethernet port. */
     for (q = 0; q < tx_rings; q++) {
       retval = rte_eth_tx_queue_setup(port, q, nb_txd, rte_eth_dev_socket_id(port), &txconf);
@@ -338,6 +332,11 @@ int main(int argc, char* argv[]) {
       }
     }
 
+    retval = rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
+    if (retval != 0) {
+      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_set_mtu failed, info: %s\n", strerror(abs(retval)));
+    }
+    
     retval = rte_eth_dev_start(port);
     if (retval < 0) {
       rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_start failed, info: %s\n", strerror(abs(retval)));
@@ -358,11 +357,6 @@ int main(int argc, char* argv[]) {
            addr.addr_bytes[3],
            addr.addr_bytes[4],
            addr.addr_bytes[5]);
-
-    retval = rte_eth_dev_set_mtu(port, RTE_JUMBO_ETHER_MTU);
-    if (retval != 0) {
-      rte_exit(EXIT_FAILURE, "ERROR: call to rte_eth_dev_set_mtu failed, info: %s\n", strerror(abs(retval)));
-    }
     
     uint16_t mtu;
     rte_eth_dev_get_mtu(port, &mtu);
