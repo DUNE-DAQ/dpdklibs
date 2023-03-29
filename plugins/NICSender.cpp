@@ -235,7 +235,7 @@ int lcore_main(void *arg)
           msg.set_timestamp(ts);
           msg.get_tde_header()->slot = ips_index % 12;
           msg.get_tde_header()->link = channel;
-          msg.set_adc_samples(channel + 1000 * board_index, 0);
+          msg.set_adc_sample(channel + 1000 * board_index, 0);
           // pktgen_packet_ctor(&msg.hdr);
 
           // struct rte_ether_hdr eth_hdr;

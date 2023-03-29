@@ -13,7 +13,7 @@
 #include "readoutlibs/ReadoutIssues.hpp"
 
 #include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
-#include "fdreadoutlibs/TDEAMCFrameTypeAdapter.hpp"
+#include "fdreadoutlibs/TDEFrameTypeAdapter.hpp"
 
 #include <memory>
 #include <string>
@@ -21,7 +21,7 @@
 namespace dunedaq {
 
 DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::DUNEWIBEthTypeAdapter, "WIBEthFrame")
-DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::TDEAMCFrameTypeAdapter, "TDEAMCFrame")
+DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::TDEFrameTypeAdapter, "TDEFrame")
 
 namespace dpdklibs {
 
@@ -59,9 +59,9 @@ createSourceModel(const std::string& conn_uid)
     // Return with setup model
     return source_model;
 
-  } else if (raw_dt.find("TDEAMCFrame") != std::string::npos) {
+  } else if (raw_dt.find("TDEFrame") != std::string::npos) {
     // WIB2 specific char arrays
-    auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>>();
+    auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEFrameTypeAdapter>>();
     source_model->set_sink(conn_uid);
     //auto& parser = source_model->get_parser();
     //parser.process_chunk_func = parsers::fixsizedChunkInto<fdreadoutlibs::types::DUNEWIBSuperChunkTypeAdapter>(sink);
