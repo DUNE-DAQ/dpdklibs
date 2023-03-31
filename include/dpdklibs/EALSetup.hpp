@@ -68,7 +68,7 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
 
 static inline int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
-	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool)
+          std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool, uint16_t  jumbo_ether_mtu = 9000)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
   uint16_t nb_rxd = RX_RING_SIZE;
@@ -77,6 +77,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   uint16_t q;
   struct rte_eth_dev_info dev_info;
   struct rte_eth_txconf txconf;
+
 
   // Get interface validity
   if (!rte_eth_dev_is_valid_port(iface)) {
@@ -91,13 +92,14 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
   }
 
+
   // Configure the Ethernet interface
   retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf);
   if (retval != 0)
     return retval;
 
   // Set MTU of interface
-  rte_eth_dev_set_mtu(iface, RTE_JUMBO_ETHER_MTU);
+  rte_eth_dev_set_mtu(iface, jumbo_ether_mtu);
   {
     uint16_t mtu;
     rte_eth_dev_get_mtu(iface, &mtu);
@@ -108,6 +110,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
   if (retval != 0)
     return retval;
+
 
   // Allocate and set up 1 RX queue per Ethernet interface.
   for (q = 0; q < rx_rings; q++) {
@@ -124,6 +127,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     if (retval < 0)
       return retval;
   }
+
 
   // Start the Ethernet interface.
   retval = rte_eth_dev_start(iface);

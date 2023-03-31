@@ -107,7 +107,7 @@ private:
   // Sinks (SourceConcepts)
   std::map<int, std::unique_ptr<SourceConcept>> m_sources;
 
-  //std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEAMCFrameTypeAdapter>> m_sender;
+  //std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEFrameTypeAdapter>> m_sender;
   //std::map<int, std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>> m_wib_sender;
 
   // Opmon
