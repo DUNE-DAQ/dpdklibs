@@ -193,9 +193,17 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
 
             std::string message = "";
-            for (auto stream = packets_per_stream.begin(); stream != packets_per_stream.end(); stream++)
-                message += fmt::format("\nTotal packets on stream {}: {}", stream->first, stream->second);
-            std::cout << message << "\n\n";
+            for (auto stream = packets_per_stream.begin(); stream != packets_per_stream.end(); stream++){
+                uint64_t stream_id =  stream->first &  ((1 <<  8) - 1);
+                uint64_t slot_id   = (stream->first & (((1 <<  4) - 1) << 8) ) >> 8;
+                uint64_t crate_id  = (stream->first & (((1 << 10) - 1) << 12)) >> 12;
+                uint64_t det_id    = (stream->first & (((1 <<  6) - 1) << 22)) >> 22;
+                message += fmt::format(
+                    "\nTotal packets on crate {}, slot {}, stream {}: {}",
+                    crate_id, slot_id, stream_id, stream->second
+                );
+            }
+
             num_packets.exchange(0);
             num_bytes.exchange(0);
             num_bad_timestamp.exchange(0);
