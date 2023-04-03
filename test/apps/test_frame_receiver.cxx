@@ -62,7 +62,7 @@ namespace {
     constexpr int max_packets_to_dump = 10; 
     int dumped_packet_count           = 0;
 
-    uint16_t expected_packet_size = 7243; // i.e., every packet that isn't the initial one
+    uint16_t expected_packet_size = 0; //7243; // i.e., every packet that isn't the initial one
 
     std::atomic<uint64_t> num_packets            = 0;
     std::atomic<uint64_t> num_bytes              = 0;
@@ -150,7 +150,7 @@ static inline int check_packet_size(struct rte_mbuf* mbuf){
     if (packet_size > max_payload_size) {max_payload_size = packet_size;}
     if (packet_size < min_payload_size) {min_payload_size = packet_size;}
 
-    if (packet_size != expected_packet_size){
+    if (expected_packet_size and (packet_size != expected_packet_size)){
         ++num_bad_payload_size;
         ++total_bad_payload_size;
         return 1;
@@ -178,12 +178,19 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 "Since the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
-                "Packets with wrong payload size: {}, Max udp payload: {}, Min udp payload: {}, Total Packets with Wrong size {}\n",
+                "Max udp payload: {}, Min udp payload: {}\n",
                 time_per_report,
                 packets_per_second, bytes_per_second, total_packets, non_ipv4_packets, udp_pkt_counter,
                 num_bad_seq_id, max_seq_id_skip, total_bad_seq_id,
-                num_bad_payload_size, max_payload_size, min_payload_size, total_bad_payload_size
+                max_payload_size, min_payload_size
             );
+
+            if (expected_packet_size){
+                std::cout << fmt::format(
+                    "Packets with wrong payload size: {}, Total Packets with Wrong size {}\n",
+                    num_bad_payload_size, total_bad_payload_size
+                );
+            }
 
             if (check_timestamp) {
                 std::cout << fmt::format(
@@ -209,6 +216,8 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             num_bad_timestamp.exchange(0);
             num_bad_seq_id.exchange(0);
             num_bad_payload_size.exchange(0);
+            max_payload_size.exchange(0);
+            min_payload_size.exchange(0);
             max_seq_id_skip.exchange(0);
             max_timestamp_skip.exchange(0);
             std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
@@ -294,7 +303,7 @@ int main(int argc, char** argv){
     uint16_t iface = 0;
 
     CLI::App app{"test frame receiver"};
-    app.add_option("-s", expected_packet_size, "Expected WIBEthFrame size");
+    app.add_option("-s", expected_packet_size, "Expected WIBEthFrame size. If not set won't check for it");
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
