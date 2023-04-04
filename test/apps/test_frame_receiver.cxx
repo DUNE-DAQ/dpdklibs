@@ -70,6 +70,7 @@ namespace {
     }
 
     struct StreamStats {
+        std::atomic<uint64_t> total_packets          = 0;
         std::atomic<uint64_t> num_packets            = 0;
         std::atomic<uint64_t> num_bytes              = 0;
         std::atomic<uint64_t> num_bad_timestamp      = 0;
@@ -79,6 +80,8 @@ namespace {
         std::atomic<uint64_t> num_bad_payload_size   = 0;
         std::atomic<uint64_t> min_payload_size       = 0;
         std::atomic<uint64_t> max_payload_size       = 0;
+        std::atomic<uint64_t> prev_seq_id            = 0;
+        std::atomic<uint64_t> prev_timestamp         = 0;
 
         void reset() {
             num_packets.exchange(0);
@@ -93,6 +96,8 @@ namespace {
         }
     };
 
+    std::map<StreamUID, StreamStats> stream_stats;
+
     // Apparently only 8 and above works for "burst_size"
 
     // From the dpdk documentation, describing the rte_eth_rx_burst
@@ -102,6 +107,7 @@ namespace {
     // divisible by 4 or 8, depending on the driver implementation."
 
     bool check_timestamp = false;
+    bool per_stream_reports         = false;
 
     constexpr int burst_size = 256;
 
@@ -129,14 +135,6 @@ namespace {
     std::atomic<uint64_t> min_payload_size       = 0;
     std::atomic<uint64_t> max_payload_size       = 0;
     std::atomic<uint64_t> udp_pkt_counter        = 0;
-
-    // std::map<uint64_t, std::atomic<size_t>> packets_per_stream;
-    // std::map<uint64_t, std::atomic<size_t>> prev_timestamp_of_stream;
-    // std::map<uint64_t, std::atomic<size_t>> seq_ids;
-
-    std::map<StreamUID, std::atomic<size_t>> packets_per_stream;
-    std::map<StreamUID, std::atomic<size_t>> prev_timestamp_of_stream;
-    std::map<StreamUID, std::atomic<size_t>> seq_ids;
 
     std::ofstream datafile;
     const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
@@ -168,29 +166,30 @@ static inline int check_against_previous_stream(const detdataformats::DAQEthHead
     int ret_val = 0;
 
     if (check_timestamp) {
-        if ( prev_timestamp_of_stream[unique_str_id] == 0 ) {
-            prev_timestamp_of_stream[unique_str_id] = stream_ts;
+        if (stream_stats[unique_str_id].prev_timestamp == 0 ) {
+            stream_stats[unique_str_id].prev_timestamp = stream_ts;
         }else{
-            uint64_t expected_ts   = prev_timestamp_of_stream[unique_str_id] + exp_ts_diff;
+            uint64_t expected_ts   = stream_stats[unique_str_id].prev_timestamp + exp_ts_diff;
             if (stream_ts != expected_ts) {
-                uint64_t ts_difference = stream_ts - prev_timestamp_of_stream[unique_str_id];
+                uint64_t ts_difference = stream_ts - stream_stats[unique_str_id].prev_timestamp;
                 ret_val = 1;
                 ++num_bad_timestamp;
                 ++total_bad_timestamp;
                 if (ts_difference > max_timestamp_skip) {max_timestamp_skip = ts_difference;}
             }
-            prev_timestamp_of_stream[unique_str_id] = stream_ts;
+            stream_stats[unique_str_id].prev_timestamp = stream_ts;
         }
     }
 
 
-    uint64_t expected_seq_id = (seq_ids[unique_str_id] == 4095) ? 0 : seq_ids[unique_str_id]+1;
+    uint64_t expected_seq_id = (stream_stats[unique_str_id].prev_seq_id == 4095) ? 0 : stream_stats[unique_str_id].prev_seq_id + 1;
     if (seq_id != expected_seq_id) {
         uint64_t adj_expected_seq_id = (expected_seq_id == 0) ? 4096 : expected_seq_id;
         uint64_t adj_seq_id          = (seq_id < adj_expected_seq_id) ? (4096 + seq_id) : seq_id;
         uint64_t seq_id_difference   = adj_seq_id - adj_expected_seq_id;
         ret_val += 2;
         ++num_bad_seq_id;
+        ++stream_stats[unique_str_id].num_bad_seq_id;
         ++total_bad_seq_id;
         if (seq_id_difference > max_seq_id_skip) {max_seq_id_skip = seq_id_difference;}
     }
@@ -200,10 +199,6 @@ static inline int check_against_previous_stream(const detdataformats::DAQEthHead
 
 static inline int check_packet_size(struct rte_mbuf* mbuf){
     std::size_t packet_size = mbuf->data_len;
-    // std::size_t packet_size_from_sizeof = sizeof(udp::get_udp_payload(mbuf));
-    // if (packet_size != packet_size_from_sizeof){
-    //     std::cout << fmt::format("WARNING: sizeof and header give different results. sizeof: {}, header: {}\n", packet_size_from_sizeof, packet_size_from_header);
-    // }
 
     if (packet_size > max_payload_size) {max_payload_size = packet_size;}
     if (packet_size < min_payload_size) {min_payload_size = packet_size;}
@@ -223,7 +218,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
      */
 
     if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != static_cast<int>(rte_socket_id())) {
-        std::cout << fmt::format(
+        fmt::print(
             "WARNING, iface {} is on remote NUMA node to polling thread.\n\tPerformance will not be optimal.\n", iface
         );
     }
@@ -232,7 +227,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         while (true) {
             uint64_t packets_per_second = num_packets / time_per_report;
             uint64_t bytes_per_second   = num_bytes   / time_per_report;
-            std::cout << fmt::format(
+            fmt::print(
                 "Since the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
@@ -244,25 +239,33 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             );
 
             if (expected_packet_size){
-                std::cout << fmt::format(
+                fmt::print(
                     "Packets with wrong payload size: {}, Total Packets with Wrong size {}\n",
                     num_bad_payload_size, total_bad_payload_size
                 );
             }
 
             if (check_timestamp) {
-                std::cout << fmt::format(
+                fmt::print(
                     "Wrong Timestamp difference Packets: {}, Max wrong Timestamp difference {}, Total Packets with Wrong Timestamp {}\n",
                     num_bad_timestamp, max_timestamp_skip, total_bad_timestamp
                 );
             }
 
-            std::string message = "";
-            for (auto stream = packets_per_stream.begin(); stream != packets_per_stream.end(); stream++)
-                message += fmt::format("\nTotal packets on stream {}: {}", (std::string)stream->first, stream->second);
+            fmt::print("\n");
+            for (auto stream = stream_stats.begin(); stream != stream_stats.end(); stream++) {
+                fmt::print("Total packets on stream {}: {}\n", (std::string)stream->first, stream->second.total_packets);
+                if (per_stream_reports){
+                    uint64_t stream_bytes_per_second = stream->second.num_bytes / time_per_report;
+                    fmt::print(
+                        "Bytes/s: {},    Packets with wrong seq_id: {}\n\n", 
+                        stream_bytes_per_second, stream->second.num_bad_seq_id
+                    );
+                }
+                stream->second.reset();
+            }
 
-
-            std::cout << message << "\n\n";
+            fmt::print("\n");
             num_packets.exchange(0);
             num_bytes.exchange(0);
             num_bad_timestamp.exchange(0);
@@ -281,7 +284,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
     datafile.open(output_data_filename, std::ios::out | std::ios::binary);
     if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
-        std::cout <<  fmt::format("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
+        fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
     }
 
     while (true) {
@@ -293,6 +296,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
         for (int i_b = 0; i_b < nb_rx; ++i_b) {
             num_bytes += bufs[i_b]->pkt_len;
+            
 
             bool dump_packet = false;
             if (not RTE_ETH_IS_IPV4_HDR(bufs[i_b]->packet_type)) {
@@ -306,18 +310,15 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
 
             // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
-            // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
             StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
             if ((udp_pkt_counter % 1000000) == 0 ) {
                 std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
             }
-            if (packets_per_stream.find(unique_str_id) == packets_per_stream.end()) {
-                packets_per_stream[unique_str_id] = 0;
-                seq_ids[unique_str_id]       = daq_hdr->seq_id - 1;
-                if (check_timestamp) {
-                    prev_timestamp_of_stream[unique_str_id] = 0;
-                }
+            if (stream_stats.find(unique_str_id) == stream_stats.end()) {
+                stream_stats[unique_str_id];
+                stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id - 1;
             }
+            stream_stats[unique_str_id].num_bytes += bufs[i_b]->pkt_len;
 
             if (check_against_previous_stream(daq_hdr, 2048) != 0){
                 dump_packet = true;
@@ -326,8 +327,8 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 dump_packet = true;
             }
 
-            ++packets_per_stream[unique_str_id];
-            seq_ids[unique_str_id] = daq_hdr->seq_id;
+            ++stream_stats[unique_str_id].total_packets;
+            stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id;
 
             if (dump_packet && dumped_packet_count < max_packets_to_dump) {
                 dumped_packet_count++;
@@ -344,7 +345,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
 // Define the function to be called when ctrl-c (SIGINT) is sent to process
 void signal_callback_handler(int signum){
-    std::cout << fmt::format("Caught signal {}\n", signum);
+    fmt::print("Caught signal {}\n", signum);
     if (datafile.is_open()) {
         datafile.close();
     }
@@ -361,6 +362,7 @@ int main(int argc, char** argv){
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
+    app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
 
     //    define function to be called when ctrl+c is called.
@@ -379,7 +381,7 @@ int main(int argc, char** argv){
     if (ret < 0) {rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");}
 
     auto n_ifaces = rte_eth_dev_count_avail();
-    std::cout << fmt::format("# of available ifaces: {}\n", n_ifaces);
+    fmt::print("# of available ifaces: {}\n", n_ifaces);
     if (n_ifaces == 0){
         std::cout << "WARNING: no available ifaces. exiting...\n";
         rte_eal_cleanup();
@@ -395,14 +397,14 @@ int main(int argc, char** argv){
     for (size_t i=0; i<n_rx_qs; ++i) {
         std::stringstream ss;
         ss << "MBP-" << i;
-        std::cout << fmt::format("Pool acquire: {}\n", ss.str()); 
+        fmt::print("Pool acquire: {}\n", ss.str()); 
         mbuf_pools[i] = ealutils::get_mempool(ss.str());
         bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
         rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
     }
 
     // Setting up only one iface
-    std::cout << fmt::format("Initialize only iface {}!\n", iface);
+    fmt::print("Initialize only iface {}!\n", iface);
     ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
 
     lcore_main(mbuf_pools[0].get(), iface, time_per_report);
