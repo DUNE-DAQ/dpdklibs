@@ -127,12 +127,11 @@ void lcore_main(void *arg) {
 
     // if (pktgen_has_work())
     //     return 0;
-    TLOG() << "lid = " << lid;
     if (lid > 2) return;
 
     TLOG () << "Going to sleep with lid = " << lid;
     rte_delay_us_sleep((lid + 1) * 1000021);
-    uint16_t port;
+    uint16_t port = std::numeric_limits<uint16_t>::max();
 
     unsigned nb_ports = rte_eth_dev_count_avail();
     TLOG () << "mbuf with lid = " << lid;
@@ -185,69 +184,68 @@ void lcore_main(void *arg) {
   if (pkt == NULL) {
     TLOG(TLVL_ERROR) << "Call to malloc failed; exiting...";
     std::exit(1);
-  } else {
-    TLOG() << "Call to malloc for array of pointers-to-rte_mbuf succeeded";
   }
   
   int retval = rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, burst_size);
 
   if (retval != 0) {
     rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_alloc_bulk failed, info: %s\n", strerror(abs(retval)));
-  } else {
-    TLOG() << "Call to rte_pktmbuf_alloc_bulk succeeded";
+  }
+  
+  struct ipv4_udp_packet_hdr packet_hdr;
+
+  // JCF, Apr-3-2023: enp225s0f1 is the NIC we want on np02-srv-001
+  const std::string enp225s0f1_macaddr = "d8:5e:d3:8c:c4:e3";
+  const std::string enp225s0f0_ipv4addr = "192.168.2.1";
+    
+  // JCF, Apr-3-2023: ens801f0np0 is the NIC we want on np04-srv-022
+  const std::string ens801f0np0_macaddr = "ec:0d:9a:8e:b9:88";
+  const std::string ens801f0np0_ipv4addr = "10.73.139.17";
+
+  // JCF, Apr-4-2023: 6c:fe:54:47:a1:28 is what dpdk appears to think is the default source NIC on np04-srv-001
+  const std::string important_macaddr = "6c:fe:54:47:a1:28";
+  
+  constexpr int payload_bytes = 0;
+  constexpr int udp_header_bytes = 8;
+  constexpr int ipv4_header_bytes = 20;
+  constexpr int ipv4_packet_bytes = ipv4_header_bytes + udp_header_bytes + payload_bytes; 
+  constexpr int udp_datagram_bytes = udp_header_bytes + payload_bytes; 
+  
+  // Get info for the ethernet header (procol stack level 3)
+  pktgen_ether_hdr_ctor(&packet_hdr, enp225s0f1_macaddr);
+  //pktgen_ether_hdr_ctor(&packet_hdr, important_macaddr);
+
+  // Get info for the internet header (procol stack level 3)
+  pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes, "127.0.0.0", "127.0.0.0");
+
+  // Get info for the UDP header (procol stack level 4)
+  pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
+
+  for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
+
+    void* datastart = rte_pktmbuf_mtod(pkt[i_pkt], char*);
+    rte_memcpy(datastart, &packet_hdr, sizeof(packet_hdr));
+
+    pkt[i_pkt]->pkt_len = ipv4_packet_bytes;
+    pkt[i_pkt]->data_len = ipv4_packet_bytes;
   }
 
-  std::string first_string = std::string(8000, '9');
-  std::string second_string = std::string(8000, '7');
+  TLOG() << "JCF: Dump of the first packet header: ";
+  TLOG() << packet_hdr;
+  
+  TLOG() << "JCF: Dump of the first packet:";
+  rte_pktmbuf_dump(stdout, pkt[0], 100);
+  
+  rte_mbuf_sanity_check(pkt[0], 1);
 
+  TLOG() << "pkt_len of the first packet: " << rte_pktmbuf_pkt_len(pkt[0]);
+  TLOG() << "data_len of the first packet: " << rte_pktmbuf_data_len(pkt[0]);
+  
+  
+  for (int i_set = 0; i_set < 1; ++i_set) {
 
-  for (;;) {
+    port = 0;
 
-    /*
-     * Transmit packets on port.
-     */
-      port = 0;
-
-      // std::this_thread::sleep_for(std::chrono::microseconds(5));
-
-      // Ethernet header
-      // struct rte_ether_hdr eth_hdr = {0};
-      // eth_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-
-      /* Dummy message to transmit */
-
-      for (int i = 0; i < burst_size; i++)
-      {
-        // struct Message msg;
-
-        struct ipv4_udp_packet msg;
-        pktgen_packet_ctor(&msg.hdr);
-
-        // msg.fr.set_timestamp(burst_number);
-        // msg.fr.set_channel(190, i);
-        pkt[i]->pkt_len = sizeof(struct ipv4_udp_packet);
-        pkt[i]->data_len = 8000;
-        // for (int i = 0; i < 8000 / 11; ++i) {
-        //     strcpy(msg.payload + i * 11, "Hello world");
-        // }
-        // if (port) 
-        //     strcpy(msg.payload, first_string.c_str());
-        // else
-        //     strcpy(msg.payload, second_string.c_str());
-
-        char *ether_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, 0);
-        // char *msg_mbuf_offset = rte_pktmbuf_mtod_offset(pkt[i], char*, sizeof(struct rte_ether_hdr));
-
-        // rte_memcpy(ether_mbuf_offset, &eth_hdr, sizeof(rte_ether_hdr));
-        // rte_memcpy(msg_mbuf_offset, &msg, sizeof(struct Message));
-
-        rte_memcpy(ether_mbuf_offset, &msg, sizeof(struct ipv4_udp_packet));
-
-
-        if (false) {
-          rte_pktmbuf_dump(stdout, pkt[i], pkt[i]->pkt_len);
-        }
-      }
       burst_number++;
 
       /* Send burst of TX packets. */
@@ -258,11 +256,13 @@ void lcore_main(void *arg) {
 	nb_tx = rte_eth_tx_burst(port, lid-1, pkt, burst_size - sent);
         sent += nb_tx;
         num_frames += nb_tx;
+	TLOG() << "num_frames == " << num_frames;
       }
 
       /* Free any unsent packets. */
       if (unlikely(nb_tx < burst_size))
       {
+	TLOG(TLVL_WARNING) << "Only " << nb_tx << " frames were sent, less than burst size of " << burst_size;
         uint16_t buf;
         for (buf = nb_tx; buf < burst_size; buf++)
         {

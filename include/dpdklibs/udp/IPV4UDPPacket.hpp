@@ -12,6 +12,8 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 
+#include <ostream>
+
 namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
@@ -61,6 +63,32 @@ struct ipv4_udp_packet_hdr {
     //} __rte_packed;
 } __rte_packed;
 
+  inline std::ostream& operator<<(std::ostream& o, const ipv4_udp_packet_hdr& h) {
+    o << "\n" << std::dec << sizeof(h) << " bytes of ipv4_udp_packet_hdr contains the following:\n";
+    o << "Ethernet header (" << sizeof(rte_ether_hdr) << " bytes): \n";
+    o << "Destination address: ";
+    
+    for (int i = 0; i < RTE_ETHER_ADDR_LEN; ++i) {
+      o << "0x" << std::hex << static_cast<int>(h.eth_hdr.dst_addr.addr_bytes[i]) << " ";
+    }
+
+    o << "\nSource address: ";
+
+    for (int i = 0; i < RTE_ETHER_ADDR_LEN; ++i) {
+      o << "0x" << std::hex << static_cast<int>(h.eth_hdr.src_addr.addr_bytes[i]) << " ";
+    }
+
+    o << "\nEther type (Big Endian to CPU): " << rte_be_to_cpu_32(h.eth_hdr.ether_type);
+
+    o << "\n\n";
+    o << "Internet header (" << std::dec << sizeof(rte_ipv4_hdr) << std::hex << " bytes): \n";
+    o << "Total length: " << std::dec << rte_be_to_cpu_16(h.ipv4_hdr.total_length) << std::hex;
+    o << "\nSource address: " << rte_be_to_cpu_32(h.ipv4_hdr.src_addr);
+    o << "\nDestination address: " << rte_be_to_cpu_32(h.ipv4_hdr.dst_addr);
+    
+    return o;
+  }
+  
 struct ipv4_udp_packet {
     struct ipv4_udp_packet_hdr hdr;
 #warning RS FIXME -> Hardcoded IPV4 UDP packet payload size!

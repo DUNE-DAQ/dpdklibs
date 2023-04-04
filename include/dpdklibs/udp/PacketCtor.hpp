@@ -20,9 +20,9 @@ rte_le16_t packet_fill(struct ipv4_udp_packet_hdr * packet_hdr);
 
 void pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len);
 
-void pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len);
+  void pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, const std::string& src_ip_addr = "0.0.0.0", const std::string& dst_ip_addr = "0.0.0.0");
 
-void pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
+  void pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string& dst_mac_address = "0a:00:10:c2:15:c1");
 
 rte_le16_t pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr);
 

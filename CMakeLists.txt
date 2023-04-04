@@ -17,6 +17,8 @@ find_package(CLI11 REQUIRED)
 #find_package(dpdk REQUIRED)
 #pkg_check_modules(DPDK REQUIRED libdpdk)
 
+find_package(Boost COMPONENTS unit_test_framework REQUIRED)
+
 daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
@@ -75,5 +77,8 @@ target_compile_options(dpdklibs PUBLIC ${DPDK_CFLAGS})
 target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
 
 ##############################################################################
-# Installation
+
+
+daq_add_unit_test(Conversions_test LINK_LIBRARIES dpdklibs)
+
 daq_install()
