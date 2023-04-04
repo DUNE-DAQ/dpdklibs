@@ -8,6 +8,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <stdint.h>
+#include <tuple>
 
 #include <csignal>
 #include <fstream>
@@ -42,7 +43,56 @@ using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
 
+
 namespace {
+
+    struct StreamUID {
+        uint64_t det_id : 6;
+        uint64_t crate_id : 10;
+        uint64_t slot_id : 4;
+        uint64_t stream_id : 8;
+
+        bool operator<(const StreamUID& rhs) const
+        {
+            // compares n to rhs.n,
+            // then s to rhs.s,
+            // then d to rhs.d
+            return std::tie(det_id, crate_id, slot_id, stream_id) < std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id);
+        }
+
+        operator std::string() const {
+            return fmt::format("({}, {}, {}, {})", det_id, crate_id, slot_id, stream_id);
+        }
+    };
+
+    std::ostream & operator <<(std::ostream &out, const StreamUID &obj) {
+        return out << static_cast<std::string>(obj);
+    }
+
+    struct StreamStats {
+        std::atomic<uint64_t> num_packets            = 0;
+        std::atomic<uint64_t> num_bytes              = 0;
+        std::atomic<uint64_t> num_bad_timestamp      = 0;
+        std::atomic<uint64_t> max_timestamp_skip     = 0;
+        std::atomic<uint64_t> num_bad_seq_id         = 0;
+        std::atomic<uint64_t> max_seq_id_skip        = 0;
+        std::atomic<uint64_t> num_bad_payload_size   = 0;
+        std::atomic<uint64_t> min_payload_size       = 0;
+        std::atomic<uint64_t> max_payload_size       = 0;
+
+        void reset() {
+            num_packets.exchange(0);
+            num_bytes.exchange(0);
+            num_bad_timestamp.exchange(0);
+            max_timestamp_skip.exchange(0);
+            num_bad_seq_id.exchange(0);
+            max_seq_id_skip.exchange(0);
+            num_bad_payload_size.exchange(0);
+            min_payload_size.exchange(0);
+            max_payload_size.exchange(0);
+        }
+    };
+
     // Apparently only 8 and above works for "burst_size"
 
     // From the dpdk documentation, describing the rte_eth_rx_burst
@@ -80,13 +130,20 @@ namespace {
     std::atomic<uint64_t> max_payload_size       = 0;
     std::atomic<uint64_t> udp_pkt_counter        = 0;
 
-    std::map<uint64_t, std::atomic<size_t>> packets_per_stream;
-    std::map<uint64_t, std::atomic<size_t>> prev_timestamp_of_stream;
-    std::map<uint64_t, std::atomic<size_t>> seq_ids;
+    // std::map<uint64_t, std::atomic<size_t>> packets_per_stream;
+    // std::map<uint64_t, std::atomic<size_t>> prev_timestamp_of_stream;
+    // std::map<uint64_t, std::atomic<size_t>> seq_ids;
+
+    std::map<StreamUID, std::atomic<size_t>> packets_per_stream;
+    std::map<StreamUID, std::atomic<size_t>> prev_timestamp_of_stream;
+    std::map<StreamUID, std::atomic<size_t>> seq_ids;
 
     std::ofstream datafile;
     const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
+
+
 } // namespace
+
 
 static const struct rte_eth_conf iface_conf_default = { 
     .rxmode = {
@@ -104,7 +161,8 @@ std::vector<char*> construct_argv(std::vector<std::string> &std_argv){
 }
 
 static inline int check_against_previous_stream(const detdataformats::DAQEthHeader* daq_hdr, uint64_t exp_ts_diff){
-    uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;  
+    // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;  
+    StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};  
     uint64_t stream_ts     = daq_hdr->timestamp;
     uint64_t seq_id        = daq_hdr->seq_id;
     int ret_val = 0;
@@ -194,7 +252,9 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
             std::string message = "";
             for (auto stream = packets_per_stream.begin(); stream != packets_per_stream.end(); stream++)
-                message += fmt::format("\nTotal packets on stream {}: {}", stream->first, stream->second);
+                message += fmt::format("\nTotal packets on stream {}: {}", (std::string)stream->first, stream->second);
+
+
             std::cout << message << "\n\n";
             num_packets.exchange(0);
             num_bytes.exchange(0);
@@ -236,7 +296,9 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             char* udp_payload = udp::get_udp_payload(bufs[i_b]);
             const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
 
-            uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
+            // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
+            // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
+            StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
             if ((udp_pkt_counter % 1000000) == 0 ) {
                 std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
             }
@@ -286,7 +348,7 @@ int main(int argc, char** argv){
     uint16_t iface = 0;
 
     CLI::App app{"test frame receiver"};
-    app.add_option("-s", expected_packet_size, "Expected WIBEthFrame size");
+    app.add_option("-s", expected_packet_size, "Expected frame size");
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
