@@ -174,8 +174,10 @@ static inline int check_against_previous_stream(const detdataformats::DAQEthHead
                 uint64_t ts_difference = stream_ts - stream_stats[unique_str_id].prev_timestamp;
                 ret_val = 1;
                 ++num_bad_timestamp;
+                ++stream_stats[unique_str_id].num_bad_timestamp;
                 ++total_bad_timestamp;
                 if (ts_difference > max_timestamp_skip) {max_timestamp_skip = ts_difference;}
+                if (ts_difference > stream_stats[unique_str_id].max_timestamp_skip) {stream_stats[unique_str_id].max_timestamp_skip = ts_difference;}
             }
             stream_stats[unique_str_id].prev_timestamp = stream_ts;
         }
@@ -189,23 +191,27 @@ static inline int check_against_previous_stream(const detdataformats::DAQEthHead
         uint64_t seq_id_difference   = adj_seq_id - adj_expected_seq_id;
         ret_val += 2;
         ++num_bad_seq_id;
-        ++stream_stats[unique_str_id].num_bad_seq_id;
         ++total_bad_seq_id;
+        ++stream_stats[unique_str_id].num_bad_seq_id;
         if (seq_id_difference > max_seq_id_skip) {max_seq_id_skip = seq_id_difference;}
+        if (seq_id_difference > stream_stats[unique_str_id].max_seq_id_skip) {stream_stats[unique_str_id].max_seq_id_skip = seq_id_difference;}
     }
 
     return ret_val;
 }
 
-static inline int check_packet_size(struct rte_mbuf* mbuf){
+static inline int check_packet_size(struct rte_mbuf* mbuf, StreamUID unique_str_id){
     std::size_t packet_size = mbuf->data_len;
 
     if (packet_size > max_payload_size) {max_payload_size = packet_size;}
     if (packet_size < min_payload_size) {min_payload_size = packet_size;}
+    if (packet_size > stream_stats[unique_str_id].max_payload_size) {stream_stats[unique_str_id].max_payload_size = packet_size;}
+    if (packet_size < stream_stats[unique_str_id].min_payload_size) {stream_stats[unique_str_id].min_payload_size = packet_size;}
 
     if (expected_packet_size and (packet_size != expected_packet_size)){
         ++num_bad_payload_size;
         ++total_bad_payload_size;
+        ++stream_stats[unique_str_id].num_bad_payload_size;
         return 1;
     }
     return 0;
@@ -323,11 +329,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             if (check_against_previous_stream(daq_hdr, 2048) != 0){
                 dump_packet = true;
             }
-            if (check_packet_size(bufs[i_b]) != 0){
+            if (check_packet_size(bufs[i_b], unique_str_id) != 0){
                 dump_packet = true;
             }
 
             ++stream_stats[unique_str_id].total_packets;
+            ++stream_stats[unique_str_id].num_packets;
             stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id;
 
             if (dump_packet && dumped_packet_count < max_packets_to_dump) {
