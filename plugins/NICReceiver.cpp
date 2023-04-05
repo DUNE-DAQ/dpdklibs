@@ -11,8 +11,6 @@
 
 #include "readoutlibs/ReadoutIssues.hpp"
 #include "readoutlibs/utils/BufferCopy.hpp" 
-#include "fdreadoutlibs/TDEFrameTypeAdapter.hpp"
-#include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -161,7 +159,8 @@ NICReceiver::do_configure(const data_t& args)
 
   // Setting up interface
   TLOG() << "Initialize interface " << m_iface_id;
-  ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools); // 0 = no TX queues
+  bool with_reset = true, with_mq_mode = true; // go to config
+  ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools, with_reset, with_mq_mode); // 0 = no tx queues
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
 
@@ -297,7 +296,8 @@ void
 NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
   // Get DAQ Header and its StreamID
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  auto strid = (unsigned)daq_header->stream_id;
+  //auto strid = (unsigned)daq_header->stream_id;
+  auto strid = (unsigned)daq_header->stream_id+(daq_header->slot_id<<8)+(daq_header->crate_id<<(8+4))+(daq_header->det_id<<(8+4+10));
   if (m_sources.count(strid) != 0) {
     auto ret = m_sources[strid]->handle_payload(payload, size);
   } else {
