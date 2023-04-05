@@ -259,16 +259,18 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
 
             fmt::print("\n");
-            for (auto stream = stream_stats.begin(); stream != stream_stats.end(); stream++) {
-                fmt::print("Total packets on stream {}: {}\n", (std::string)stream->first, stream->second.total_packets);
+            // for (auto stream = stream_stats.begin(); stream != stream_stats.end(); stream++) {
+            for ( auto& [suid, stats] : stream_stats) {
+                fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, stats.num_packets, stats.total_packets);
                 if (per_stream_reports){
-                    uint64_t stream_bytes_per_second = stream->second.num_bytes / time_per_report;
+                    float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
                     fmt::print(
-                        "Bytes/s: {},    Packets with wrong seq_id: {}\n\n", 
-                        stream_bytes_per_second, stream->second.num_bad_seq_id
+                        " {:8.3f} MB/s, seq. jumps: {}", 
+                        stream_bytes_per_second, stats.num_bad_seq_id
                     );
                 }
-                stream->second.reset();
+                stats.reset();
+                fmt::print("\n");
             }
 
             fmt::print("\n");
@@ -317,9 +319,9 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
             // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
             StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
-            if ((udp_pkt_counter % 1000000) == 0 ) {
-                std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
-            }
+            // if ((udp_pkt_counter % 1000000) == 0 ) {
+            //     std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
+            // }
             if (stream_stats.find(unique_str_id) == stream_stats.end()) {
                 stream_stats[unique_str_id];
                 stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id - 1;
