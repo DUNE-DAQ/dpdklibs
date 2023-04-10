@@ -1,6 +1,7 @@
 
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -22,33 +23,57 @@
 #include <chrono>
 #include <thread>
 
-
-#define RX_RING_SIZE 1024
-#define TX_RING_SIZE 1024
-
-#define NUM_MBUFS 8191
-#define MBUF_CACHE_SIZE 250
-
-#define PG_JUMBO_FRAME_LEN (9600 + RTE_ETHER_CRC_LEN + RTE_ETHER_HDR_LEN)
-#ifndef RTE_JUMBO_ETHER_MTU
-#define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
-#endif
-
 namespace {
 
-  // Apparently only 8 and above works
+  // Only 8 and above works
   constexpr int burst_size = 256;
 
+  constexpr int buffer_size = 9800; // Same number as in EALSetup.hpp
+  
   std::string dst_ip_addr = "127.0.0.0";
   std::string src_ip_addr = "127.0.0.0";
 
   std::string dst_mac_addr = "";
   std::string src_mac_addr = "";
+
+  int src_port = -1;
+  int dst_port = -1;
+  
+  int payload_bytes = 0; // payload past the UDP header
 }
   
 using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
+
+void print_rte_mbuf(const rte_mbuf& mbuf) {
+  std::stringstream ss;
+
+  ss << "\nrte_mbuf info:";
+  ss << "\npkt_len: " << mbuf.pkt_len;
+  ss << "\ndata_len: " << mbuf.data_len;
+  ss << "\nBuffer address: " << std::hex << mbuf.buf_addr;
+  ss << "\nRef count: " << std::dec << rte_mbuf_refcnt_read(&mbuf);
+  ss << "\nport: " << mbuf.port;
+  ss << "\nol_flags: " << std::hex << mbuf.ol_flags;
+  ss << "\npacket_type: " << std::dec << mbuf.packet_type;
+  ss << "\nl2 type: " << static_cast<int>(mbuf.l2_type);
+  ss << "\nl3 type: " << static_cast<int>(mbuf.l3_type);
+  ss << "\nl4 type: " << static_cast<int>(mbuf.l4_type);
+  ss << "\ntunnel type: " << static_cast<int>(mbuf.tun_type);
+  ss << "\nInner l2 type: " << static_cast<int>(mbuf.inner_l2_type);
+  ss << "\nInner l3 type: " << static_cast<int>(mbuf.inner_l3_type);
+  ss << "\nInner l4 type: " << static_cast<int>(mbuf.inner_l4_type);
+  ss << "\nbuf_len: " << mbuf.buf_len;
+  ss << "\nl2_len: " << mbuf.l2_len;
+  ss << "\nl3_len: " << mbuf.l3_len;
+  ss << "\nl4_len: " << mbuf.l4_len;
+  ss << "\nouter_l2_len: " << mbuf.outer_l2_len;
+  ss << "\nouter_l3_len: " << mbuf.outer_l3_len;
+  
+  TLOG() << ss.str().c_str();
+}
+
 
 static const struct rte_eth_conf iface_conf_default = {
     .txmode = {
@@ -68,7 +93,7 @@ void lcore_main(uint16_t iface) {
     rte_delay_us_sleep((lid + 1) * 1000021);
 
     struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * rte_eth_dev_count_avail(),
-        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+        MBUF_CACHE_SIZE, 0, buffer_size, rte_socket_id());
 
     if (mbuf_pool == NULL) {
       rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_pool_create failed, info: %s\n", rte_strerror(rte_errno));
@@ -113,11 +138,10 @@ void lcore_main(uint16_t iface) {
   // JCF, Apr-4-2023: 6c:fe:54:47:a1:28 is what dpdk appears to think is the default source NIC on np04-srv-001
   const std::string important_macaddr = "6c:fe:54:47:a1:28";
   
-  constexpr int payload_bytes = 0;
   constexpr int udp_header_bytes = 8;
   constexpr int ipv4_header_bytes = 20;
-  constexpr int ipv4_packet_bytes = ipv4_header_bytes + udp_header_bytes + payload_bytes; 
-  constexpr int udp_datagram_bytes = udp_header_bytes + payload_bytes; 
+  int ipv4_packet_bytes = ipv4_header_bytes + udp_header_bytes + payload_bytes; 
+  int udp_datagram_bytes = udp_header_bytes + payload_bytes; 
 
   if (dst_mac_addr == "") {
     dst_mac_addr = enp225s0f1_macaddr;
@@ -130,24 +154,45 @@ void lcore_main(uint16_t iface) {
   
   // Get info for the ethernet header (procol stack level 3)
   pktgen_ether_hdr_ctor(&packet_hdr, dst_mac_addr);
-
+  if (src_mac_addr == "00:00:00:00:00:00") {
+    get_ether_addr6(dst_mac_addr.c_str(), &packet_hdr.eth_hdr.src_addr); // Otherwise this gets derived from the port inside pktgen_ether_hdr_ctor
+  }
+  
   // Get info for the internet header (procol stack level 3)
   pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes, src_ip_addr, dst_ip_addr);
 
   // Get info for the UDP header (procol stack level 4)
-  pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
+  if (src_port != -1 && dst_port != -1) {
+    pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes, src_port, dst_port);
+  } else if (src_port != -1 && dst_port == -1) {
+    pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes, src_port);
+  } else if (src_port == -1 && dst_port == -1) {
+    pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
+  } else {
+    TLOG(TLVL_ERROR) << "Illegal requested port combination (source port == " << src_port << ", destination port == " << dst_port << "). Exiting...";
+    rte_eal_cleanup();
+    std::exit(3);
+  }
 
   for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
 
     void* datastart = rte_pktmbuf_mtod(bufs[i_pkt], char*);
     rte_memcpy(datastart, &packet_hdr, sizeof(packet_hdr));
-
+    
+    bufs[i_pkt]->l2_len = sizeof(struct rte_ether_hdr);
+    bufs[i_pkt]->l3_len = sizeof(struct rte_ipv4_hdr);
+    bufs[i_pkt]->l4_len = sizeof(struct rte_udp_hdr);
+    
     bufs[i_pkt]->pkt_len = ipv4_packet_bytes;
     bufs[i_pkt]->data_len = ipv4_packet_bytes;
   }
 
+  TLOG() << "JCF: dump of the first mbuf: ";
+  print_rte_mbuf(*bufs[0]);
+  
   TLOG() << "JCF: Dump of the first packet header: ";
-  TLOG() << packet_hdr;
+  TLOG() << get_udp_header_str(bufs[0]);
+  
   
   TLOG() << "JCF: Dump of the first packet:";
   rte_pktmbuf_dump(stdout, bufs[0], 100);
@@ -158,24 +203,29 @@ void lcore_main(uint16_t iface) {
   TLOG() << "data_len of the first packet: " << rte_pktmbuf_data_len(bufs[0]);
   
   int cntr = 0;
-  while (cntr++ < std::numeric_limits<int>::max()) {
-
+  //  while (cntr++ < std::numeric_limits<int>::max()) {
+  //  while (false) {
+  while (cntr++ < 3) {
+  
       burst_number++;
       if (lid != 1) {
 	TLOG() << "Skipping burst on thread #" << lid << " as we're only bursting on thread 1";
 	break;
       }
-      TLOG() << "Thread #" << lid << ", burst #" << burst_number;
+
+      if (burst_number % 250000 == 0) {
+	TLOG() << "Thread #" << lid << ", burst #" << burst_number;
+      }
       
       int sent = 0;
       uint16_t nb_tx = 0;
-      while(sent < burst_size)
-	{
+      //      while(sent < burst_size)
+      //	{
 	  nb_tx = rte_eth_tx_burst(iface, lid-1, bufs, burst_size - sent);
 	  sent += nb_tx;
 	  num_frames += nb_tx;
-	  TLOG() << "num_frames == " << num_frames;
-	}
+	  //	  TLOG() << "num_frames == " << num_frames;
+	  //	}
 
       /* Free any unsent packets. */
       if (unlikely(nb_tx < burst_size))
@@ -192,15 +242,18 @@ void lcore_main(uint16_t iface) {
 
 int main(int argc, char* argv[]) {
 
-    uint16_t portid = std::numeric_limits<uint16_t>::max();
-    
-    CLI::App app{"test frame transmitter"};
+  CLI::App app{"test frame transmitter"};
     app.add_option("--dst-ip", dst_ip_addr, "Destination IP address");
     app.add_option("--src-ip", src_ip_addr, "Source IP address");
 
     app.add_option("--dst-mac", dst_mac_addr, "Destination MAC address");
     app.add_option("--src-mac", src_mac_addr, "Source MAC address");
 
+    app.add_option("--src-port", src_port, "Source UDP port");
+    app.add_option("--dst-port", dst_port, "Destination UDP port");
+    
+    app.add_option("--payload", payload_bytes, "Bytes of payload past the UDP header");
+    
     CLI11_PARSE(app, argc, argv);
     
     argc = 1; // Set to 1 so rte_eal_init ignores all the CLI-parsed arguments
@@ -223,7 +276,7 @@ int main(int argc, char* argv[]) {
     const uint16_t n_tx_qs = 1;
     const uint16_t n_rx_qs = 0;
 
-    portid = 0;
+    uint16_t portid = 0;
     std::map<int, std::unique_ptr<rte_mempool>> dummyarg;
     retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, dummyarg);
 
@@ -242,11 +295,9 @@ int main(int argc, char* argv[]) {
     // }
 
     rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
-    //lcore_main(mbuf_pools[0].get(), portid);
-    //lcore_main(portid);
 
     rte_eal_mp_wait_lcore();
-    //rte_eal_cleanup();
+    rte_eal_cleanup();
 
     return 0;
 }

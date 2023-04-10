@@ -32,8 +32,7 @@ static int8_t get_xdigit(char ch)
 }
 
 
-/* Convert 00:11:22:33:44:55 to ethernet address */
-static bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
+bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
 {
     const char *s = s0;
     int i;
@@ -91,14 +90,8 @@ packet_fill(struct ipv4_udp_packet_hdr * packet_hdr)
  * SEE ALSO:
  */
 void
-pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
+pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, int sport, int dport)
 {
-    /* Create the UDP header */
-
-    rte_le16_t sport = 1000; // TODO
-    rte_le16_t dport = 5678; // TODO
-
-    //packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_hdr->ipv4_hdr.total_length - sizeof(struct rte_ipv4_hdr));
     packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_len);
 
     packet_hdr->udp_hdr.src_port = rte_cpu_to_be_16(sport);
