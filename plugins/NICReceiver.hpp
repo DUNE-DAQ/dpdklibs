@@ -17,7 +17,7 @@
 #include "iomanager/Sender.hpp"
 
 #include "readoutlibs/utils/ReusableThread.hpp"
-#include "detdataformats/tde/TDE16Frame.hpp"
+#include "fddetdataformats/TDE16Frame.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
@@ -53,7 +53,7 @@ public:
 private:
   // Types
   using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
-  using amc_frame_queue_t = folly::ProducerConsumerQueue<detdataformats::tde::TDE16Frame>;
+  using amc_frame_queue_t = folly::ProducerConsumerQueue<fddetdataformats::TDE16Frame>;
   using amc_frame_queue_ptr_t = std::unique_ptr<amc_frame_queue_t>;
 
   // Commands
