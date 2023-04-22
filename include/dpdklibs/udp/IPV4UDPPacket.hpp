@@ -30,7 +30,7 @@ struct ipv4_udp_packet_hdr {
     //struct rte_ether_hdr {
     //        struct rte_ether_addr d_addr; /**< Destination address. */
     //        struct rte_ether_addr s_addr; /**< Source address. */
-    //        uint16_t ether_type;      /**< Frame type. */
+    //        rte_be16_t ether_type;      /**< Frame type. */
     //} __rte_aligned(2);
     struct rte_ipv4_hdr ipv4_hdr;
     // l3 header

@@ -80,5 +80,6 @@ target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
 
 
 daq_add_unit_test(Conversions_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(Utils_test LINK_LIBRARIES dpdklibs)
 
 daq_install()

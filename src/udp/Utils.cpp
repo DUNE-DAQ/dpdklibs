@@ -6,10 +6,19 @@
  * received with this code.
  */
 #include "dpdklibs/udp/Utils.hpp"
+
+#include "logging/Logging.hpp"
+#include "readoutlibs/ReadoutIssues.hpp"
+
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <iterator>
+#include <string>
+#include <vector>
+#include <utility>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -157,6 +166,67 @@ get_udp_packet_str(struct rte_mbuf *mbuf)
     //printf("%s", (payload + byte));
   }
   return ostrs.str();
+}
+
+void add_file_contents_to_vector(const std::string& filename, std::vector<char>& buffervec ) {
+
+  char byte = 0x0;
+
+  std::ifstream packetfile;
+  packetfile.open(filename, std::ios::binary);
+
+  if (!packetfile) {
+    throw ::dunedaq::readoutlibs::CannotOpenFile(ERS_HERE, filename);
+  }
+
+  while (packetfile.get(byte)) {
+    buffervec.push_back(byte);
+  }
+  
+  packetfile.close();
+}
+
+std::vector<std::pair<const void*, int>>
+get_ethernet_packets(const std::vector<char>& buffervec) {
+
+  std::vector<std::pair<const void*, int>> ethernet_packets;
+  const std::vector<uint16_t> allowed_ethertypes {0x0800, 0x0806};
+  
+  for (int byte_index = 0; byte_index < buffervec.size(); ) {
+    const auto buf_ptr = &buffervec.at(byte_index);
+    auto hdr = reinterpret_cast<const ipv4_udp_packet_hdr*>(buf_ptr);
+    
+    // A sanity check
+    bool match = false;
+    for (auto allowed_ethertype : allowed_ethertypes) {
+      if (hdr->eth_hdr.ether_type == rte_be_to_cpu_16(allowed_ethertype)) {
+	match = true;
+	break;
+      }
+    }
+
+    if (!match) {
+      std::stringstream msgstr;
+      msgstr << "Ether type in ethernet header (value " << std::hex << rte_be_to_cpu_16(hdr->eth_hdr.ether_type) << std::dec << ") either unknown or unsupported";
+      throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
+    }
+
+    int ipv4_packet_size = rte_be_to_cpu_16(hdr->ipv4_hdr.total_length);
+    constexpr int min_packet_size = sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr);
+    constexpr int max_packet_size = 10000;
+
+    if (ipv4_packet_size < min_packet_size || ipv4_packet_size > max_packet_size) {
+      std::stringstream msgstr;
+      msgstr << "Calculated IPv4 packet size of " << ipv4_packet_size << " bytes is out of the required range of (" << min_packet_size << ", " << max_packet_size << ") bytes";
+      throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
+    }
+
+    int ethernet_packet_size = sizeof(rte_ether_hdr) + ipv4_packet_size;
+    ethernet_packets.emplace_back(std::pair<const void*, int>{buf_ptr, ethernet_packet_size});
+    byte_index += ethernet_packet_size;
+  }
+
+  return ethernet_packets;
 }
 
 } // namespace udp
