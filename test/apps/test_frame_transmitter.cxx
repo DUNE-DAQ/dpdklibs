@@ -11,7 +11,7 @@
 #include <thread>
 
 #include "logging/Logging.hpp"
-#include "detdataformats/wib/WIBFrame.hpp"
+#include "fddetdataformats/WIBFrame.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 
 #define RX_RING_SIZE 1024
@@ -170,7 +170,7 @@ void lcore_main(void *arg) {
 
   auto stats = std::thread([&]() {
     while (true) {
-      // TLOG() << "Rate is " << (sizeof(detdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << (sizeof(fddetdataformats::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
       TLOG() << "Rate is " << sizeof(struct ipv4_udp_packet) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -197,7 +197,7 @@ void lcore_main(void *arg) {
 
       // Message struct
       // struct Message {
-      //   // detdataformats::wib::WIBFrame fr;
+      //   // fddetdataformats::WIBFrame fr;
       //   char ch[16];
       // };
 

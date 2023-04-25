@@ -116,7 +116,7 @@ public:
   /* 
   void
   NICReceiver::copy_out(int queue, char* message, std::size_t size) {
-    //detdataformats::tde::TDE16Frame target_payload;
+    //fddetdataformats::TDE16Frame target_payload;
   
     fdreadoutlibs::types::DUNEWIBEthTypeAdapter target_payload;
     uint32_t bytes_copied = 0;
