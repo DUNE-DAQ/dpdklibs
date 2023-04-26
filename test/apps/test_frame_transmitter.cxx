@@ -6,6 +6,7 @@
 #include "logging/Logging.hpp"
 
 #include "rte_cycles.h"
+#include "rte_dev.h"
 #include "rte_eal.h"
 #include "rte_ethdev.h"
 #include "rte_lcore.h"
@@ -74,13 +75,6 @@ void print_rte_mbuf(const rte_mbuf& mbuf) {
   TLOG() << ss.str().c_str();
 }
 
-
-static const struct rte_eth_conf iface_conf_default = {
-    .txmode = {
-        .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM |
-                     DEV_TX_OFFLOAD_UDP_CKSUM),
-     }
-};
 
 void lcore_main(uint16_t iface) {
 
@@ -152,16 +146,16 @@ void lcore_main(uint16_t iface) {
   TLOG() << "Input source IP address: " << src_ip_addr;
   TLOG() << "Input source MAC address: " << src_mac_addr;
   
-  // Get info for the ethernet header (procol stack level 3)
+  // Get info for the ethernet header (protocol stack level 2)
   pktgen_ether_hdr_ctor(&packet_hdr, dst_mac_addr);
   if (src_mac_addr == "00:00:00:00:00:00") {
     get_ether_addr6(dst_mac_addr.c_str(), &packet_hdr.eth_hdr.src_addr); // Otherwise this gets derived from the port inside pktgen_ether_hdr_ctor
   }
   
-  // Get info for the internet header (procol stack level 3)
+  // Get info for the internet header (protocol stack level 3)
   pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes, src_ip_addr, dst_ip_addr);
 
-  // Get info for the UDP header (procol stack level 4)
+  // Get info for the UDP header (protocol stack level 4)
   if (src_port != -1 && dst_port != -1) {
     pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes, src_port, dst_port);
   } else if (src_port != -1 && dst_port == -1) {
@@ -173,7 +167,7 @@ void lcore_main(uint16_t iface) {
     rte_eal_cleanup();
     std::exit(3);
   }
-
+  
   for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
 
     void* datastart = rte_pktmbuf_mtod(bufs[i_pkt], char*);
@@ -203,13 +197,11 @@ void lcore_main(uint16_t iface) {
   TLOG() << "data_len of the first packet: " << rte_pktmbuf_data_len(bufs[0]);
   
   int cntr = 0;
-  //  while (cntr++ < std::numeric_limits<int>::max()) {
-  //  while (false) {
-  while (cntr++ < 3) {
+  while (cntr++ < std::numeric_limits<int>::max()) {
   
       burst_number++;
       if (lid != 1) {
-	TLOG() << "Skipping burst on thread #" << lid << " as we're only bursting on thread 1";
+	//TLOG() << "Skipping burst on thread #" << lid << " as we're only bursting on thread 1";
 	break;
       }
 
@@ -219,13 +211,10 @@ void lcore_main(uint16_t iface) {
       
       int sent = 0;
       uint16_t nb_tx = 0;
-      //      while(sent < burst_size)
-      //	{
-	  nb_tx = rte_eth_tx_burst(iface, lid-1, bufs, burst_size - sent);
-	  sent += nb_tx;
-	  num_frames += nb_tx;
-	  //	  TLOG() << "num_frames == " << num_frames;
-	  //	}
+
+      nb_tx = rte_eth_tx_burst(iface, lid-1, bufs, burst_size - sent);
+      sent += nb_tx;
+      num_frames += nb_tx;
 
       /* Free any unsent packets. */
       if (unlikely(nb_tx < burst_size))
@@ -233,10 +222,6 @@ void lcore_main(uint16_t iface) {
 	TLOG(TLVL_WARNING) << "Only " << nb_tx << " frames were sent on thread #" << lid << ", less than burst size of " << burst_size;
 	rte_pktmbuf_free_bulk(bufs, burst_size - nb_tx);
       }
-      // retval = rte_eth_tx_done_cleanup(iface, lid-1, 0);
-      // if (retval != 0) {
-      // 	rte_exit(EXIT_FAILURE, "ERROR: failure calling rte_eth_tx_done_cleanup, info: %s\n", strerror(abs(retval)));
-      // }
   }
 }
 
@@ -270,7 +255,7 @@ int main(int argc, char* argv[]) {
       rte_exit(EXIT_FAILURE, "ERROR: 0 ethernet ports are available. This can be caused either by someone else currently\nusing dpdk-based code or the necessary drivers not being bound to the NICs\n(see https://github.com/DUNE-DAQ/dpdklibs#readme for more)\n");
     }
     if (nb_ports & 1) {
-        rte_exit(EXIT_FAILURE, "ERROR: number of available ethernet ports must be even\n");
+      rte_exit(EXIT_FAILURE, "ERROR: number of available ethernet ports must be even\n");
     }
 
     const uint16_t n_tx_qs = 1;
@@ -286,13 +271,16 @@ int main(int argc, char* argv[]) {
       std::exit(2);
     }
 
-    // std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+    struct rte_eth_dev_info dev_info;
+    retval = rte_eth_dev_info_get(portid, &dev_info);
+
+    if (retval != 0) {
+      TLOG(TLVL_ERROR) << "A failure occured trying to get info on ethernet interface #" << portid << "; exiting...";
+      rte_eal_cleanup();
+      std::exit(4);
+    }
     
-    // for (size_t i_q = 0; i_q < n_tx_qs; ++i_q) {
-    //   std::stringstream ss;
-    //   ss << "MBP-" << i_q;
-    //   mbuf_pools[i_q] = ealutils::get_mempool(ss.str());
-    // }
+    TLOG() << "Name of the interface is " << dev_info.device->name;
 
     rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
 
