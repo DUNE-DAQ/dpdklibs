@@ -63,6 +63,18 @@ inetAddrSwap(void *t, void *f) {
   *s = v;
 }
 
+/* inetAddrCopy( void * t, void * f ) - Copy IPv4 address */
+inline void
+inetAddrCopy(void *t, void *f) {
+	uint32_t *d = (uint32_t *)t;
+	uint32_t *s = (uint32_t *)f;
+
+	*d = *s;
+}
+
+// Send GARP
+void pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_address);
+
 // Reply to ARP
 void pktgen_process_arp(struct rte_mbuf *m, uint32_t pid, rte_be32_t binary_ip_address);
 

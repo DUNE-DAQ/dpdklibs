@@ -25,7 +25,7 @@ struct IpAddr {
        IpAddr(bytes[0], bytes[1], bytes[2], bytes[3]);
     }
     //uint32_t get(){} 
-    protected:
+    //protected:
     uint8_t addr_bytes[4];
 };
 
