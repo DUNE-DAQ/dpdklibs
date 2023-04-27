@@ -10,6 +10,7 @@ find_package(appfwk REQUIRED)
 find_package(logging REQUIRED)
 find_package(daqdataformats REQUIRED)
 find_package(detdataformats REQUIRED)
+find_package(fddetdataformats REQUIRED)
 find_package(readoutlibs REQUIRED)
 find_package(fdreadoutlibs REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -26,7 +27,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 
 ##############################################################################
 # Dependency sets
-set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats fdreadoutlibs::fdreadoutlibs)
+set(DUNEDAQ_DEPENDENCIES readoutlibs::readoutlibs daqdataformats::daqdataformats detdataformats::detdataformats fddetdataformats::fddetdataformats fdreadoutlibs::fdreadoutlibs)
 
 # Provide override functionality for DPDK dependencies
 option(WITH_DPDK_AS_PACKAGE "DPDK externals as a dunedaq package" OFF)

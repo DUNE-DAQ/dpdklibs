@@ -121,29 +121,23 @@ pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len,
     /* Zero out the header space */
     memset((char *) &packet_hdr->ipv4_hdr, 0, sizeof(struct rte_ipv4_hdr));
 
-    IpAddr2 src(src_ip_addr);
-    IpAddr2 dst(dst_ip_addr);
+    IpAddr src(src_ip_addr);
+    IpAddr dst(dst_ip_addr);
     
-    struct ipaddr src_addr;
-    src_addr.addr_bytes[3] = src.get_byte(0);
-    src_addr.addr_bytes[2] = src.get_byte(1);
-    src_addr.addr_bytes[1] = src.get_byte(2);
-    src_addr.addr_bytes[0] = src.get_byte(3);
+    struct ipaddr src_reversed_order;
+    src_reversed_order.addr_bytes[3] = src.addr_bytes[0];
+    src_reversed_order.addr_bytes[2] = src.addr_bytes[1];
+    src_reversed_order.addr_bytes[1] = src.addr_bytes[2];
+    src_reversed_order.addr_bytes[0] = src.addr_bytes[3];
 
-//    struct ipaddr dst_addr;
-//    dst_addr.addr_bytes[3] = 10;
-//    dst_addr.addr_bytes[2] = 194;
-//    dst_addr.addr_bytes[1] = 20;
-//    dst_addr.addr_bytes[0] = 30;
-
-    struct ipaddr dst_addr;
-    dst_addr.addr_bytes[3] = dst.get_byte(0);
-    dst_addr.addr_bytes[2] = dst.get_byte(1);
-    dst_addr.addr_bytes[1] = dst.get_byte(2);
-    dst_addr.addr_bytes[0] = dst.get_byte(3);
-
-    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_addr);
-    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_addr);
+    struct ipaddr dst_reversed_order;
+    dst_reversed_order.addr_bytes[3] = dst.addr_bytes[0];
+    dst_reversed_order.addr_bytes[2] = dst.addr_bytes[1];
+    dst_reversed_order.addr_bytes[1] = dst.addr_bytes[2];
+    dst_reversed_order.addr_bytes[0] = dst.addr_bytes[3];
+    
+    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_reversed_order);
+    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_reversed_order);
 
     packet_hdr->ipv4_hdr.src_addr = rte_cpu_to_be_32(src_addr_ser);
     packet_hdr->ipv4_hdr.dst_addr = rte_cpu_to_be_32(dst_addr_ser);

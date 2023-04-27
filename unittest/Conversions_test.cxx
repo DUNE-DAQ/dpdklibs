@@ -26,10 +26,10 @@ BOOST_AUTO_TEST_CASE(IpAddressConversions)
 {
   std::string ipaddr_str = "10.20.30.40"; // non-const b/c of IpAddr constructor
 
-  IpAddr2 ipaddr_object(ipaddr_str);
+  IpAddr ipaddr_object(ipaddr_str);
 
-  BOOST_REQUIRE_EQUAL(ipaddr_object.get_byte(0), 10);
-  BOOST_REQUIRE_EQUAL(ipaddr_object.get_byte(2), 30);
+  BOOST_REQUIRE_EQUAL(ipaddr_object.addr_bytes[0], 10);
+  BOOST_REQUIRE_EQUAL(ipaddr_object.addr_bytes[2], 30);
   
 }
 

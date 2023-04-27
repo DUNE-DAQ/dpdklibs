@@ -24,21 +24,10 @@ namespace dunedaq::dpdklibs {
 	addr_bytes[i] = bytes[i];
       }
     }
-    //uint32_t get(){} 
-  protected:
+
     uint8_t addr_bytes[4];
   };
 
-  // Use IpAddr2 to un-protect the byte info in IpAddr
-  struct IpAddr2 : public IpAddr {
-
-    IpAddr2(std::string ip) : IpAddr(ip)
-    {}
-    
-    uint8_t get_byte(int i) {
-      return addr_bytes[i];
-    }
-  };
 }
 
 #endif  /* _IPV4_ADDR_H_ */

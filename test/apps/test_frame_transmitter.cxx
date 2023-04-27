@@ -24,6 +24,7 @@
 #include <chrono>
 #include <thread>
 
+
 namespace {
 
   // Only 8 and above works
@@ -89,12 +90,12 @@ void lcore_main(uint16_t iface) {
     struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * rte_eth_dev_count_avail(),
         MBUF_CACHE_SIZE, 0, buffer_size, rte_socket_id());
 
+
     if (mbuf_pool == NULL) {
       rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_pool_create failed, info: %s\n", rte_strerror(rte_errno));
     }
     
     TLOG() << "\n\nCore " << rte_lcore_id() << " transmitting packets. [Ctrl+C to quit]\n\n";
-
 
     int burst_number = 0;
     std::atomic<int> num_frames = 0;
