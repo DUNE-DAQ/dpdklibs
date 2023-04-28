@@ -39,10 +39,6 @@
 #define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
 #endif
 
-using namespace dunedaq;
-using namespace dpdklibs;
-using namespace udp;
-
 
 namespace {
 
@@ -158,7 +154,7 @@ std::vector<char*> construct_argv(std::vector<std::string> &std_argv){
     return vec_argv;
 }
 
-static inline int check_against_previous_stream(const detdataformats::DAQEthHeader* daq_hdr, uint64_t exp_ts_diff){
+static inline int check_against_previous_stream(const dunedaq::detdataformats::DAQEthHeader* daq_hdr, uint64_t exp_ts_diff){
     // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;  
     StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};  
     uint64_t stream_ts     = daq_hdr->timestamp;
@@ -236,7 +232,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             fmt::print(
                 "Since the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
-                "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
+                "Packets with wrong sequence id: {}, Max seq_id skip: {}, Total Packets with Wrong seq_id {}\n"
                 "Max udp payload: {}, Min udp payload: {}\n",
                 time_per_report,
                 packets_per_second, bytes_per_second, total_packets, non_ipv4_packets, udp_pkt_counter,
@@ -264,9 +260,23 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 if (per_stream_reports){
                     uint64_t stream_bytes_per_second = stream->second.num_bytes / time_per_report;
                     fmt::print(
-                        "Bytes/s: {},    Packets with wrong seq_id: {}\n\n", 
-                        stream_bytes_per_second, stream->second.num_bad_seq_id
+                        "Bytes/s: {},    Packets with wrong seq_id: {},    Max seq_id skip: {}\n", 
+                        stream_bytes_per_second, stream->second.num_bad_seq_id,
+                        stream->second.max_seq_id_skip
                     );
+                    if (check_timestamp){
+                        fmt::print(
+                            "Packets with wrong timestamp: {}, max timestamp skip: {}\n",
+                            stream->second.num_bad_timestamp, stream->second.max_timestamp_skip
+                        );
+                    }
+                    if (expected_packet_size){
+                        fmt::print(
+                            "Packets with wrong payload size: {}, min/max payload size: {} / {}\n",
+                            stream->second.num_bad_payload_size, stream->second.min_payload_size, stream->second.max_payload_size
+                        );
+                    }
+                    fmt::print("\n");
                 }
                 stream->second.reset();
             }
@@ -312,8 +322,8 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
             ++udp_pkt_counter;
 
-            char* udp_payload = udp::get_udp_payload(bufs[i_b]);
-            const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
+            char* udp_payload = dunedaq::dpdklibs::udp::get_udp_payload(bufs[i_b]);
+            const dunedaq::detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const dunedaq::detdataformats::DAQEthHeader*>(udp_payload);
 
             // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
             StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
@@ -405,14 +415,14 @@ int main(int argc, char** argv){
         std::stringstream ss;
         ss << "MBP-" << i;
         fmt::print("Pool acquire: {}\n", ss.str()); 
-        mbuf_pools[i] = ealutils::get_mempool(ss.str());
+        mbuf_pools[i] = dunedaq::dpdklibs::ealutils::get_mempool(ss.str());
         bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
         rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
     }
 
     // Setting up only one iface
     fmt::print("Initialize only iface {}!\n", iface);
-    ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
+    dunedaq::dpdklibs::ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
 
     lcore_main(mbuf_pools[0].get(), iface, time_per_report);
 
