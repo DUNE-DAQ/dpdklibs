@@ -1,23 +1,21 @@
 /**
- * @file EALSetup.hpp EAL setup functions for DPDK
+ * @file RTEIfaceSetup.hpp RTE Interface setup functions for DPDK
  *
  * This is part of the DUNE DAQ , copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#ifndef DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
-#define DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
+#ifndef DPDKLIBS_INCLUDE_DPDKLIBS_RTEIFACESETUP_HPP_
+#define DPDKLIBS_INCLUDE_DPDKLIBS_RTEIFACESETUP_HPP_
 
 #include "logging/Logging.hpp"
-
-#include <boost/program_options/parsers.hpp>
 
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 
 namespace dunedaq {
 namespace dpdklibs {
-namespace ealutils {
+namespace ifaceutils {
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -46,6 +44,14 @@ static const struct rte_eth_conf iface_conf_default = {
     .offloads = (RTE_ETH_TX_OFFLOAD_MULTI_SEGS),
   },
 };
+
+// Get number of available interfaces
+inline int
+get_num_available_ifaces() {
+  unsigned nb_ifaces = rte_eth_dev_count_avail();
+  TLOG() << "Available interfaces: " << nb_ifaces;
+  return nb_ifaces;
+}
 
 // Modifies Ethernet device configuration to multi-queue RSS with offload
 inline void
@@ -81,7 +87,48 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
   return retval; 
 }
 
+// Get interface validity
+inline bool
+iface_valid(uint16_t iface)
+{
+  return rte_eth_dev_is_valid_port(iface);
+}
 
+// Get interface MAC address
+inline std::string
+get_iface_mac_str(uint16_t iface)
+{
+  int retval = -1;
+  struct rte_ether_addr addr;
+  retval = rte_eth_macaddr_get(iface, &addr);
+  if (retval != 0) {
+    return retval;
+  } else {
+    TLOG() << "Failed to get MAC address of interface! Err id: " << retval;
+  }
+}
+
+inline int
+iface_reset(uint16_t iface)
+{
+  int retval = -1;
+  struct rte_eth_dev_info dev_info;
+
+  // Get interface validity
+  if (!rte_eth_dev_is_valid_port(iface)) {
+    TLOG() << "Specified interface " << iface << " is not valid in EAL!";
+    return retval;
+  }
+
+  // Carry out a reset of the interface
+  retval = rte_eth_dev_reset(iface);
+  if (retval != 0) {
+    TLOG() << "Error during resetting device (iface " << iface << ") retval: " << retval;
+    return retval;
+  }
+
+  return retval;
+}
 
 inline int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
@@ -178,71 +225,8 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   return 0;
 }
 
-std::unique_ptr<rte_mempool>
-get_mempool(const std::string& pool_name) {
-  TLOG() << "RTE_MBUF_DEFAULT_BUF_SIZE = " << RTE_MBUF_DEFAULT_BUF_SIZE;
-  TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
-
-  struct rte_mempool *mbuf_pool;
-  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ifaces,
-    //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
-
-  if (mbuf_pool == NULL) {
-    // ers fatal
-    rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");
-  }
-  return std::unique_ptr<rte_mempool>(mbuf_pool);
-}
-
-std::vector<char*>
-string_to_eal_args(const std::string& params)
-{
-  auto parts = boost::program_options::split_unix(params);
-  std::vector<char*> cstrings;
-  for(auto& str : parts){
-    cstrings.push_back(const_cast<char*> (str.c_str()));
-  }
-  return cstrings;
-}
-
-void
-init_eal(int argc, char* argv[]) {
-
-  // Init EAL
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0) {
-      rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
-  }
-  TLOG() << "EAL initialized with provided parameters.";
-}
-
-int
-get_available_ifaces() {
-  // Check that there is an even number of interfaces to send/receive on
-  unsigned nb_ifaces;
-  nb_ifaces = rte_eth_dev_count_avail();
-  TLOG() << "Available interfaces: " << nb_ifaces;
-  return nb_ifaces;
-}
-
-int 
-wait_for_lcores() {
-  int lcore_id;
-  RTE_LCORE_FOREACH_WORKER(lcore_id) {
-    if (rte_eal_wait_lcore(lcore_id) < 0) {
-      return -1;
-    }
-  }
-  return 0;
-}
-
-void finish_eal() {
-  rte_eal_cleanup();
-}
-
-} // namespace ealutils
+} // namespace ifaceutils
 } // namespace dpdklibs
 } // namespace dunedaq
 
-#endif // DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
+#endif // DPDKLIBS_INCLUDE_DPDKLIBS_RTEIFACESETUP_HPP_

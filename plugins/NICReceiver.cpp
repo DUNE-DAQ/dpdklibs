@@ -113,13 +113,17 @@ NICReceiver::do_configure(const data_t& args)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   m_cfg = args.get<module_conf_t>();
-  m_iface_id = (uint16_t)m_cfg.card_id;
-  m_dest_ip = m_cfg.dest_ip;
-  auto ip_sources = m_cfg.ip_sources;
-  auto rx_cores = m_cfg.rx_cores; 
-  m_num_ip_sources = ip_sources.size();
-  m_num_rx_cores = rx_cores.size();
 
+#warning RS FIXME -> Removed for conf overhaul
+    auto ip_sources = nullptr;
+    auto rx_cores = nullptr;
+//  m_iface_id = (uint16_t)m_cfg.card_id;
+//  m_dest_ip = m_cfg.dest_ip;
+//  auto ip_sources = m_cfg.ip_sources;
+//  auto rx_cores = m_cfg.rx_cores; 
+//  m_num_ip_sources = ip_sources.size();
+//  m_num_rx_cores = rx_cores.size();
+/*
   // Initialize RX core map
   for (auto rxc : rx_cores) {
     for (auto qid : rxc.rx_qs) {
@@ -137,6 +141,7 @@ NICReceiver::do_configure(const data_t& args)
     m_num_frames[src.id] = { 0 };
     m_num_bytes[src.id] = { 0 };
   }
+*/
 
   // Setup SourceConcepts
   // m_sources[]->configure if needed!?
@@ -197,7 +202,8 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
-  if (m_cfg.with_drop_flow) {
+#warning RS FIXME -> Removed for conf overhaul
+//  if (m_cfg.with_drop_flow) {
     // Adding drop flow
     TLOG() << "Adding Drop Flow.";
     flow = generate_drop_flow(m_iface_id, &error);
@@ -207,7 +213,7 @@ NICReceiver::do_configure(const data_t& args)
              << " Message: " << error.message;
       rte_exit(EXIT_FAILURE, "error in creating flow");
     }
-  }
+//  }
   
   TLOG() << "DPDK EAL & RTE configured.";
 }
