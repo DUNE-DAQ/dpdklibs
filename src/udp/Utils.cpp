@@ -7,6 +7,7 @@
  */
 #include "dpdklibs/udp/Utils.hpp"
 
+#include "detdataformats/DAQEthHeader.hpp"
 #include "logging/Logging.hpp"
 #include "readoutlibs/ReadoutIssues.hpp"
 
@@ -228,6 +229,49 @@ get_ethernet_packets(const std::vector<char>& buffervec) {
 
   return ethernet_packets;
 }
+
+void set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj) noexcept {
+  daqethheader_obj.version = 0;
+  daqethheader_obj.det_id = 1;
+  daqethheader_obj.crate_id = 2;
+  daqethheader_obj.slot_id = 3;
+  daqethheader_obj.stream_id = 4;
+  daqethheader_obj.reserved = 5;
+  daqethheader_obj.seq_id = 6;
+  daqethheader_obj.block_length = 7;  
+  daqethheader_obj.timestamp = 8;
+}
+
+
+std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
+  std::stringstream ss;
+
+  ss << "\nrte_mbuf info:";
+  ss << "\npkt_len: " << mbuf->pkt_len;
+  ss << "\ndata_len: " << mbuf->data_len;
+  ss << "\nBuffer address: " << std::hex << mbuf->buf_addr;
+  ss << "\nRef count: " << std::dec << rte_mbuf_refcnt_read(mbuf);
+  ss << "\nport: " << mbuf->port;
+  ss << "\nol_flags: " << std::hex << mbuf->ol_flags;
+  ss << "\npacket_type: " << std::dec << mbuf->packet_type;
+  ss << "\nl2 type: " << static_cast<int>(mbuf->l2_type);
+  ss << "\nl3 type: " << static_cast<int>(mbuf->l3_type);
+  ss << "\nl4 type: " << static_cast<int>(mbuf->l4_type);
+  ss << "\ntunnel type: " << static_cast<int>(mbuf->tun_type);
+  ss << "\nInner l2 type: " << static_cast<int>(mbuf->inner_l2_type);
+  ss << "\nInner l3 type: " << static_cast<int>(mbuf->inner_l3_type);
+  ss << "\nInner l4 type: " << static_cast<int>(mbuf->inner_l4_type);
+  ss << "\nbuf_len: " << mbuf->buf_len;
+  ss << "\nl2_len: " << mbuf->l2_len;
+  ss << "\nl3_len: " << mbuf->l3_len;
+  ss << "\nl4_len: " << mbuf->l4_len;
+  ss << "\nouter_l2_len: " << mbuf->outer_l2_len;
+  ss << "\nouter_l3_len: " << mbuf->outer_l3_len;
+  ss << std::dec;
+
+  return ss.str();
+}
+
 
 } // namespace udp
 } // namespace dpdklibs
