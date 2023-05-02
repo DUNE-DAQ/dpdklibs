@@ -1,5 +1,6 @@
 #include <rte_ethdev.h>
 
+#include "dpdklibs/ipv4_addr.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 
@@ -31,8 +32,7 @@ static int8_t get_xdigit(char ch)
 }
 
 
-/* Convert 00:11:22:33:44:55 to ethernet address */
-static bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
+bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
 {
     const char *s = s0;
     int i;
@@ -90,14 +90,8 @@ packet_fill(struct ipv4_udp_packet_hdr * packet_hdr)
  * SEE ALSO:
  */
 void
-pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
+pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, int sport, int dport)
 {
-    /* Create the UDP header */
-
-    rte_le16_t sport = 1000; // TODO
-    rte_le16_t dport = 5678; // TODO
-
-    //packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_hdr->ipv4_hdr.total_length - sizeof(struct rte_ipv4_hdr));
     packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_len);
 
     packet_hdr->udp_hdr.src_port = rte_cpu_to_be_16(sport);
@@ -120,45 +114,30 @@ pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_l
  * SEE ALSO:
  */
 void
-pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
+pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, const std::string& src_ip_addr, const std::string& dst_ip_addr)
 {
     /* IPv4 Header constructor */
 
     /* Zero out the header space */
     memset((char *) &packet_hdr->ipv4_hdr, 0, sizeof(struct rte_ipv4_hdr));
 
-    //struct ipaddr src_addr;
-    //src_addr.addr_bytes[0] = 10;
-    //src_addr.addr_bytes[1] = 194;
-    //src_addr.addr_bytes[2] = 21;
-    //src_addr.addr_bytes[3] = 206;
+    IpAddr src(src_ip_addr);
+    IpAddr dst(dst_ip_addr);
+    
+    struct ipaddr src_reversed_order;
+    src_reversed_order.addr_bytes[3] = src.addr_bytes[0];
+    src_reversed_order.addr_bytes[2] = src.addr_bytes[1];
+    src_reversed_order.addr_bytes[1] = src.addr_bytes[2];
+    src_reversed_order.addr_bytes[0] = src.addr_bytes[3];
 
-    //struct ipaddr dst_addr;
-    //dst_addr.addr_bytes[0] = 10;
-    //dst_addr.addr_bytes[1] = 194;
-    //dst_addr.addr_bytes[2] = 20;
-    //dst_addr.addr_bytes[3] = 30;
-
-    struct ipaddr src_addr;
-    src_addr.addr_bytes[3] = 10;
-    src_addr.addr_bytes[2] = 194;
-    src_addr.addr_bytes[1] = 21;
-    src_addr.addr_bytes[0] = 206;
-
-//    struct ipaddr dst_addr;
-//    dst_addr.addr_bytes[3] = 10;
-//    dst_addr.addr_bytes[2] = 194;
-//    dst_addr.addr_bytes[1] = 20;
-//    dst_addr.addr_bytes[0] = 30;
-
-    struct ipaddr dst_addr;
-    dst_addr.addr_bytes[3] = 10;
-    dst_addr.addr_bytes[2] = 194;
-    dst_addr.addr_bytes[1] = 21;
-    dst_addr.addr_bytes[0] = 205;
-
-    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_addr);
-    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_addr);
+    struct ipaddr dst_reversed_order;
+    dst_reversed_order.addr_bytes[3] = dst.addr_bytes[0];
+    dst_reversed_order.addr_bytes[2] = dst.addr_bytes[1];
+    dst_reversed_order.addr_bytes[1] = dst.addr_bytes[2];
+    dst_reversed_order.addr_bytes[0] = dst.addr_bytes[3];
+    
+    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_reversed_order);
+    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_reversed_order);
 
     packet_hdr->ipv4_hdr.src_addr = rte_cpu_to_be_32(src_addr_ser);
     packet_hdr->ipv4_hdr.dst_addr = rte_cpu_to_be_32(dst_addr_ser);
@@ -199,17 +178,15 @@ pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
  * SEE ALSO:
  */
 void
-pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
+pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string& router_mac_address)
 {
     //pg_ether_addr_copy(&pkt->eth_src_addr, &eth->src_addr);
     //pg_ether_addr_copy(&pkt->eth_dst_addr, &eth->dst_addr);
 
     /* src and dest addr */
     // See definition dpdk-20.08/lib/librte_net/rte_ether.c is defined as static -> not exposed to the lib... redefining here
-    char router_mac_address[] = "0a:00:10:c2:15:c1";
-    //char router_mac_address[] = "00:25:90:ed:d5:70"; // farm 21
  
-    get_ether_addr6(router_mac_address, &packet_hdr->eth_hdr.dst_addr);
+  get_ether_addr6(router_mac_address.c_str(), &packet_hdr->eth_hdr.dst_addr);
 
     uint8_t port_id = 0;
     rte_eth_macaddr_get(port_id, &packet_hdr->eth_hdr.src_addr);

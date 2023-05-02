@@ -5,7 +5,7 @@
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/arp/ARP.hpp"
-#include "dpdklibs/ipv4_addr.h"
+#include "dpdklibs/ipv4_addr.hpp"
 
 #include <inttypes.h>
 #include <rte_cycles.h>
