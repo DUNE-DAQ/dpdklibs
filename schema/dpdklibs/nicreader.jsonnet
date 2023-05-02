@@ -23,6 +23,10 @@ local nicreader = {
 
     string : s.string("String", doc="A string field"),
 
+    ipv4:   s.string("ipv4", pattern=moo.re.ipv4, doc="ipv4 string"),
+
+    mac:    s.string("mac", pattern="^[a-fA-F0-9]{2}(:[a-fA-F0-9]{2}){5}$", doc="mac string"),
+
     float : s.number("Float", "f4", doc="A float number"),
 
     stream_map : s.record("StreamMap", [
@@ -32,15 +36,15 @@ local nicreader = {
  
     src_streams_mapping : s.sequence("SrcStreamsMapping", self.stream_map, doc="A list of streams"),
 
-    src_info : s.record("SrcInfo", [
+    src_info : s.record("SrcGeoInfo", [
         s.field("det_id", self.id, 0, doc="Detector ID"),
         s.field("crate_id", self.id, 0, doc="Crate ID"),
         s.field("slot_id", self.id, 0, doc="Slot ID")
-    ], doc="Source Information"),
+    ], doc="Source GeoID Information"),
 
     source : s.record("Source", [
         s.field("id", self.id, 0, doc="ID of a source"),
-        s.field("ip_addr", self.string, "192.168.0.1", doc="Source IP address"),
+        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="Source IP address"),
         s.field("lcore", self.id, 0, doc="Assigned CPU lcore"),
         s.field("rx_q", self.id, 0, doc="Assigned RX queue of interface"),
         s.field("src_info", self.src_info, doc="Source information"),
@@ -50,8 +54,8 @@ local nicreader = {
     sources : s.sequence("Sources", self.source, doc="A list of sources"),
 
     iface : s.record("Interface", [
-        s.field("mac_addr", self.string, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
-        s.field("ip_addr", self.string, "192.168.0.1", doc="IP address of interface"),
+        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
+        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
         s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
         s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
         s.field("mtu", self.count, 9000, doc="MTU of interface"),
