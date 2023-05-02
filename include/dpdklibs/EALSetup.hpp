@@ -155,6 +155,12 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
 
   txconf = dev_info.default_txconf;
   txconf.offloads = iface_conf.txmode.offloads;
+
+  // These values influenced by Sec. 8.4.4 of https://doc.dpdk.org/guides-1.8/prog_guide/poll_mode_drv.html
+  txconf.tx_rs_thresh = 32; 
+  txconf.tx_free_thresh = 32;
+  txconf.tx_thresh.wthresh = 0;
+  
   // Allocate and set up TX queues for interface.
   for (q = 0; q < tx_rings; q++) {
     retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf);
@@ -170,8 +176,11 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   // Display the interface MAC address.
   struct rte_ether_addr addr;
   retval = rte_eth_macaddr_get(iface, &addr);
-  if (retval != 0)
+  if (retval == 0) {
+    TLOG() << "MAC address: " << std::hex << static_cast<int>(addr.addr_bytes[0]) << ":" << static_cast<int>(addr.addr_bytes[1]) << ":" << static_cast<int>(addr.addr_bytes[2]) << ":" << static_cast<int>(addr.addr_bytes[3]) << ":" << static_cast<int>(addr.addr_bytes[4]) << ":" << static_cast<int>(addr.addr_bytes[5]) << std::dec;
+  } else {
     return retval;
+  }
 
   return 0;
 }
