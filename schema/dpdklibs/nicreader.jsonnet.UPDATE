@@ -50,7 +50,7 @@ local nicreader = {
  
     src_streams_mapping : s.sequence("StreamMap", self.stream_map, doc="A list of streams"),
 
-    src_info : s.record("SrcInfo", [
+    src_info : s.record("SrcGeoInfo", [
         s.field("det_id", self.id, 0, doc="Detector ID"),
         s.field("crate_id", self.id, 0, doc="Crate ID"),
         s.field("slot_id", self.id, 0, doc="Slot ID")
