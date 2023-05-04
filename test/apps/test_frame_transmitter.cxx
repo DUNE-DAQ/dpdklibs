@@ -48,69 +48,42 @@ using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
 
-void lcore_main(uint16_t iface) {
+void lcore_main(void* arg) {
 
+  uint16_t iface = *( static_cast<uint16_t*>(arg) );
 
-    uint16_t lid = rte_lcore_id();
+  uint16_t lid = rte_lcore_id();
 
-    if (lid != 1) {
-      return;
-    }
-
-    struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * rte_eth_dev_count_avail(),
-        MBUF_CACHE_SIZE, 0, buffer_size, rte_socket_id());
-
-
-    if (mbuf_pool == NULL) {
-      rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_pool_create failed, info: %s\n", rte_strerror(rte_errno));
-    }
-   
-    struct rte_mbuf** bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
-    if (bufs == NULL) {
-	TLOG(TLVL_ERROR) << "Failure trying to acquire memory for transmission buffers on thread #" << lid << "; exiting...";
-	std::exit(1);
-    }
-
-    int retval = rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
-
-    if (retval != 0) {
-      rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_alloc_bulk failed, info: %s\n", strerror(abs(retval)));
-    }
-    
-    struct ipv4_udp_packet_hdr packet_hdr;
-
-  constexpr int eth_header_bytes = 14;
-  constexpr int udp_header_bytes = 8;
-  constexpr int ipv4_header_bytes = 20;
-
-  int eth_packet_bytes = eth_header_bytes + ipv4_header_bytes + udp_header_bytes + sizeof(detdataformats::DAQEthHeader) + payload_bytes; 
-  int ipv4_packet_bytes = eth_packet_bytes - eth_header_bytes;
-  int udp_datagram_bytes = ipv4_packet_bytes - ipv4_header_bytes;
-
-  // Get info for the ethernet header (protocol stack level 2)
-  pktgen_ether_hdr_ctor(&packet_hdr, dst_mac_addr);
-  
-  // Get info for the internet header (protocol stack level 3)
-  pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes);
-
-  // Get info for the UDP header (protocol stack level 4)
-  pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
-
-  detdataformats::DAQEthHeader daqethheader_obj;
-  set_daqethheader_test_values(daqethheader_obj);
-
-  void* dataloc = nullptr;
-  for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
-
-    dataloc = rte_pktmbuf_mtod(bufs[i_pkt], char*);
-    rte_memcpy(dataloc, &packet_hdr, sizeof(packet_hdr));
-
-    dataloc = rte_pktmbuf_mtod_offset(bufs[i_pkt], char*, sizeof(packet_hdr));
-    rte_memcpy(dataloc, &daqethheader_obj, sizeof(daqethheader_obj));
-
-    bufs[i_pkt]->pkt_len = eth_packet_bytes;
-    bufs[i_pkt]->data_len = eth_packet_bytes;
+  if (lid != 1) {
+    return;
   }
+
+  if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != static_cast<int>(rte_socket_id())) {
+    TLOG(TLVL_WARNING) << "WARNING, dpdk interface " << iface << " is on remote NUMA node to polling thread.\nrte_eth_dev_socket_id(" << iface << ") == " << rte_eth_dev_socket_id(iface) << ", rte_socket_id() == " << static_cast<int>(rte_socket_id()) << "\nPerformance will not be optimal.\n";
+  }
+  
+  struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create((std::string("MBUF_POOL") + std::to_string(lid)).c_str(), NUM_MBUFS * rte_eth_dev_count_avail(),
+							  MBUF_CACHE_SIZE, 0, buffer_size, rte_socket_id());
+
+
+  if (mbuf_pool == NULL) {
+    rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_pool_create failed, info: %s\n", rte_strerror(rte_errno));
+  }
+   
+  struct rte_mbuf** bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  if (bufs == NULL) {
+    TLOG(TLVL_ERROR) << "Failure trying to acquire memory for transmission buffers on thread #" << lid << "; exiting...";
+    std::exit(1);
+  }
+
+  int retval = rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
+
+  if (retval != 0) {
+    rte_exit(EXIT_FAILURE, "ERROR: call to rte_pktmbuf_alloc_bulk failed, info: %s\n", strerror(abs(retval)));
+  }
+  
+  TLOG() << "In thread, we have iface == " << iface;
+  construct_packets_for_burst(iface, dst_mac_addr, payload_bytes, burst_size, bufs);
 
   TLOG() << "Dump of the first packet header: ";
   TLOG() << get_udp_header_str(bufs[0]);
@@ -129,7 +102,7 @@ void lcore_main(uint16_t iface) {
 
       nb_tx = rte_eth_tx_burst(iface, lid-1, bufs, burst_size);
       num_packets += nb_tx;
-      num_bytes += nb_tx * eth_packet_bytes; // n.b. Assumption in this line is that each packet is the same size
+      num_bytes += nb_tx * bufs[0]->pkt_len; // n.b. Assumption in this line is that each packet is the same size
       num_bursts++;
       
       // Free any unsent packets
@@ -203,7 +176,7 @@ int main(int argc, char* argv[]) {
 			       }
 			     });
     
-    rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, NULL, SKIP_MAIN);
+    rte_eal_mp_remote_launch((lcore_function_t *) lcore_main, &portid, SKIP_MAIN);
 
     rte_eal_mp_wait_lcore();
     rte_eal_cleanup();
