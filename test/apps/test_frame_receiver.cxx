@@ -89,7 +89,6 @@ namespace {
             num_bad_timestamp         .exchange(0);
             num_bad_seq_id            .exchange(0);
             num_bad_payload_size      .exchange(0);
-            payload_size_bad_report   .exchange(0);
         }
     };
 
@@ -218,9 +217,9 @@ static inline int check_payload_size(struct rte_mbuf* mbuf, StreamUID unique_str
         if (size_difference < stream_stats[unique_str_id].min_size_report_difference) {stream_stats[unique_str_id].min_size_report_difference = size_difference;}
     }
     if (payload_size > max_payload_size) {max_payload_size = payload_size;}
-    if (payload_size < min_payload_size) {min_payload_size = payload_size;}
+    if ((payload_size < min_payload_size) or (min_payload_size == 0)) {min_payload_size = payload_size;}
     if (payload_size > stream_stats[unique_str_id].max_payload_size) {stream_stats[unique_str_id].max_payload_size = payload_size;}
-    if (payload_size < stream_stats[unique_str_id].min_payload_size) {stream_stats[unique_str_id].min_payload_size = payload_size;}
+    if ((payload_size < stream_stats[unique_str_id].min_payload_size) or (min_payload_size == 0)) {stream_stats[unique_str_id].min_payload_size = payload_size;}
 
     if (expected_payload_size and (payload_size != expected_payload_size)){
         ++num_bad_payload_size;
@@ -246,10 +245,10 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     auto stats = std::thread([&]() {
         while (true) {
             uint64_t packets_per_second = num_packets / time_per_report;
-            uint64_t bytes_per_second   = num_bytes   / time_per_report;
+            float bytes_per_second      = (float)num_bytes / (1024.*1024.) / (float)time_per_report;
             fmt::print(
                 "Since the last report {} seconds ago:\n"
-                "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
+                "Packets/s: {} ({:8.3f} MB/s), Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max seq_id skip: {}, Total Packets with Wrong seq_id {}\n"
                 "Max udp payload: {}, Min udp payload: {}\n",
                 time_per_report,
@@ -261,7 +260,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             if (expected_payload_size){
                 fmt::print(
                     "Packets with wrong payload size: {}, Total Packets with Wrong size: {}\n"
-                    "Packets where the reported size differs from the actual size: {} min/max difference: {} / {}\n",
+                    "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {}\n",
                     num_bad_payload_size, total_bad_payload_size,
                     payload_size_bad_report, min_size_report_difference, max_size_report_difference
                 );
@@ -275,32 +274,31 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
 
             fmt::print("\n");
-            for (auto stream = stream_stats.begin(); stream != stream_stats.end(); stream++) {
-                fmt::print("Total packets on stream {}: {}\n", (std::string)stream->first, stream->second.total_packets);
+            for ( auto& [suid, stats] : stream_stats) {
+                fmt::print("Stream {:18}: n.pkts {} (tot. {})\n", (std::string)suid, stats.num_packets, stats.total_packets);
                 if (per_stream_reports){
-                    uint64_t stream_bytes_per_second = stream->second.num_bytes / time_per_report;
+                    float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
                     fmt::print(
-                        "Bytes/s: {},    Packets with wrong seq_id: {},    Max seq_id skip: {}\n", 
-                        stream_bytes_per_second, stream->second.num_bad_seq_id,
-                        stream->second.max_seq_id_skip
+                        "{:8.3f} MB/s,    Packets with wrong seq_id: {},    Max seq_id skip: {}\n", 
+                        stream_bytes_per_second, stats.num_bad_seq_id, stats.max_seq_id_skip
                     );
                     if (check_timestamp){
                         fmt::print(
                             "Packets with wrong timestamp: {}, max timestamp skip: {}\n",
-                            stream->second.num_bad_timestamp, stream->second.max_timestamp_skip
+                            stats.num_bad_timestamp, stats.max_timestamp_skip
                         );
                     }
                     if (expected_payload_size){
                         fmt::print(
                             "Packets with wrong payload size: {}, min/max payload size: {} / {}\n"
-                            "Packets where the reported size differs from the actual size: {} min/max difference: {} / {}\n",
-                            stream->second.num_bad_payload_size, stream->second.min_payload_size, stream->second.max_payload_size,
-                            stream->second.payload_size_bad_report, stream->second.min_size_report_difference, stream->second.max_size_report_difference
+                            "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {}\n",
+                            stats.num_bad_payload_size, stats.min_payload_size, stats.max_payload_size,
+                            stats.payload_size_bad_report, stats.min_size_report_difference, stats.max_size_report_difference
                         );
                     }
                     fmt::print("\n");
                 }
-                stream->second.reset();
+                stats.reset();
             }
 
             fmt::print("\n");
@@ -309,7 +307,6 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             num_bad_timestamp      .exchange(0);
             num_bad_seq_id         .exchange(0);
             num_bad_payload_size   .exchange(0);
-            payload_size_bad_report.exchange(0);
             std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
         }
     });
