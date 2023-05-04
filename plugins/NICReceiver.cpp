@@ -13,6 +13,7 @@
 #include "readoutlibs/utils/BufferCopy.hpp" 
 
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
@@ -114,6 +115,41 @@ NICReceiver::do_configure(const data_t& args)
   TLOG() << get_name() << ": Entering do_conf() method";
   m_cfg = args.get<module_conf_t>();
 
+  // EAL setup
+  TLOG() << "Setting up EAL with params from config.";
+  std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
+  ealutils::init_eal(eal_params.size(), eal_params.data());
+
+  // Get available Interfaces from EAL
+  auto available_ifaces = ifaceutils::get_num_available_ifaces();
+  TLOG() << "Number of available interfaces: " << available_ifaces;
+  for (unsigned int ifc_id=0; ifc_id<available_ifaces; ++ifc_id) {
+    std::string mac_addr_str = ifaceutils::get_iface_mac_str(ifc_id);
+    m_mac_to_id_map[mac_addr_str] = ifc_id;
+    TLOG() << "Available iface with MAC=" << mac_addr_str << " logical ID=" << ifc_id;
+  }
+
+  // Configure expected (and available!) interfaces
+  auto ifaces_cfg = m_cfg.ifaces;
+  for (const auto& iface_cfg : ifaces_cfg) {
+     auto iface_mac_addr = iface_cfg.mac_addr;
+     if (m_mac_to_id_map.count(iface_mac_addr) != 0) {
+       auto iface_id = m_mac_to_id_map[iface_mac_addr];
+       TLOG() << "Configuring expected interface with MAC=" << iface_mac_addr << " Logical ID=" << iface_id;
+       m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(iface_id, m_sources, m_run_marker);
+       m_ifaces[iface_id]->conf(iface_cfg);
+       m_ifaces[iface_id]->allocate_mbufs();
+       m_ifaces[iface_id]->setup_interface();
+       m_ifaces[iface_id]->setup_flow_steering();
+     } else {
+       TLOG() << "No available interface with MAC=" << iface_mac_addr;
+       ers::fatal(dunedaq::readoutlibs::InitializationError(
+          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
+     }
+  }
+
+  return;
+
 #warning RS FIXME -> Removed for conf overhaul
     auto ip_sources = nullptr;
     auto rx_cores = nullptr;
@@ -145,11 +181,6 @@ NICReceiver::do_configure(const data_t& args)
 
   // Setup SourceConcepts
   // m_sources[]->configure if needed!?
-
-  // EAL setup
-  TLOG() << "Setting up EAL with params from config.";
-  std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
-  ealutils::init_eal(eal_params.size(), eal_params.data());
 
   // Allocate pools and mbufs per queue
   TLOG() << "Allocating pools and mbufs.";
@@ -227,8 +258,13 @@ NICReceiver::do_start(const data_t&)
     m_dpdk_quit_signal = 0;
     ealutils::dpdk_quit_signal = 0;
 
-    TLOG() << "Starting stats thread.";
+    TLOG() << "Starting iface wrappers.";
+    for (auto& [iface_id, iface] : m_ifaces) {
+      iface->start();
+    }
+    return;
 
+/*
     m_stat_thread = std::thread([&]() {
       while (m_run_marker.load()) {
 	      for (auto& [qid, nframes] : m_num_frames) { // check for new frames
@@ -249,7 +285,7 @@ NICReceiver::do_start(const data_t&)
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     });
-
+*/
     TLOG() << "Starting LCore processors:";
     for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
       int ret = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, lcoreid);
@@ -269,8 +305,16 @@ NICReceiver::do_stop(const data_t&)
     TLOG() << "Raising stop through variables!";
     set_running(false);
     m_dpdk_quit_signal = 1;
+
     ealutils::dpdk_quit_signal = 1;
     ealutils::wait_for_lcores();
+   
+    TLOG() << "Stopping iface wrappers.";
+    for (auto& [iface_id, iface] : m_ifaces) {
+      iface->stop();
+    }
+    return;
+
     if (m_stat_thread.joinable()) {
       m_stat_thread.join();
     } else {
@@ -286,8 +330,9 @@ void
 NICReceiver::do_scrap(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
-  struct rte_flow_error error;
-  rte_flow_flush(m_iface_id, &error);
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->scrap();
+  }
 }
 
 void

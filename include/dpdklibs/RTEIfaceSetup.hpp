@@ -13,6 +13,9 @@
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 
+#include <algorithm>
+#include <string>
+
 namespace dunedaq {
 namespace dpdklibs {
 namespace ifaceutils {
@@ -94,17 +97,32 @@ iface_valid(uint16_t iface)
   return rte_eth_dev_is_valid_port(iface);
 }
 
+inline void
+hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ' ', char fill = '0', int digits = 2) {
+  ostrs << std::setfill(fill) << std::setw(digits) << std::hex << value << std::dec << separator;
+}
+
 // Get interface MAC address
 inline std::string
 get_iface_mac_str(uint16_t iface)
 {
   int retval = -1;
-  struct rte_ether_addr addr;
-  retval = rte_eth_macaddr_get(iface, &addr);
+  struct rte_ether_addr mac_addr;
+  retval = rte_eth_macaddr_get(iface, &mac_addr);
   if (retval != 0) {
-    return retval;
-  } else {
     TLOG() << "Failed to get MAC address of interface! Err id: " << retval;
+    return std::string("");
+  } else {
+    std::ostringstream ostrs;
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[0], ':');
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[1], ':');
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[2], ':');
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[3], ':');
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[4], ':');
+    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[5]);
+    std::string mac_str = ostrs.str();
+    mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ' '), mac_str.end());  
+    return mac_str;
   }
 }
 
