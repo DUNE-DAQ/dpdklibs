@@ -27,6 +27,13 @@ get_payload_size(struct ipv4_udp_packet_hdr * ipv4_udp_hdr)
   return rte_be_to_cpu_16(ipv4_udp_hdr->udp_hdr.dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
+std::uint16_t
+get_payload_size_mbuf(struct rte_mbuf *mbuf)
+{
+  struct ipv4_udp_packet_hdr * ipv4_udp_hdr = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  return rte_be_to_cpu_16(ipv4_udp_hdr->udp_hdr.dgram_len) - sizeof(struct rte_udp_hdr);
+}
+
 rte_be32_t
 ip_address_dotdecimal_to_binary(std::uint8_t byte1, std::uint8_t byte2, 
                                 std::uint8_t byte3, std::uint8_t byte4)

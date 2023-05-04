@@ -66,29 +66,30 @@ namespace {
     }
 
     struct StreamStats {
-        std::atomic<uint64_t> total_packets          = 0;
-        std::atomic<uint64_t> num_packets            = 0;
-        std::atomic<uint64_t> num_bytes              = 0;
-        std::atomic<uint64_t> num_bad_timestamp      = 0;
-        std::atomic<uint64_t> max_timestamp_skip     = 0;
-        std::atomic<uint64_t> num_bad_seq_id         = 0;
-        std::atomic<uint64_t> max_seq_id_skip        = 0;
-        std::atomic<uint64_t> num_bad_payload_size   = 0;
-        std::atomic<uint64_t> min_payload_size       = 0;
-        std::atomic<uint64_t> max_payload_size       = 0;
-        std::atomic<uint64_t> prev_seq_id            = 0;
-        std::atomic<uint64_t> prev_timestamp         = 0;
+        std::atomic<uint64_t> total_packets              = 0;
+        std::atomic<uint64_t> num_packets                = 0;
+        std::atomic<uint64_t> num_bytes                  = 0;
+        std::atomic<uint64_t> num_bad_timestamp          = 0;
+        std::atomic<uint64_t> max_timestamp_skip         = 0;
+        std::atomic<uint64_t> num_bad_seq_id             = 0;
+        std::atomic<uint64_t> max_seq_id_skip            = 0;
+        std::atomic<uint64_t> num_bad_payload_size       = 0;
+        std::atomic<uint64_t> min_payload_size           = 0;
+        std::atomic<uint64_t> max_payload_size           = 0;
+        std::atomic<uint64_t> prev_seq_id                = 0;
+        std::atomic<uint64_t> prev_timestamp             = 0;
+        std::atomic<uint64_t> payload_size_bad_report    = 0;
+
+        std::atomic<int64_t>  max_size_report_difference = 0;
+        std::atomic<int64_t>  min_size_report_difference = 0;
 
         void reset() {
-            num_packets.exchange(0);
-            num_bytes.exchange(0);
-            num_bad_timestamp.exchange(0);
-            max_timestamp_skip.exchange(0);
-            num_bad_seq_id.exchange(0);
-            max_seq_id_skip.exchange(0);
-            num_bad_payload_size.exchange(0);
-            min_payload_size.exchange(0);
-            max_payload_size.exchange(0);
+            num_packets               .exchange(0);
+            num_bytes                 .exchange(0);
+            num_bad_timestamp         .exchange(0);
+            num_bad_seq_id            .exchange(0);
+            num_bad_payload_size      .exchange(0);
+            payload_size_bad_report   .exchange(0);
         }
     };
 
@@ -114,7 +115,7 @@ namespace {
     constexpr int max_packets_to_dump = 10; 
     int dumped_packet_count           = 0;
 
-    uint16_t expected_packet_size = 0; //7243; // i.e., every packet that isn't the initial one
+    uint16_t expected_payload_size = 0; //7243; // i.e., every packet that isn't the initial one
 
     std::atomic<uint64_t> num_packets            = 0;
     std::atomic<uint64_t> num_bytes              = 0;
@@ -131,6 +132,10 @@ namespace {
     std::atomic<uint64_t> min_payload_size       = 0;
     std::atomic<uint64_t> max_payload_size       = 0;
     std::atomic<uint64_t> udp_pkt_counter        = 0;
+    std::atomic<uint64_t> payload_size_bad_report    = 0;
+
+    std::atomic<int64_t>  max_size_report_difference = 0;
+    std::atomic<int64_t>  min_size_report_difference = 0;
 
     std::ofstream datafile;
     const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
@@ -196,15 +201,28 @@ static inline int check_against_previous_stream(const dunedaq::detdataformats::D
     return ret_val;
 }
 
-static inline int check_packet_size(struct rte_mbuf* mbuf, StreamUID unique_str_id){
-    std::size_t packet_size = mbuf->data_len;
+static inline int check_payload_size(struct rte_mbuf* mbuf, StreamUID unique_str_id){
+    std::size_t payload_size = mbuf->pkt_len;
+    std::size_t header_size = sizeof(dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr);
+    payload_size -= header_size;
 
-    if (packet_size > max_payload_size) {max_payload_size = packet_size;}
-    if (packet_size < min_payload_size) {min_payload_size = packet_size;}
-    if (packet_size > stream_stats[unique_str_id].max_payload_size) {stream_stats[unique_str_id].max_payload_size = packet_size;}
-    if (packet_size < stream_stats[unique_str_id].min_payload_size) {stream_stats[unique_str_id].min_payload_size = packet_size;}
+    std::size_t reported_payload_size = dunedaq::dpdklibs::udp::get_payload_size_mbuf(mbuf);
 
-    if (expected_packet_size and (packet_size != expected_packet_size)){
+    size_t size_difference = payload_size - reported_payload_size;
+    if (size_difference) {
+        ++payload_size_bad_report;
+        ++stream_stats[unique_str_id].payload_size_bad_report;
+        if (size_difference > max_size_report_difference) {max_size_report_difference = size_difference;}
+        if (size_difference < min_size_report_difference) {min_size_report_difference = size_difference;}
+        if (size_difference > stream_stats[unique_str_id].max_size_report_difference) {stream_stats[unique_str_id].max_size_report_difference = size_difference;}
+        if (size_difference < stream_stats[unique_str_id].min_size_report_difference) {stream_stats[unique_str_id].min_size_report_difference = size_difference;}
+    }
+    if (payload_size > max_payload_size) {max_payload_size = payload_size;}
+    if (payload_size < min_payload_size) {min_payload_size = payload_size;}
+    if (payload_size > stream_stats[unique_str_id].max_payload_size) {stream_stats[unique_str_id].max_payload_size = payload_size;}
+    if (payload_size < stream_stats[unique_str_id].min_payload_size) {stream_stats[unique_str_id].min_payload_size = payload_size;}
+
+    if (expected_payload_size and (payload_size != expected_payload_size)){
         ++num_bad_payload_size;
         ++total_bad_payload_size;
         ++stream_stats[unique_str_id].num_bad_payload_size;
@@ -240,10 +258,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 max_payload_size, min_payload_size
             );
 
-            if (expected_packet_size){
+            if (expected_payload_size){
                 fmt::print(
-                    "Packets with wrong payload size: {}, Total Packets with Wrong size {}\n",
-                    num_bad_payload_size, total_bad_payload_size
+                    "Packets with wrong payload size: {}, Total Packets with Wrong size: {}\n"
+                    "Packets where the reported size differs from the actual size: {} min/max difference: {} / {}\n",
+                    num_bad_payload_size, total_bad_payload_size,
+                    payload_size_bad_report, min_size_report_difference, max_size_report_difference
                 );
             }
 
@@ -270,10 +290,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                             stream->second.num_bad_timestamp, stream->second.max_timestamp_skip
                         );
                     }
-                    if (expected_packet_size){
+                    if (expected_payload_size){
                         fmt::print(
-                            "Packets with wrong payload size: {}, min/max payload size: {} / {}\n",
-                            stream->second.num_bad_payload_size, stream->second.min_payload_size, stream->second.max_payload_size
+                            "Packets with wrong payload size: {}, min/max payload size: {} / {}\n"
+                            "Packets where the reported size differs from the actual size: {} min/max difference: {} / {}\n",
+                            stream->second.num_bad_payload_size, stream->second.min_payload_size, stream->second.max_payload_size,
+                            stream->second.payload_size_bad_report, stream->second.min_size_report_difference, stream->second.max_size_report_difference
                         );
                     }
                     fmt::print("\n");
@@ -282,15 +304,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
 
             fmt::print("\n");
-            num_packets.exchange(0);
-            num_bytes.exchange(0);
-            num_bad_timestamp.exchange(0);
-            num_bad_seq_id.exchange(0);
-            num_bad_payload_size.exchange(0);
-            max_payload_size.exchange(0);
-            min_payload_size.exchange(0);
-            max_seq_id_skip.exchange(0);
-            max_timestamp_skip.exchange(0);
+            num_packets            .exchange(0);
+            num_bytes              .exchange(0);
+            num_bad_timestamp      .exchange(0);
+            num_bad_seq_id         .exchange(0);
+            num_bad_payload_size   .exchange(0);
+            payload_size_bad_report.exchange(0);
             std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
         }
     });
@@ -339,7 +358,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             if (check_against_previous_stream(daq_hdr, 2048) != 0){
                 dump_packet = true;
             }
-            if (check_packet_size(bufs[i_b], unique_str_id) != 0){
+            if (check_payload_size(bufs[i_b], unique_str_id) != 0){
                 dump_packet = true;
             }
 
@@ -358,7 +377,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     }
 
     return 0;
-}                                                              
+}
 
 // Define the function to be called when ctrl-c (SIGINT) is sent to process
 void signal_callback_handler(int signum){
@@ -375,7 +394,7 @@ int main(int argc, char** argv){
     uint16_t iface = 0;
 
     CLI::App app{"test frame receiver"};
-    app.add_option("-s", expected_packet_size, "Expected frame size");
+    app.add_option("-s", expected_payload_size, "Expected frame size");
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
