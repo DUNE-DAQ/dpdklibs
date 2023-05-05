@@ -23,44 +23,58 @@ local nicreader = {
 
     string : s.string("String", doc="A string field"),
 
+    ipv4:   s.string("ipv4", pattern=moo.re.ipv4, doc="ipv4 string"),
+
+    mac:    s.string("mac", pattern="^[a-fA-F0-9]{2}(:[a-fA-F0-9]{2}){5}$", doc="mac string"),
+
     float : s.number("Float", "f4", doc="A float number"),
 
-    link : s.record("Link", [
-        s.field("id", self.id, 0, doc="Logical link ID"),
-        s.field("ip", self.string, "", doc="IP address of source link"),
-        s.field("rx_q", self.id, 0, doc="NIC queue for flow control"),
-        s.field("lcore", self.id, 1, doc="Assigned LCore")
-    ], doc=""),
+    stream_map : s.record("StreamMap", [
+        s.field("source_id", self.id, 0, doc="Source ID"),
+        s.field("stream_id", self.id, 0, doc="Stream ID")
+    ], doc="A stream map"),
+ 
+    src_streams_mapping : s.sequence("SrcStreamsMapping", self.stream_map, doc="A list of streams"),
 
-    links : s.sequence("LinksList", self.link, doc="A list of links"),
+    src_info : s.record("SrcGeoInfo", [
+        s.field("det_id", self.id, 0, doc="Detector ID"),
+        s.field("crate_id", self.id, 0, doc="Crate ID"),
+        s.field("slot_id", self.id, 0, doc="Slot ID")
+    ], doc="Source GeoID Information"),
 
-    rxqs : s.sequence("RXQList", self.id, doc="A list of RX Queue IDs"),
+    source : s.record("Source", [
+        s.field("id", self.id, 0, doc="ID of a source"),
+        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="Source IP address"),
+        s.field("lcore", self.id, 0, doc="Assigned CPU lcore"),
+        s.field("rx_q", self.id, 0, doc="Assigned RX queue of interface"),
+        s.field("src_info", self.src_info, doc="Source information"),
+        s.field("src_streams_mapping", self.src_streams_mapping, doc="Source streams mapping")
+    ], doc="Source field"),
 
-    lcore : s.record("LCore", [
-        s.field("lcore_id", self.id, 0, doc="ID of lcore"),
-        s.field("rx_qs", self.rxqs, doc="A set of RX queue IDs to process")
-    ], doc=""),
+    sources : s.sequence("Sources", self.source, doc="A list of sources"),
 
-    lcores : s.sequence("CoreList", self.lcore, doc="A list of lcores"),
+    iface : s.record("Interface", [
+        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
+        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
+        s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
+        s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
+        s.field("mtu", self.count, 9000, doc="MTU of interface"),
+        s.field("rx_ring_size", self.count, 1024, doc="Size of a single RX ring"),
+        s.field("tx_ring_size", self.count, 1024, doc="Size of a single TX ring"),
+        s.field("num_mbufs", self.count, 8191, doc="Number of total MBUFs"),
+        s.field("mbuf_cache_size", self.count, 250, doc="MBUF cache size"),
+        s.field("burst_size", self.count, 250, doc="RX burst size"),
+        s.field("expected_sources", self.sources, doc="A list of expected sources")
+    ], doc="Configuration an Ethernet interface through DPDK RTE"),
+
+    ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),
 
     conf: s.record("Conf", [
-        s.field("card_id", self.id, 0,
-                doc="Physical card identifier (in the same host)"),
-
-        s.field("with_drop_flow", self.choice, true,
-                doc="Enable drop flow of non-UDP packets"),
+        s.field("ifaces", self.ifaces,
+                doc="List of interfaces to configure"),
 
         s.field("eal_arg_list", self.string, "",
-                doc="A string with EAL arguments"),
-
-        s.field("dest_ip", self.string, "",
-                doc="Destination IP, usually the 100Gb input link to RU"),
-
-        s.field("rx_cores", self.lcores,
-                doc="RX core processors"),
-
-        s.field("ip_sources", self.links, 
-                doc="Enabled IP sources on NIC port")
+                doc="A string with EAL arguments")
 
     ], doc="Generic UIO reader DAQ Module Configuration"),
 

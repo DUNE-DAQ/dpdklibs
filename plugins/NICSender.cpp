@@ -187,7 +187,7 @@ int lcore_main(void *arg)
 
   auto stats = std::thread([&]() {
     while (true) {
-      // TLOG() << "Rate is " << (sizeof(fddetdataformats::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
+      // TLOG() << "Rate is " << (sizeof(fddetdataformats::wib::WIBFrame) + sizeof(struct rte_ether_hdr)) * num_frames / 1e6 * 8;
       TLOG() << "Rate is " << (sizeof(T)+42) * num_frames / 1e6 * 8;
       num_frames.exchange(0);
       std::this_thread::sleep_for(std::chrono::seconds(1));
