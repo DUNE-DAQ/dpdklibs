@@ -88,8 +88,20 @@ where the NICs that we wanted appear under `Network devices using DPDK-compatibl
 # Tests and examples
 There are a set of tests or example applications
 
-* `dpdklibs_test_basic_frame_receiver` and
-  `dpdklibs_test_basic_frame_transmitter` do transmission of `WIBFrames` and
-  check that there are no missing frames. Each is run in a different node and
-  the receiver will tell us after every burst of packets if all frames have been
-  found.
+## `dpdklibs_test_transmit_and_receive`
+If you're on a host which contains two dpdk-enabled interfaces, you can run `dpdklibs_test_transmit_and_receive`. This app will send packets out of one interface on the host and receive them on the other. It will also keep track of the # of packets sent and received per second, the total # of bytes sent and received per second, and the number of packets which are received as corrupted per second (hopefully zero). Each packet is literally an ethernet header + an IPv4 header + a UDP header + a `detdataformats::DAQEthHeader` + a payload of zeros. The default length of the payload is 9000 bytes, but you can adjust this via the `--payload` argument; e.g. `dpdklibs_test_transmit_and_receive --payload 0` would send packets with no payload. 
+
+##  `dpdklibs_test_frame_transmitter` / `dpdklibs_test_frame_receiver`
+
+`dpdklibs_test_frame_transmitter` and `dpdklibs_test_frame_receiver` only individually require a host with a single dpdk-enabled interface. A very common idiom is to run `dpdklibs_test_frame_receiver` receiving packets on the interface of one host and to run `dpdklibs_test_frame_transmitter` sending packets on the interface of another host. 
+
+For `dpdklibs_test_frame_transmitter`, you'll generally want to supply it with the MAC address of the interface which you want to have receive the packets it transmits. Also, while it sends packets with payloads just like `dpdklibs_test_transmit_and_receive`, it defaults them to 0. So, e.g., to send packets with 9KB of payload to an interface with a MAC address of `6c:fe:54:47:98:20` (available on `np02-srv-002` as of May-7-2023) you could run the following: `dpdklibs_test_frame_transmitter --dst-mac 6c:fe:54:47:98:20 --payload 9000`
+
+To receive the packets sent by `dpdklibs_test_frame_transmitter`, you can run `dpdklibs_test_frame_receiver`. You can also use it to receive packets from actual WIBs. If you're receiving packets from `dpdklibs_test_frame_transmitter`, you should see lines like the following:
+```
+Stream (1, 2, 3, 4)   : n.pkts 0 (tot. 23786829)
+```
+...since `dpdklibs_test_frame_transmitter` intentionally constructs the `detdataformats::DAQEthHeader` in its packets to have a `det_id` of 1, a `crate_id` of 2, a `slot_id` of 3, and a `stream_id` of 4.  
+
+
+  
