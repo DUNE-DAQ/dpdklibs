@@ -4,6 +4,8 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 
+#include "detdataformats/DAQEthHeader.hpp"
+
 #define IPV4_VERSION    4
 
 //DEFAULT_TTL             = 8 -> TTL on wireshark 5
@@ -178,7 +180,7 @@ pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len,
  * SEE ALSO:
  */
 void
-pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string& router_mac_address)
+pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string& router_mac_address, const int port_id)
 {
     //pg_ether_addr_copy(&pkt->eth_src_addr, &eth->src_addr);
     //pg_ether_addr_copy(&pkt->eth_dst_addr, &eth->dst_addr);
@@ -188,7 +190,6 @@ pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string
  
   get_ether_addr6(router_mac_address.c_str(), &packet_hdr->eth_hdr.dst_addr);
 
-    uint8_t port_id = 0;
     rte_eth_macaddr_get(port_id, &packet_hdr->eth_hdr.src_addr);
 
     /* normal ethernet header */
@@ -198,52 +199,43 @@ pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string
 
 
 
-/**************************************************************************//**
- 
- * pktgen_packet_ctor - Construct a complete packet with all headers and data.
- *
- * DESCRIPTION
- * Construct a packet type based on the arguments passed with all headers.
- *
- * RETURNS: N/A
- *
- * SEE ALSO:
- */
+void construct_packets_for_burst(const int port_id, const std::string& dst_mac_addr, const int payload_bytes, const int burst_size, rte_mbuf** bufs) { 
+  struct ipv4_udp_packet_hdr packet_hdr;
 
-rte_le16_t
-pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
-{
-    //pkt_seq_t *pkt = &info->seq_pkt[seq_idx];
-    //struct pg_ether_hdr *eth = (struct pg_ether_hdr *) & pkt->hdr.eth;
-    //char *l3_hdr = (char *) & eth[1]; /* Point to l3 hdr location for GRE header */
+  constexpr int eth_header_bytes = 14;
+  constexpr int udp_header_bytes = 8;
+  constexpr int ipv4_header_bytes = 20;
 
-    // fill the data first
-    ///* Fill in the pattern for data space. */
-    //pktgen_fill_pattern((uint8_t *)&pkt->hdr,
-    //                    (sizeof(pkt_hdr_t) + sizeof(pkt->pad)),
-    //                    info->fill_pattern_type, info->user_pattern);
+  int eth_packet_bytes = eth_header_bytes + ipv4_header_bytes + udp_header_bytes + sizeof(detdataformats::DAQEthHeader) + payload_bytes; 
+  int ipv4_packet_bytes = eth_packet_bytes - eth_header_bytes;
+  int udp_datagram_bytes = ipv4_packet_bytes - ipv4_header_bytes;
 
-    rte_le16_t packet_len = 0;
-    packet_len += packet_fill(packet_hdr); //TODO should return the size of the payload only
+  // Get info for the ethernet header (protocol stack level 2)
+  pktgen_ether_hdr_ctor(&packet_hdr, dst_mac_addr, port_id);
+  
+  // Get info for the internet header (protocol stack level 3)
+  pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes);
 
+  // Get info for the UDP header (protocol stack level 4)
+  pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
 
-    //l3_hdr = pktgen_ether_hdr_ctor(info, pkt, eth);
+  detdataformats::DAQEthHeader daqethheader_obj;
+  set_daqethheader_test_values(daqethheader_obj);
 
-    pktgen_ether_hdr_ctor(packet_hdr);
+  void* dataloc = nullptr;
+  for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
 
-    //if (likely(pkt->ethType == PG_ETHER_TYPE_IPv4)) {
-    //    if (pkt->ipProto == PG_IPPROTO_UDP) {
-    //    }
-    //}
+    dataloc = rte_pktmbuf_mtod(bufs[i_pkt], char*);
+    rte_memcpy(dataloc, &packet_hdr, sizeof(packet_hdr));
 
-    /* Construct the UDP header */
-    pktgen_udp_hdr_ctor(packet_hdr, packet_len + sizeof(struct rte_udp_hdr));
+    dataloc = rte_pktmbuf_mtod_offset(bufs[i_pkt], char*, sizeof(packet_hdr));
+    rte_memcpy(dataloc, &daqethheader_obj, sizeof(daqethheader_obj));
 
-    /* IPv4 Header constructor */
-    pktgen_ipv4_ctor(packet_hdr, packet_len + sizeof(struct rte_udp_hdr) + sizeof(struct rte_ipv4_hdr));
-
-    return packet_len;
+    bufs[i_pkt]->pkt_len = eth_packet_bytes;
+    bufs[i_pkt]->data_len = eth_packet_bytes;
+  }
 }
+
 
 } // namespace udp
 } // namespace dpdklibs

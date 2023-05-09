@@ -47,6 +47,14 @@ static const struct rte_eth_conf iface_conf_default = {
   },
 };
 
+
+  std::string get_mac_addr_str(const rte_ether_addr& addr) {
+    std::stringstream macstr;
+    macstr << std::hex << static_cast<int>(addr.addr_bytes[0]) << ":" << static_cast<int>(addr.addr_bytes[1]) << ":" << static_cast<int>(addr.addr_bytes[2]) << ":" << static_cast<int>(addr.addr_bytes[3]) << ":" << static_cast<int>(addr.addr_bytes[4]) << ":" << static_cast<int>(addr.addr_bytes[5]) << std::dec;  
+    return macstr.str();
+  }
+
+  
 // Modifies Ethernet device configuration to multi-queue RSS with offload
 inline void
 iface_conf_rss_mode(struct rte_eth_conf& iface_conf, bool mode = false, bool offload = false)
@@ -179,7 +187,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   struct rte_ether_addr addr;
   retval = rte_eth_macaddr_get(iface, &addr);
   if (retval == 0) {
-    TLOG() << "MAC address: " << std::hex << static_cast<int>(addr.addr_bytes[0]) << ":" << static_cast<int>(addr.addr_bytes[1]) << ":" << static_cast<int>(addr.addr_bytes[2]) << ":" << static_cast<int>(addr.addr_bytes[3]) << ":" << static_cast<int>(addr.addr_bytes[4]) << ":" << static_cast<int>(addr.addr_bytes[5]) << std::dec;
+    TLOG() << "MAC address: " << get_mac_addr_str(addr);
   } else {
     return retval;
   }
