@@ -2,7 +2,7 @@
 import socket
 import sys
 import binascii
-import detdataformats
+import fddetdataformats
 import time
 import click
 
@@ -48,7 +48,7 @@ def main(dump, count):
     while (count==None or i<count):
     # while i<10:
         data, address = s.recvfrom(20000)
-        wf = detdataformats.wibeth.WIBEthFrame(data)
+        wf = fddetdataformats.WIBEthFrame(data)
         header = wf.get_daqheader()
 
 
