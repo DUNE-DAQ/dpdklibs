@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <tuple>
 
+#include <nlohmann/json.hpp>
+
 #include <csignal>
 #include <fstream>
 #include <iomanip>
@@ -21,6 +23,7 @@
 #include "CLI/Formatter.hpp"
 
 #include "detdataformats/DAQEthHeader.hpp"
+#include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "logging/Logging.hpp"
@@ -38,7 +41,7 @@
 #ifndef RTE_JUMBO_ETHER_MTU
 #define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
 #endif
-
+using json = nlohmann::json;
 
 namespace {
 
@@ -66,6 +69,8 @@ namespace {
     }
 
     struct StreamStats {
+        std::string src_ip = "";
+
         std::atomic<uint64_t> total_packets              = 0;
         std::atomic<uint64_t> num_packets                = 0;
         std::atomic<uint64_t> num_bytes                  = 0;
@@ -105,7 +110,7 @@ namespace {
     bool check_timestamp    = false;
     bool per_stream_reports = false;
 
-    std::string json_filename = "";
+    std::string conf_filepath = "";
 
     constexpr int burst_size = 256;
 
@@ -153,17 +158,17 @@ namespace {
 
     //
     uint64_t time_per_report = 1;
-    uint16_t iface = 0;
 
-    std::map<int, std::map<int, std::string>> core_map;
     std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
     std::map<int, struct rte_mbuf **> bufs;
     std::map<int, struct CoreStats> core_stats;
 
-    uint16_t rx_qs_per_core = 2;
-    uint16_t n_cores        = 2;
-    uint16_t n_rx_qs        = rx_qs_per_core * n_cores;
+    uint16_t n_cores = 0;
+    uint16_t n_rx_qs = 0;
+    uint16_t iface   = 0;
 
+
+    json conf;
 } // namespace
 
 
@@ -273,9 +278,9 @@ static int lcore_main(void* _unused){
     if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
         fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
     }
-    
     while (true) {
-        for (auto& [q_id, q_src] : core_map[lcore_id]) {
+        for (auto& q : conf[std::to_string(iface)][std::to_string(lcore_id)].items()) {
+            int q_id = stoi(q.key());
             /* Get burst of RX packets, from first iface of pair. */
             const uint16_t nb_rx = rte_eth_rx_burst(iface, q_id, bufs[q_id], burst_size);
 
@@ -284,7 +289,6 @@ static int lcore_main(void* _unused){
 
             for (int i_b = 0; i_b < nb_rx; ++i_b) {
                 core_stats[lcore_id].num_bytes += bufs[q_id][i_b]->pkt_len;
-                
 
                 bool dump_packet = false;
                 if (not RTE_ETH_IS_IPV4_HDR(bufs[q_id][i_b]->packet_type)) {
@@ -296,14 +300,21 @@ static int lcore_main(void* _unused){
 
                 char* udp_payload = dunedaq::dpdklibs::udp::get_udp_payload(bufs[q_id][i_b]);
                 const dunedaq::detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const dunedaq::detdataformats::DAQEthHeader*>(udp_payload);
-
-                // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
+                if (daq_hdr == nullptr){
+                    fmt::print("IT IS A NULL PTR\n");
+                }
+                //printing daq hdr
+                //fmt::print("det id: {}, crate id {}, slot id {}, stream id: {}\n", daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id);
                 StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
                 if ((core_stats[lcore_id].udp_pkt_counter % 1000000) == 0 ) {
                     std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
                 }
                 if (stream_stats.find(unique_str_id) == stream_stats.end()) {
                     stream_stats[unique_str_id];
+                    struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(bufs[q_id][i_b], struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr *);
+                    stream_stats[unique_str_id].src_ip = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
+                        dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr))
+                    );
                     stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id - 1;
                 }
                 stream_stats[unique_str_id].num_bytes += bufs[q_id][i_b]->pkt_len;
@@ -344,17 +355,18 @@ void signal_callback_handler(int signum){
 }
 
 int main(int argc, char** argv){
-    uint16_t iface = 0;
-
     CLI::App app{"test frame receiver"};
     app.add_option("-s", expected_payload_size, "Expected frame size");
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
-    app.add_option("-j", json_filename, "configuration Json");
+    app.add_option("-c,conf", conf_filepath, "configuration Json file path");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
     app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
 
+    fmt::print("FILEPATH {}\n", conf_filepath);
+    std::ifstream f(conf_filepath);
+    conf = json::parse(f);
     //    define function to be called when ctrl+c is called.
     std::signal(SIGINT, signal_callback_handler);
     
@@ -378,11 +390,12 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    int q_id = 0;
-    for (int lcore_id = 0; lcore_id < n_cores; ++lcore_id) {
-        for (int n_q = 0; n_q < rx_qs_per_core; ++n_q) {
-            core_map[lcore_id][q_id] = "";
-            q_id++;
+    for (auto& conf_iface: conf) {
+        for (auto& lcore: conf_iface) {
+            ++n_cores;
+            for (auto& q: lcore) {
+                ++n_rx_qs;
+            }
         }
     }
 
@@ -401,74 +414,163 @@ int main(int argc, char** argv){
     fmt::print("Initialize only iface {}!\n", iface);
     dunedaq::dpdklibs::ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
 
-    fmt::print("Let's loop\n");
-    for (size_t i=1; i<=n_cores; ++i) {
-        core_stats[i];
-        rte_eal_remote_launch(lcore_main, NULL, i);
+    // // Flow steering
+    struct rte_flow_error error;
+    struct rte_flow *flow;
+    // flushing previous flow steering rules
+    rte_flow_flush(iface, &error);
+    for (auto const& rxqs : conf[std::to_string(iface)]) {
+        for (auto const& rxq : rxqs.items()) {
+            int rxqid = stoi(rxq.key());
+            std::string srcip = rxq.value();
+            // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
+            size_t ind = 0, current_ind = 0;
+            std::vector<uint8_t> v;
+            for (int i = 0; i < 4; ++i) {
+                v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
+                current_ind += ind + 1;
+            }
+
+            flow = dunedaq::dpdklibs::generate_ipv4_flow(iface, rxqid,
+            RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
+
+            if (not flow) { // ers::fatal
+                fmt::print(
+                    "Flow can't be created for {}, Error type: {}, Message: {}\n", 
+                    rxqid, (unsigned)error.type, error.message
+                );
+                rte_exit(EXIT_FAILURE, "error in creating flow");
+            }
+        }
     }
+
+    fmt::print("Let's loop\n");
+    for (auto& conf_iface: conf) {
+        for (auto& lcore: conf_iface.items()) {
+            core_stats[stoi(lcore.key())];
+            rte_eal_remote_launch(lcore_main, NULL, stoi(lcore.key()));
+        }
+    }
+    // for (size_t i=1; i<=n_cores; ++i) {
+    //     core_stats[i];
+    //     rte_eal_remote_launch(lcore_main, NULL, i);
+    // }
 
     // reporting thread
     auto stats = std::thread([&]() {
         fmt::print("in thread\n");
+
         while (true) {
+            uint64_t summed_packets_per_second          = 0;
+            float    summed_bytes_per_second            = 0;
+            uint64_t summed_total_packets               = 0;
+            uint64_t summed_non_ipv4_packets            = 0;
+            uint64_t summed_udp_pkt_counter             = 0;
+            uint64_t summed_num_bad_seq_id              = 0;
+            uint64_t summed_max_seq_id_skip             = 0;
+            uint64_t summed_total_bad_seq_id            = 0;
+            uint64_t summed_max_payload_size            = 0;
+            uint64_t summed_min_payload_size            = 0;
+            uint64_t summed_num_bad_payload_size        = 0;
+            uint64_t summed_total_bad_payload_size      = 0;
+            uint64_t summed_payload_size_bad_report     = 0;
+            uint64_t summed_min_size_report_difference  = 0;
+            uint64_t summed_max_size_report_difference  = 0;
+            uint64_t summed_num_bad_timestamp           = 0;
+            uint64_t summed_max_timestamp_skip          = 0;
+            uint64_t summed_total_bad_timestamp         = 0;
             for (auto& [lcore_id, stats] : core_stats) {
-                uint64_t packets_per_second = stats.num_packets / time_per_report;
-                float bytes_per_second      = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
-                fmt::print("\n LCORE {}\n", lcore_id);
-                fmt::print(
-                    "Since the last report {} seconds ago:\n"
-                    "Packets/s: {} ({:8.3f} MB/s), Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
-                    "Packets with wrong sequence id: {}, Max seq_id skip: {}, Total Packets with Wrong seq_id {}\n"
-                    "Max udp payload: {}, Min udp payload: {}\n",
-                    time_per_report,
-                    packets_per_second, bytes_per_second, stats.total_packets, stats.non_ipv4_packets, stats.udp_pkt_counter,
-                    stats.num_bad_seq_id, stats.max_seq_id_skip, stats.total_bad_seq_id,
-                    stats.max_payload_size, stats.min_payload_size
-                );
+                summed_packets_per_second += stats.num_packets / time_per_report;
+                summed_bytes_per_second   += (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
 
-                if (expected_payload_size){
-                    fmt::print(
-                        "Packets with wrong payload size: {}, Total Packets with Wrong size: {}\n"
-                        "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {}\n",
-                        stats.num_bad_payload_size, stats.total_bad_payload_size,
-                        stats.payload_size_bad_report, stats.min_size_report_difference, stats.max_size_report_difference
-                    );
+                summed_total_packets           += stats.total_packets;
+                summed_non_ipv4_packets        += stats.total_packets;
+                summed_udp_pkt_counter         += stats.udp_pkt_counter;
+                summed_num_bad_seq_id          += stats.num_bad_seq_id;
+                summed_total_bad_seq_id        += stats.total_bad_seq_id;
+                summed_num_bad_payload_size    += stats.num_bad_payload_size;
+                summed_total_bad_payload_size  += stats.total_bad_payload_size;
+                summed_payload_size_bad_report += stats.payload_size_bad_report;
+                summed_num_bad_timestamp       += stats.num_bad_timestamp;
+                summed_total_bad_timestamp     += stats.total_bad_timestamp;
+
+                if (summed_max_seq_id_skip            < stats.max_seq_id_skip           ){
+                    summed_max_seq_id_skip            = stats.max_seq_id_skip;
+                }
+                if (summed_max_payload_size           < stats.max_payload_size          ){
+                    summed_max_payload_size           = stats.max_payload_size;
+                }
+                if (summed_min_payload_size           > stats.min_payload_size          ){
+                    summed_min_payload_size           = stats.min_payload_size;
+                }
+                if (summed_min_size_report_difference > stats.min_size_report_difference){
+                    summed_min_size_report_difference = stats.min_size_report_difference;
+                }
+                if (summed_max_size_report_difference < stats.max_size_report_difference){
+                    summed_max_size_report_difference = stats.max_size_report_difference;
+                }
+                if (summed_max_timestamp_skip         < stats.max_timestamp_skip        ){
+                    summed_max_timestamp_skip         = stats.max_timestamp_skip;
                 }
 
-                if (check_timestamp) {
-                    fmt::print(
-                        "Wrong Timestamp difference Packets: {}, Max wrong Timestamp difference {}, Total Packets with Wrong Timestamp {}\n",
-                        stats.num_bad_timestamp, stats.max_timestamp_skip, stats.total_bad_timestamp
-                    );
-                }
                 stats.reset();
+            }
+
+
+
+            fmt::print(
+                "Since the last report {} seconds ago:\n"
+                "Packets/s: {} ({:8.3f} MB/s), Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
+                "Packets with wrong sequence id: {}, Max seq_id skip: {}, Total Packets with Wrong seq_id {}\n"
+                "Max udp payload: {}, Min udp payload: {}\n",
+                time_per_report,
+                summed_packets_per_second, summed_bytes_per_second, summed_total_packets, summed_non_ipv4_packets, summed_udp_pkt_counter,
+                summed_num_bad_seq_id, summed_max_seq_id_skip, summed_total_bad_seq_id,
+                summed_max_payload_size, summed_min_payload_size
+            );
+
+            if (expected_payload_size){
+                fmt::print(
+                    "Packets with wrong payload size: {}, Total Packets with Wrong size: {}\n"
+                    "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {}\n",
+                    summed_num_bad_payload_size, summed_total_bad_payload_size,
+                    summed_payload_size_bad_report, summed_min_size_report_difference, summed_max_size_report_difference
+                );
+            }
+
+            if (check_timestamp) {
+                fmt::print(
+                    "Wrong Timestamp difference Packets: {}, Max wrong Timestamp difference {}, Total Packets with Wrong Timestamp {}\n",
+                    summed_num_bad_timestamp, summed_max_timestamp_skip, summed_total_bad_timestamp
+                );
             }
 
             fmt::print("\n");
             for (auto& [suid, stats] : stream_stats) {
-                fmt::print("Stream {:18}: n.pkts {} (tot. {})\n", (std::string)suid, stats.num_packets, stats.total_packets);
+                fmt::print("Stream {:18}: n.pkts {} (tot. {})  ", (std::string)suid, stats.num_packets, stats.total_packets);
                 if (per_stream_reports){
                     float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
                     fmt::print(
-                        "{:8.3f} MB/s,    Packets with wrong seq_id: {},    Max seq_id skip: {}\n", 
+                        "{:8.3f} MB/s,    Packets with wrong seq_id: {},    Max seq_id skip: {} ", 
                         stream_bytes_per_second, stats.num_bad_seq_id, stats.max_seq_id_skip
                     );
                     if (check_timestamp){
                         fmt::print(
-                            "Packets with wrong timestamp: {}, max timestamp skip: {}\n",
+                            "Packets with wrong timestamp: {}, max timestamp skip: {} ",
                             stats.num_bad_timestamp, stats.max_timestamp_skip
                         );
                     }
                     if (expected_payload_size){
                         fmt::print(
-                            "Packets with wrong payload size: {}, min/max payload size: {} / {}\n"
-                            "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {}\n",
+                            "Packets with wrong payload size: {}, min/max payload size: {} / {} "
+                            "Total packets where the reported size differs from the actual size: {}, min/max difference: {} / {} ",
                             stats.num_bad_payload_size, stats.min_payload_size, stats.max_payload_size,
                             stats.payload_size_bad_report, stats.min_size_report_difference, stats.max_size_report_difference
                         );
                     }
                     fmt::print("\n");
                 }
+                fmt::print("\n");
                 stats.reset();
             }
 
