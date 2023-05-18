@@ -3,7 +3,7 @@ import click
 import socket
 import time
 from rich.console import Console
-import detdataformats
+import fddetdataformats
 
 console = Console()
 
@@ -27,7 +27,7 @@ def cli(port):
         try:
             data, addr = sock.recvfrom(8192)
             rcv_bytes += len(data)
-            wf = detdataformats.wibeth.WIBEthFrame(data)
+            wf = fddetdataformats.WIBEthFrame(data)
             rcv_pkts +=1
             if rcv_pkts_tot % 100000 == 0:
                 stop_time = time.time()

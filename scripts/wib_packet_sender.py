@@ -4,7 +4,7 @@ import time
 import math
 import click
 from rich.console import Console
-import detdataformats
+import fddetdataformats
 
 console = Console()
 
@@ -19,7 +19,7 @@ def cli(address, port):
     sock = socket.socket(socket.AF_INET, # Internet
                      socket.SOCK_DGRAM) # UDP
 
-    wf = detdataformats.wibeth.WIBEthFrame()
+    wf = fddetdataformats.WIBEthFrame()
     wf.get_daqheader().det_id       = 3
     wf.get_daqheader().stream_id    = 0
     wf.get_daqheader().seq_id       = 1
