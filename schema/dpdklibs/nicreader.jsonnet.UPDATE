@@ -43,15 +43,41 @@ local nicreader = {
 
     lcores : s.sequence("CoreList", self.lcore, doc="A list of lcores"),
 
+    stream_map : s.record("StreamMap", [
+        s.field("source_id": self.id, 0, doc="Source ID"),
+        s.field("stream_id": self.id, 0, doc="Stream ID")
+    ], doc="A stream map"),
+ 
+    src_streams_mapping : s.sequence("StreamMap", self.stream_map, doc="A list of streams"),
+
+    src_info : s.record("SrcGeoInfo", [
+        s.field("det_id", self.id, 0, doc="Detector ID"),
+        s.field("crate_id", self.id, 0, doc="Crate ID"),
+        s.field("slot_id", self.id, 0, doc="Slot ID")
+    ], doc="Source Information"),
+
+    source : s.record("Source", [
+        s.field("id", self.id, 0, doc="ID of a source"),
+        s.field("ip_addr", self.string, "192.168.0.1", doc="Source IP address"),
+        s.field("lcore", self.id, 0, doc="Assigned CPU lcore"),
+        s.field("rx_q", self.id, 0, doc="Assigned RX queue of interface"),
+        s.field("src_info", self.src_info, doc="Source information"),
+        s.field("src_streams_mapping", self.src_streams_mapping, doc="Source streams mapping")
+    ], doc="Source field"),
+
+    sources : s.sequence("Sources", self.source, doc="A list of sources"),
+
     iface : s.record("Interface", [
-        s.field("id", self.id, 0, doc="Logical Interface ID"),
+        s.field("iface_id", self.id, 0, doc="Logical Interface ID"),
+        s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
+        s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
+        s.field("ip_addr", self.string, "192.168.0.1", doc="IP address of interface"),
         s.field("rx_ring_size", self.count, 1024, doc="Size of a single RX ring"),
         s.field("tx_ring_size", self.count, 1024, doc="Size of a single TX ring"),
         s.field("num_mbufs", self.count, 8191, doc="Number of total MBUFs"),
         s.field("mbuf_cache_size", self.count, 250, doc="MBUF cache size"),
-        s.field("ip_addr", self.string, "192.168.0.1", doc="IP address of interface"),
-        s.field("rx_cores", self.lcores, doc="RX queue handler CPU cores"),
-        s.field("ip_sources", self.links, doc="Enabled IP sources on interface")
+        s.field("burst_size", self.count, 250, doc="RX burst size"),
+        s.field("expected_sources", self.sources, doc="A list of expected sources")
     ], doc="Configuration an Ethernet interface through DPDK RTE"),
 
     ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),

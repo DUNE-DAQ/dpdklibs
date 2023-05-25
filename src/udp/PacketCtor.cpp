@@ -1,7 +1,10 @@
 #include <rte_ethdev.h>
 
+#include "dpdklibs/ipv4_addr.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
+
+#include "detdataformats/DAQEthHeader.hpp"
 
 #define IPV4_VERSION    4
 
@@ -31,8 +34,7 @@ static int8_t get_xdigit(char ch)
 }
 
 
-/* Convert 00:11:22:33:44:55 to ethernet address */
-static bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
+bool get_ether_addr6(const char *s0, struct rte_ether_addr *ea)
 {
     const char *s = s0;
     int i;
@@ -90,14 +92,8 @@ packet_fill(struct ipv4_udp_packet_hdr * packet_hdr)
  * SEE ALSO:
  */
 void
-pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
+pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, int sport, int dport)
 {
-    /* Create the UDP header */
-
-    rte_le16_t sport = 1000; // TODO
-    rte_le16_t dport = 5678; // TODO
-
-    //packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_hdr->ipv4_hdr.total_length - sizeof(struct rte_ipv4_hdr));
     packet_hdr->udp_hdr.dgram_len = rte_cpu_to_be_16(packet_len);
 
     packet_hdr->udp_hdr.src_port = rte_cpu_to_be_16(sport);
@@ -120,45 +116,30 @@ pktgen_udp_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_l
  * SEE ALSO:
  */
 void
-pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
+pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len, const std::string& src_ip_addr, const std::string& dst_ip_addr)
 {
     /* IPv4 Header constructor */
 
     /* Zero out the header space */
     memset((char *) &packet_hdr->ipv4_hdr, 0, sizeof(struct rte_ipv4_hdr));
 
-    //struct ipaddr src_addr;
-    //src_addr.addr_bytes[0] = 10;
-    //src_addr.addr_bytes[1] = 194;
-    //src_addr.addr_bytes[2] = 21;
-    //src_addr.addr_bytes[3] = 206;
+    IpAddr src(src_ip_addr);
+    IpAddr dst(dst_ip_addr);
+    
+    struct ipaddr src_reversed_order;
+    src_reversed_order.addr_bytes[3] = src.addr_bytes[0];
+    src_reversed_order.addr_bytes[2] = src.addr_bytes[1];
+    src_reversed_order.addr_bytes[1] = src.addr_bytes[2];
+    src_reversed_order.addr_bytes[0] = src.addr_bytes[3];
 
-    //struct ipaddr dst_addr;
-    //dst_addr.addr_bytes[0] = 10;
-    //dst_addr.addr_bytes[1] = 194;
-    //dst_addr.addr_bytes[2] = 20;
-    //dst_addr.addr_bytes[3] = 30;
-
-    struct ipaddr src_addr;
-    src_addr.addr_bytes[3] = 10;
-    src_addr.addr_bytes[2] = 194;
-    src_addr.addr_bytes[1] = 21;
-    src_addr.addr_bytes[0] = 206;
-
-//    struct ipaddr dst_addr;
-//    dst_addr.addr_bytes[3] = 10;
-//    dst_addr.addr_bytes[2] = 194;
-//    dst_addr.addr_bytes[1] = 20;
-//    dst_addr.addr_bytes[0] = 30;
-
-    struct ipaddr dst_addr;
-    dst_addr.addr_bytes[3] = 10;
-    dst_addr.addr_bytes[2] = 194;
-    dst_addr.addr_bytes[1] = 21;
-    dst_addr.addr_bytes[0] = 205;
-
-    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_addr);
-    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_addr);
+    struct ipaddr dst_reversed_order;
+    dst_reversed_order.addr_bytes[3] = dst.addr_bytes[0];
+    dst_reversed_order.addr_bytes[2] = dst.addr_bytes[1];
+    dst_reversed_order.addr_bytes[1] = dst.addr_bytes[2];
+    dst_reversed_order.addr_bytes[0] = dst.addr_bytes[3];
+    
+    rte_le32_t src_addr_ser = *((rte_le32_t *) &src_reversed_order);
+    rte_le32_t dst_addr_ser = *((rte_le32_t *) &dst_reversed_order);
 
     packet_hdr->ipv4_hdr.src_addr = rte_cpu_to_be_32(src_addr_ser);
     packet_hdr->ipv4_hdr.dst_addr = rte_cpu_to_be_32(dst_addr_ser);
@@ -199,19 +180,16 @@ pktgen_ipv4_ctor(struct ipv4_udp_packet_hdr * packet_hdr, rte_le16_t packet_len)
  * SEE ALSO:
  */
 void
-pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
+pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr, const std::string& router_mac_address, const int port_id)
 {
     //pg_ether_addr_copy(&pkt->eth_src_addr, &eth->src_addr);
     //pg_ether_addr_copy(&pkt->eth_dst_addr, &eth->dst_addr);
 
     /* src and dest addr */
     // See definition dpdk-20.08/lib/librte_net/rte_ether.c is defined as static -> not exposed to the lib... redefining here
-    char router_mac_address[] = "0a:00:10:c2:15:c1";
-    //char router_mac_address[] = "00:25:90:ed:d5:70"; // farm 21
  
-    get_ether_addr6(router_mac_address, &packet_hdr->eth_hdr.dst_addr);
+  get_ether_addr6(router_mac_address.c_str(), &packet_hdr->eth_hdr.dst_addr);
 
-    uint8_t port_id = 0;
     rte_eth_macaddr_get(port_id, &packet_hdr->eth_hdr.src_addr);
 
     /* normal ethernet header */
@@ -221,52 +199,43 @@ pktgen_ether_hdr_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
 
 
 
-/**************************************************************************//**
- 
- * pktgen_packet_ctor - Construct a complete packet with all headers and data.
- *
- * DESCRIPTION
- * Construct a packet type based on the arguments passed with all headers.
- *
- * RETURNS: N/A
- *
- * SEE ALSO:
- */
+void construct_packets_for_burst(const int port_id, const std::string& dst_mac_addr, const int payload_bytes, const int burst_size, rte_mbuf** bufs) { 
+  struct ipv4_udp_packet_hdr packet_hdr;
 
-rte_le16_t
-pktgen_packet_ctor(struct ipv4_udp_packet_hdr * packet_hdr)
-{
-    //pkt_seq_t *pkt = &info->seq_pkt[seq_idx];
-    //struct pg_ether_hdr *eth = (struct pg_ether_hdr *) & pkt->hdr.eth;
-    //char *l3_hdr = (char *) & eth[1]; /* Point to l3 hdr location for GRE header */
+  constexpr int eth_header_bytes = 14;
+  constexpr int udp_header_bytes = 8;
+  constexpr int ipv4_header_bytes = 20;
 
-    // fill the data first
-    ///* Fill in the pattern for data space. */
-    //pktgen_fill_pattern((uint8_t *)&pkt->hdr,
-    //                    (sizeof(pkt_hdr_t) + sizeof(pkt->pad)),
-    //                    info->fill_pattern_type, info->user_pattern);
+  int eth_packet_bytes = eth_header_bytes + ipv4_header_bytes + udp_header_bytes + sizeof(detdataformats::DAQEthHeader) + payload_bytes; 
+  int ipv4_packet_bytes = eth_packet_bytes - eth_header_bytes;
+  int udp_datagram_bytes = ipv4_packet_bytes - ipv4_header_bytes;
 
-    rte_le16_t packet_len = 0;
-    packet_len += packet_fill(packet_hdr); //TODO should return the size of the payload only
+  // Get info for the ethernet header (protocol stack level 2)
+  pktgen_ether_hdr_ctor(&packet_hdr, dst_mac_addr, port_id);
+  
+  // Get info for the internet header (protocol stack level 3)
+  pktgen_ipv4_ctor(&packet_hdr, ipv4_packet_bytes);
 
+  // Get info for the UDP header (protocol stack level 4)
+  pktgen_udp_hdr_ctor(&packet_hdr, udp_datagram_bytes);
 
-    //l3_hdr = pktgen_ether_hdr_ctor(info, pkt, eth);
+  detdataformats::DAQEthHeader daqethheader_obj;
+  set_daqethheader_test_values(daqethheader_obj);
 
-    pktgen_ether_hdr_ctor(packet_hdr);
+  void* dataloc = nullptr;
+  for (int i_pkt = 0; i_pkt < burst_size; ++i_pkt) {
 
-    //if (likely(pkt->ethType == PG_ETHER_TYPE_IPv4)) {
-    //    if (pkt->ipProto == PG_IPPROTO_UDP) {
-    //    }
-    //}
+    dataloc = rte_pktmbuf_mtod(bufs[i_pkt], char*);
+    rte_memcpy(dataloc, &packet_hdr, sizeof(packet_hdr));
 
-    /* Construct the UDP header */
-    pktgen_udp_hdr_ctor(packet_hdr, packet_len + sizeof(struct rte_udp_hdr));
+    dataloc = rte_pktmbuf_mtod_offset(bufs[i_pkt], char*, sizeof(packet_hdr));
+    rte_memcpy(dataloc, &daqethheader_obj, sizeof(daqethheader_obj));
 
-    /* IPv4 Header constructor */
-    pktgen_ipv4_ctor(packet_hdr, packet_len + sizeof(struct rte_udp_hdr) + sizeof(struct rte_ipv4_hdr));
-
-    return packet_len;
+    bufs[i_pkt]->pkt_len = eth_packet_bytes;
+    bufs[i_pkt]->data_len = eth_packet_bytes;
+  }
 }
+
 
 } // namespace udp
 } // namespace dpdklibs

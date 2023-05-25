@@ -17,11 +17,11 @@
 #include "iomanager/Sender.hpp"
 
 #include "readoutlibs/utils/ReusableThread.hpp"
-#include "detdataformats/tde/TDE16Frame.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 #include "dpdklibs/EALSetup.hpp"
+#include "IfaceWrapper.hpp"
 
 #include <folly/ProducerConsumerQueue.h>
 
@@ -53,8 +53,6 @@ public:
 private:
   // Types
   using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
-  using amc_frame_queue_t = folly::ProducerConsumerQueue<detdataformats::tde::TDE16Frame>;
-  using amc_frame_queue_ptr_t = std::unique_ptr<amc_frame_queue_t>;
 
   // Commands
   void do_configure(const data_t&);
@@ -104,11 +102,13 @@ private:
   //template<class T> 
   int rx_runner(void *arg __rte_unused);
 
-  // Sinks (SourceConcepts)
-  std::map<int, std::unique_ptr<SourceConcept>> m_sources;
+  // Interfaces (logical ID, MAC) -> IfaceWrapper
+  std::map<std::string, uint16_t> m_mac_to_id_map;
+  std::map<uint16_t, std::unique_ptr<IfaceWrapper>> m_ifaces;
 
-  //std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::TDEFrameTypeAdapter>> m_sender;
-  //std::map<int, std::shared_ptr<iomanager::SenderConcept<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>> m_wib_sender;
+  // Sinks (SourceConcepts)
+  using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  source_to_sink_map_t m_sources;
 
   // Opmon
   std::atomic<int> m_total_groups_sent {0};

@@ -13,11 +13,22 @@
 
 #include "IPV4UDPPacket.hpp"
 
+#include "detdataformats/DAQEthHeader.hpp"
+#include "logging/Logging.hpp"
+
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include <vector>
+#include <utility>
 
 namespace dunedaq {
+
+  ERS_DECLARE_ISSUE(dpdklibs,
+		    BadPacketHeaderIssue,
+		    "BadPacketHeaderIssue: \"" << ers_messg << "\"",
+		    ((std::string)ers_messg))
+  
 namespace dpdklibs {
 namespace udp {
 
@@ -37,6 +48,14 @@ std::string get_udp_header_str(struct rte_mbuf *mbuf);
 
 std::string get_udp_packet_str(struct rte_mbuf *mbuf);
 
+  void add_file_contents_to_vector(const std::string& filename, std::vector<char>& buffervec );
+  
+  std::vector<std::pair<const void*, int>> get_ethernet_packets(const std::vector<char>& buffervec);
+
+  void set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj) noexcept;
+
+  std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept;
+  
 } // namespace udp
 } // namespace dpdklibs
 } // namespace dunedaq

@@ -275,7 +275,6 @@ static int lcore_main(void* _unused){
     }
 
 
-
     datafile.open(output_data_filename, std::ios::out | std::ios::binary);
     if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
         fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
@@ -334,7 +333,6 @@ static int lcore_main(void* _unused){
 
                 if (dump_packet && dumped_packet_count < max_packets_to_dump) {
                     dumped_packet_count++;
-
                     //rte_pktmbuf_dump(stdout, bufs[q_id][i_b], bufs[q_id][i_b]->pkt_len);
                 }
             }

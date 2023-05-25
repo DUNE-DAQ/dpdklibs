@@ -6,10 +6,20 @@
  * received with this code.
  */
 #include "dpdklibs/udp/Utils.hpp"
+
+#include "detdataformats/DAQEthHeader.hpp"
+#include "logging/Logging.hpp"
+#include "readoutlibs/ReadoutIssues.hpp"
+
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <iterator>
+#include <string>
+#include <vector>
+#include <utility>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -165,6 +175,110 @@ get_udp_packet_str(struct rte_mbuf *mbuf)
   }
   return ostrs.str();
 }
+
+void add_file_contents_to_vector(const std::string& filename, std::vector<char>& buffervec ) {
+
+  char byte = 0x0;
+
+  std::ifstream packetfile;
+  packetfile.open(filename, std::ios::binary);
+
+  if (!packetfile) {
+    throw ::dunedaq::readoutlibs::CannotOpenFile(ERS_HERE, filename);
+  }
+
+  while (packetfile.get(byte)) {
+    buffervec.push_back(byte);
+  }
+  
+  packetfile.close();
+}
+
+std::vector<std::pair<const void*, int>>
+get_ethernet_packets(const std::vector<char>& buffervec) {
+
+  std::vector<std::pair<const void*, int>> ethernet_packets;
+  const std::vector<uint16_t> allowed_ethertypes {0x0800, 0x0806};
+  
+  for (int byte_index = 0; byte_index < buffervec.size(); ) {
+    const auto buf_ptr = &buffervec.at(byte_index);
+    auto hdr = reinterpret_cast<const ipv4_udp_packet_hdr*>(buf_ptr);
+    
+    // A sanity check
+    bool match = false;
+    for (auto allowed_ethertype : allowed_ethertypes) {
+      if (hdr->eth_hdr.ether_type == rte_be_to_cpu_16(allowed_ethertype)) {
+	match = true;
+	break;
+      }
+    }
+
+    if (!match) {
+      std::stringstream msgstr;
+      msgstr << "Ether type in ethernet header (value " << std::hex << rte_be_to_cpu_16(hdr->eth_hdr.ether_type) << std::dec << ") either unknown or unsupported";
+      throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
+    }
+
+    int ipv4_packet_size = rte_be_to_cpu_16(hdr->ipv4_hdr.total_length);
+    constexpr int min_packet_size = sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr);
+    constexpr int max_packet_size = 10000;
+
+    if (ipv4_packet_size < min_packet_size || ipv4_packet_size > max_packet_size) {
+      std::stringstream msgstr;
+      msgstr << "Calculated IPv4 packet size of " << ipv4_packet_size << " bytes is out of the required range of (" << min_packet_size << ", " << max_packet_size << ") bytes";
+      throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
+    }
+
+    int ethernet_packet_size = sizeof(rte_ether_hdr) + ipv4_packet_size;
+    ethernet_packets.emplace_back(std::pair<const void*, int>{buf_ptr, ethernet_packet_size});
+    byte_index += ethernet_packet_size;
+  }
+
+  return ethernet_packets;
+}
+
+void set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj) noexcept {
+  daqethheader_obj.version = 0;
+  daqethheader_obj.det_id = 1;
+  daqethheader_obj.crate_id = 2;
+  daqethheader_obj.slot_id = 3;
+  daqethheader_obj.stream_id = 4;
+  daqethheader_obj.reserved = 5;
+  daqethheader_obj.seq_id = 6;
+  daqethheader_obj.block_length = 7;  
+  daqethheader_obj.timestamp = 8;
+}
+
+
+std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
+  std::stringstream ss;
+
+  ss << "\nrte_mbuf info:";
+  ss << "\npkt_len: " << mbuf->pkt_len;
+  ss << "\ndata_len: " << mbuf->data_len;
+  ss << "\nBuffer address: " << std::hex << mbuf->buf_addr;
+  ss << "\nRef count: " << std::dec << rte_mbuf_refcnt_read(mbuf);
+  ss << "\nport: " << mbuf->port;
+  ss << "\nol_flags: " << std::hex << mbuf->ol_flags;
+  ss << "\npacket_type: " << std::dec << mbuf->packet_type;
+  ss << "\nl2 type: " << static_cast<int>(mbuf->l2_type);
+  ss << "\nl3 type: " << static_cast<int>(mbuf->l3_type);
+  ss << "\nl4 type: " << static_cast<int>(mbuf->l4_type);
+  ss << "\ntunnel type: " << static_cast<int>(mbuf->tun_type);
+  ss << "\nInner l2 type: " << static_cast<int>(mbuf->inner_l2_type);
+  ss << "\nInner l3 type: " << static_cast<int>(mbuf->inner_l3_type);
+  ss << "\nInner l4 type: " << static_cast<int>(mbuf->inner_l4_type);
+  ss << "\nbuf_len: " << mbuf->buf_len;
+  ss << "\nl2_len: " << mbuf->l2_len;
+  ss << "\nl3_len: " << mbuf->l3_len;
+  ss << "\nl4_len: " << mbuf->l4_len;
+  ss << "\nouter_l2_len: " << mbuf->outer_l2_len;
+  ss << "\nouter_l3_len: " << mbuf->outer_l3_len;
+  ss << std::dec;
+
+  return ss.str();
+}
+
 
 } // namespace udp
 } // namespace dpdklibs
