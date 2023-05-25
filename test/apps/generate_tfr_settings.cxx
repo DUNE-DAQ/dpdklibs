@@ -131,13 +131,10 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
     }
 
-    auto stats = std::thread([&]() {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        stop_app = true;
-        std::terminate();
-    });
 
-    while (not stop_app) {
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+    while ((std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - begin).count()) < 2) {
         /* Get burst of RX packets, from first iface of pair. */
         const uint16_t nb_rx = rte_eth_rx_burst(iface, 0, bufs, burst_size);
 
@@ -152,28 +149,34 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 fmt::print("IT IS A NULL PTR\n");
             }
             StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
+
             if (src_list.find(unique_str_id) == src_list.end()) {
-                src_list[unique_str_id];
                 struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(bufs[i_b], struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr *);
-                src_list[unique_str_id] = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
+                std::string src_ip = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
                     dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr))
                 );
-                output_json[std::to_string(cur_lcore)][std::to_string(cur_queue)] = src_list[unique_str_id];
-                fmt::print("{}\n", output_json[std::to_string(cur_lcore)][std::to_string(cur_queue)]);
-                std::ofstream o(conf_filepath);
-                o << std::setw(4) << output_json << std::endl;
-                ++cur_queue;
-                ++q_in_core;
-                if (q_in_core >= q_per_lcore){
-                    ++cur_lcore;
-                    q_in_core = 0;
+                fmt::print("{}\n", src_ip);
+                bool found = false;
+                for (auto it = src_list.begin(); it != src_list.end(); ++it){
+                    if (it->second == src_ip){
+                        found = true;
+                        break;
+                    }
+                }
+                src_list[unique_str_id] = src_ip;
+                if (not found){
+                    output_json["0"][std::to_string(cur_lcore)][std::to_string(cur_queue)] = src_list[unique_str_id];
+                    ++cur_queue;
+                    ++q_in_core;
+                    if (q_in_core >= q_per_lcore){
+                        ++cur_lcore;
+                        q_in_core = 0;
+                    }
                 }
             }
             rte_pktmbuf_free_bulk(bufs, nb_rx);
         }
     }
-    fmt::print("Printing Json\n");
-    fmt::print("{}\n",output_json.dump(4));
     fmt::print("App stopped\n");
 
     return 0;
@@ -242,11 +245,12 @@ int main(int argc, char** argv){
 
     lcore_main(mbuf_pools[0].get(), iface, time_per_report);
 
-    fmt::print("before rte eal cleanup\n");
-    int retval = rte_eal_cleanup();
-    if (retval == -EFAULT){
-        fmt::print("There was a fault with cleanup.\n");
-    }
+    std::ofstream o(conf_filepath);
+    o << std::setw(4) << output_json << std::endl;
+    fmt::print("{}\n",output_json.dump(4));
 
+    fmt::print("before rte eal cleanup\n");
+    rte_eal_cleanup();
+    fmt::print("after rte eal cleanup\n");
     return 0;
 }

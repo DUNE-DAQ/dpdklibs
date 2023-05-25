@@ -107,6 +107,8 @@ namespace {
     // "Some drivers using vector instructions require that nb_pkts is
     // divisible by 4 or 8, depending on the driver implementation."
 
+    unsigned master_lcore_id = 0; 
+
     bool check_timestamp    = false;
     bool per_stream_reports = false;
 
@@ -309,7 +311,7 @@ static int lcore_main(void* _unused){
                 if ((core_stats[lcore_id].udp_pkt_counter % 1000000) == 0 ) {
                     std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
                 }
-                if (stream_stats.find(unique_str_id) == stream_stats.end()) {
+                if (stream_stats.count(unique_str_id) == 0) {
                     stream_stats[unique_str_id];
                     struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(bufs[q_id][i_b], struct dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr *);
                     stream_stats[unique_str_id].src_ip = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
@@ -360,6 +362,7 @@ int main(int argc, char** argv){
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_option("-c,conf", conf_filepath, "configuration Json file path");
+    app.add_option("-m", master_lcore_id, "configure master lcore");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
     app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
@@ -372,6 +375,8 @@ int main(int argc, char** argv){
     
     std::vector<std::string> eal_args;
     eal_args.push_back("dpdklibds_test_frame_receiver");
+    eal_args.push_back("--main-lcore");
+    eal_args.push_back(std::to_string(master_lcore_id));
 
 
     // initialise eal with constructed argc and argv
@@ -413,6 +418,8 @@ int main(int argc, char** argv){
     // Setting up only one iface
     fmt::print("Initialize only iface {}!\n", iface);
     dunedaq::dpdklibs::ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
+    // Promiscuous mode
+    dunedaq::dpdklibs::ealutils::iface_promiscuous_mode(iface, false); // should come from config
 
     // // Flow steering
     struct rte_flow_error error;
@@ -481,10 +488,10 @@ int main(int argc, char** argv){
             uint64_t summed_total_bad_timestamp         = 0;
             for (auto& [lcore_id, stats] : core_stats) {
                 summed_packets_per_second += stats.num_packets / time_per_report;
-                summed_bytes_per_second   += (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
+                summed_bytes_per_second   += (float)stats.num_bytes / (1024.*1024.*1024.) / (float)time_per_report;
 
                 summed_total_packets           += stats.total_packets;
-                summed_non_ipv4_packets        += stats.total_packets;
+                summed_non_ipv4_packets        += stats.non_ipv4_packets;
                 summed_udp_pkt_counter         += stats.udp_pkt_counter;
                 summed_num_bad_seq_id          += stats.num_bad_seq_id;
                 summed_total_bad_seq_id        += stats.total_bad_seq_id;
@@ -500,10 +507,10 @@ int main(int argc, char** argv){
                 if (summed_max_payload_size           < stats.max_payload_size          ){
                     summed_max_payload_size           = stats.max_payload_size;
                 }
-                if (summed_min_payload_size           > stats.min_payload_size          ){
+                if ((summed_min_payload_size > stats.min_payload_size) and (summed_min_payload_size != 0)){
                     summed_min_payload_size           = stats.min_payload_size;
                 }
-                if (summed_min_size_report_difference > stats.min_size_report_difference){
+                if ((summed_min_size_report_difference > stats.min_size_report_difference) and (summed_min_size_report_difference != 0)){
                     summed_min_size_report_difference = stats.min_size_report_difference;
                 }
                 if (summed_max_size_report_difference < stats.max_size_report_difference){
@@ -520,7 +527,7 @@ int main(int argc, char** argv){
 
             fmt::print(
                 "Since the last report {} seconds ago:\n"
-                "Packets/s: {} ({:8.3f} MB/s), Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
+                "Packets/s: {} ({:8.3f} GB/s), Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max seq_id skip: {}, Total Packets with Wrong seq_id {}\n"
                 "Max udp payload: {}, Min udp payload: {}\n",
                 time_per_report,
@@ -547,11 +554,11 @@ int main(int argc, char** argv){
 
             fmt::print("\n");
             for (auto& [suid, stats] : stream_stats) {
-                fmt::print("Stream {:18}: n.pkts {} (tot. {})  ", (std::string)suid, stats.num_packets, stats.total_packets);
+                fmt::print("Stream {:18}: pkts {} (tot. {})  ", (std::string)suid, stats.num_packets, stats.total_packets);
                 if (per_stream_reports){
-                    float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
+                    float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.*1024.) / (float)time_per_report;
                     fmt::print(
-                        "{:8.3f} MB/s,    Packets with wrong seq_id: {},    Max seq_id skip: {} ", 
+                        "{:8.3f} GB/s,    seq_id jumps: {},    max skip: {} ", 
                         stream_bytes_per_second, stats.num_bad_seq_id, stats.max_seq_id_skip
                     );
                     if (check_timestamp){
@@ -568,7 +575,6 @@ int main(int argc, char** argv){
                             stats.payload_size_bad_report, stats.min_size_report_difference, stats.max_size_report_difference
                         );
                     }
-                    fmt::print("\n");
                 }
                 fmt::print("\n");
                 stats.reset();
