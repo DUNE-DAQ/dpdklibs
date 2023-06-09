@@ -22,8 +22,49 @@ After creating a configuration file, run the test frame receiver using
 `dpdklibs_test_frame_receiver path/to/conf/dir/my_conf_name.json`
 you can add several extra arguments, like
 - `-p` gives detailed per stream reports. 
-- `-i X` initiates the Xth iface instead of the 0th one (default)
+- `-i X` initiates the Xth iface instead of the 0th one (default). the iface to be initiated should exist in the conf file
 - `-t X` reports back every X seconds instead of every second.
 - `-m X` makes the master lcore different than the default one (0). NOTE: Be careful not to have your master lcore also appear in the settings, the app does NOT check, and it will fail
 - `--check-time` checks the timestamp of the packets as well as the id.
 - `-s X` checks the payload size against an expected value X
+
+# the configuration file
+the configuration file is structured as follows:
+```
+{
+	iface:{
+		lcore:{
+			queue: src_ip,
+			queue: src_ip,
+			...
+		}
+		lcore:{...},
+		...
+	},
+	iface:{...},
+	...
+}
+```
+So, an example configuration file would be:
+```
+{
+    "0": {
+        "1": {
+            "0": "10.73.139.38",
+            "1": "10.73.139.39"
+        },
+        "2": {
+            "2": "10.73.139.38",
+            "3": "10.73.139.39"
+        },
+        "3": {
+            "4": "10.73.139.38",
+            "5": "10.73.139.39"
+        }
+    }
+}
+```
+note that: 
+- all numbers are in `""`
+- neither the queue numbers nor the lcore numbers repeat
+- the 0th lcore isn't there, since it's going to be used as the main lcore

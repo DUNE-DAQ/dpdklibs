@@ -155,9 +155,6 @@ namespace {
         }
     };
 
-    std::ofstream datafile;
-    const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
-
     //
     uint64_t time_per_report = 1;
 
@@ -275,10 +272,6 @@ static int lcore_main(void* _unused){
     }
 
 
-    datafile.open(output_data_filename, std::ios::out | std::ios::binary);
-    if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
-        fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
-    }
     while (true) {
         for (auto& q : conf[std::to_string(iface)][std::to_string(lcore_id)].items()) {
             int q_id = stoi(q.key());
@@ -347,9 +340,6 @@ static int lcore_main(void* _unused){
 // Define the function to be called when ctrl-c (SIGINT) is sent to process
 void signal_callback_handler(int signum){
     fmt::print("Caught signal {}\n", signum);
-    if (datafile.is_open()) {
-        datafile.close();
-    }
     // Terminate program
     std::exit(signum);
 }

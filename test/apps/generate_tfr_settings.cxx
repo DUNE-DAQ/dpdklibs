@@ -84,9 +84,6 @@ namespace {
     int q_per_lcore = 1;
     json output_json;
 
-    std::ofstream datafile;
-    const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
-
     int cur_queue = 0;
     int cur_lcore = 1;
     int q_in_core = 0;
@@ -126,10 +123,6 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
     rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
 
-    datafile.open(output_data_filename, std::ios::out | std::ios::binary);
-    if ( (datafile.rdstate() & std::ofstream::failbit ) != 0 ) {
-        fmt::print("WARNING: Unable to open output file \"{}\"\n", output_data_filename);
-    }
 
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -185,9 +178,6 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 // Define the function to be called when ctrl-c (SIGINT) is sent to process
 void signal_callback_handler(int signum){
     fmt::print("Caught signal {}\n", signum);
-    if (datafile.is_open()) {
-        datafile.close();
-    }
     // Terminate program
     std::exit(signum);
 }
