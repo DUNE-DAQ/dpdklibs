@@ -249,8 +249,7 @@ int main(int argc, char** argv){
     o << std::setw(4) << output_json << std::endl;
     fmt::print("{}\n",output_json.dump(4));
 
-    fmt::print("before rte eal cleanup\n");
     rte_eal_cleanup();
-    fmt::print("after rte eal cleanup\n");
+    fmt::print("\n======== APP SUCCESSFULLY COMPLETE. EXPECT ERROR ========\n\n");
     return 0;
 }
