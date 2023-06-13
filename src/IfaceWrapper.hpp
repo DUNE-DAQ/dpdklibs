@@ -94,6 +94,11 @@ private:
   // Run marker
   std::atomic<bool>& m_run_marker;
 
+  // GARP
+  std::thread m_garp_thread;
+  void garp_func();
+  std::atomic<uint64_t> m_garps_sent{0};
+
   // Lcore processor
   //template<class T> 
   int rx_runner(void *arg __rte_unused);

@@ -11,6 +11,10 @@
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
+#include "dpdklibs/arp/ARP.hpp"
+#include "dpdklibs/ipv4_addr.hpp"
 #include "IfaceWrapper.hpp"
 
 #include <chrono>
@@ -228,6 +232,9 @@ IfaceWrapper::start()
     }
   });
 
+  TLOG() << "Launching GARP thread with garp_func...";
+  m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
+
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
     int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_runner), this, lcoreid);
@@ -244,6 +251,12 @@ IfaceWrapper::stop()
   } else {
     TLOG() << "Stats thread is not joinable!";
   }
+  
+  if (m_garp_thread.joinable()) {
+    m_garp_thread.join();
+  } else {
+    TLOG() << "GARP thrad is not joinable!";
+  }
 }
 
 void
@@ -253,6 +266,35 @@ IfaceWrapper::scrap()
   rte_flow_flush(m_iface_id, &error);
 }
 
+void
+IfaceWrapper::garp_func()
+{
+  std::unique_ptr<rte_mempool> garp_mbuf_pool;
+  std::stringstream ss;
+  ss << "GARPMBP-" << m_iface_id;
+  TLOG() << "Acquire GARP pool with name=" << ss.str() << " for iface_id=" << m_iface_id;
+  garp_mbuf_pool = ealutils::get_mempool(ss.str());
+  struct rte_mbuf **garp_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  rte_pktmbuf_alloc_bulk(garp_mbuf_pool.get(), garp_bufs, m_burst_size);
+
+  TLOG() << "Setting up GARP IP for iface with IP=" << m_ip_addr;
+  IpAddr ip_addr_struct(m_ip_addr);
+  rte_be32_t ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
+    ip_addr_struct.addr_bytes[3],
+    ip_addr_struct.addr_bytes[2],
+    ip_addr_struct.addr_bytes[1],
+    ip_addr_struct.addr_bytes[0]
+  );
+  
+  TLOG() << "Launching GARP sender...";
+  while(m_run_marker.load()) {
+    arp::pktgen_send_garp(garp_bufs[0], m_iface_id, ip_addr_bin);   
+    ++m_garps_sent; 
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
+  TLOG() << "GARP function joins.";
+}
 
 void
 IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
