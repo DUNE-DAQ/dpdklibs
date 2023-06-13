@@ -138,7 +138,15 @@ public:
     uint32_t bytes_copied = 0;
     readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     //TLOG() << "PAYLOAD READY WITH SIZE: " << bytes_copied;
-    m_sink_queue->send(std::move(target_payload), std::chrono::milliseconds(100));
+    
+    //m_sink_queue->send(std::move(target_payload), std::chrono::milliseconds(100));
+    if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
+      if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+        TLOG() << "Dropped data " << m_dropped_packets;
+      }
+      ++m_dropped_packets;
+    }
+
     //TLOG() << "SENT!";
     return true;
     //if (m_block_addr_queue->write(block_addr)) { // ok write
@@ -207,6 +215,8 @@ private:
   bool m_sink_is_set{ false };
   std::shared_ptr<sink_t> m_sink_queue;
   //std::shared_ptr<err_sink_t> m_error_sink_queue;
+
+  std::atomic<uint64_t> m_dropped_packets{0};
 
   // blocks to process
   //UniqueBlockAddrQueue m_block_addr_queue;
