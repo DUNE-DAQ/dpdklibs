@@ -383,14 +383,28 @@ int main(int argc, char** argv){
         return 1;
     }
 
+    fmt::print("Looking through conf file\n");
+    std::map <std::string, int> queue_multiplicity;
+    bool failiure = false;
+
     for (auto& conf_iface: conf) {
-        for (auto& lcore: conf_iface) {
+        for (auto& lcore: conf_iface.items()) {
+            if (stoi(lcore.key()) == master_lcore_id){
+                fmt::print("ERROR: conf file includes main lcore {}. Change conf file or change main lcore with -m\n", lcore.key());
+                failiure = true;
+            }
             ++n_cores;
-            for (auto& q: lcore) {
-                ++n_rx_qs;
+            for (auto& q: lcore.value().items()) {
+                ++queue_multiplicity[q.key()];
+                if (queue_multiplicity[q.key()] > 1){
+                    fmt::print("ERROR: queue {} repeated in conf file\n", q.key());
+                    failiure = true;
+                }
+                    ++n_rx_qs;
             }
         }
     }
+    if (failiure) {std::exit(1);}
 
     // Allocate pools and mbufs per queue
     std::cout << "Allocating pools and mbufs.\n";
