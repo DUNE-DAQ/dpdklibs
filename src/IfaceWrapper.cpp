@@ -72,7 +72,14 @@ IfaceWrapper::allocate_mbufs()
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
-  } 
+  }
+
+  std::stringstream ss;
+  ss << "GARPMBP-" << m_iface_id;
+  TLOG() << "Acquire GARP pool with name=" << ss.str() << " for iface_id=" << m_iface_id;
+  m_garp_mbuf_pool = ealutils::get_mempool(ss.str());
+  m_garp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  rte_pktmbuf_alloc_bulk(m_garp_mbuf_pool.get(), m_garp_bufs[0], m_burst_size);
 }
 
 void
@@ -147,6 +154,13 @@ IfaceWrapper::conf(const iface_conf_t& args)
     m_with_flow = m_cfg.with_flow_control;
     m_prom_mode = m_cfg.promiscuous_mode;
     m_ip_addr = m_cfg.ip_addr;
+    IpAddr ip_addr_struct(m_ip_addr);
+    m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
+      ip_addr_struct.addr_bytes[3],
+      ip_addr_struct.addr_bytes[2],
+      ip_addr_struct.addr_bytes[1],
+      ip_addr_struct.addr_bytes[0]
+    );
     m_mac_addr = m_cfg.mac_addr;
     m_mbuf_cache_size = m_cfg.mbuf_cache_size;
     m_burst_size = m_cfg.burst_size;
@@ -268,31 +282,13 @@ IfaceWrapper::scrap()
 
 void
 IfaceWrapper::garp_func()
-{
-  std::unique_ptr<rte_mempool> garp_mbuf_pool;
-  std::stringstream ss;
-  ss << "GARPMBP-" << m_iface_id;
-  TLOG() << "Acquire GARP pool with name=" << ss.str() << " for iface_id=" << m_iface_id;
-  garp_mbuf_pool = ealutils::get_mempool(ss.str());
-  struct rte_mbuf **garp_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-  rte_pktmbuf_alloc_bulk(garp_mbuf_pool.get(), garp_bufs, m_burst_size);
-
-  TLOG() << "Setting up GARP IP for iface with IP=" << m_ip_addr;
-  IpAddr ip_addr_struct(m_ip_addr);
-  rte_be32_t ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
-    ip_addr_struct.addr_bytes[3],
-    ip_addr_struct.addr_bytes[2],
-    ip_addr_struct.addr_bytes[1],
-    ip_addr_struct.addr_bytes[0]
-  );
-  
+{  
   TLOG() << "Launching GARP sender...";
   while(m_run_marker.load()) {
-    arp::pktgen_send_garp(garp_bufs[0], m_iface_id, ip_addr_bin);   
-    ++m_garps_sent; 
+    arp::pktgen_send_garp(m_garp_bufs[0][0], m_iface_id, m_ip_addr_bin);   
+    ++m_garps_sent;
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
-
   TLOG() << "GARP function joins.";
 }
 
