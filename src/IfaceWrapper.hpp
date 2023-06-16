@@ -14,6 +14,8 @@
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/arp/ARP.hpp"
+#include "dpdklibs/ipv4_addr.hpp"
 #include "SourceConcept.hpp"
 
 #include <nlohmann/json.hpp>
@@ -60,6 +62,7 @@ protected:
   bool m_with_flow;
   bool m_prom_mode;
   std::string m_ip_addr;
+  rte_be32_t m_ip_addr_bin;
   std::string m_mac_addr;
   int m_mtu;
   int m_rx_ring_size;
@@ -93,6 +96,13 @@ private:
 
   // Run marker
   std::atomic<bool>& m_run_marker;
+
+  // GARP
+  std::unique_ptr<rte_mempool> m_garp_mbuf_pool;
+  std::map<int, struct rte_mbuf **> m_garp_bufs;
+  std::thread m_garp_thread;
+  void garp_func();
+  std::atomic<uint64_t> m_garps_sent{0};
 
   // Lcore processor
   //template<class T> 
