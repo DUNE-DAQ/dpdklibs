@@ -88,6 +88,8 @@ namespace {
     int cur_lcore = 1;
     int q_in_core = 0;
 
+    int time_to_run = 2;
+
 
 } // namespace
 
@@ -127,7 +129,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    while ((std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - begin).count()) < 2) {
+    while ((std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - begin).count()) < time_to_run) {
         /* Get burst of RX packets, from first iface of pair. */
         const uint16_t nb_rx = rte_eth_rx_burst(iface, 0, bufs, burst_size);
 
@@ -188,6 +190,7 @@ int main(int argc, char** argv){
 
     CLI::App app{"test frame receiver"};
     app.add_option("-q", q_per_lcore, "Queues per Lcore");
+    app.add_option("-t", time_to_run, "Time to run");
     app.add_option("-c,conf", conf_filepath, "configuration Json file path");
     CLI11_PARSE(app, argc, argv);
 
