@@ -54,17 +54,17 @@ So, an example configuration file would be:
             "1": "10.73.139.39"
         },
         "2": {
-            "2": "10.73.139.38",
-            "3": "10.73.139.39"
+            "2": "10.73.139.40",
+            "3": "10.73.139.41"
         },
         "3": {
-            "4": "10.73.139.38",
-            "5": "10.73.139.39"
+            "4": "10.73.139.42",
+            "5": "10.73.139.43"
         }
     }
 }
 ```
 note that: 
 - all numbers are in `""`
-- neither the queue numbers nor the lcore numbers repeat
+- the queue numbers, the lcore numbers, and the ip addresses do NOT repeat
 - the 0th lcore isn't there, since it's going to be used as the main lcore
