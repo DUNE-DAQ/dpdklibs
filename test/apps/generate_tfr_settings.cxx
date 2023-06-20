@@ -191,6 +191,7 @@ int main(int argc, char** argv){
     CLI::App app{"test frame receiver"};
     app.add_option("-q", q_per_lcore, "Queues per Lcore");
     app.add_option("-t", time_to_run, "Time to run");
+    app.add_option("-i", iface, "Interface");
     app.add_option("-c,conf", conf_filepath, "configuration Json file path");
     CLI11_PARSE(app, argc, argv);
 
