@@ -512,7 +512,7 @@ int main(int argc, char** argv){
                 if (((summed_min_payload_size > stats.min_payload_size) and (stats.min_payload_size != 0)) or (summed_min_payload_size == 0)){
                     summed_min_payload_size           = stats.min_payload_size;
                 }
-                if (((summed_min_size_report_difference > stats.min_size_report_difference) and (stats.min_size_report_difference != 0)) or (summed_min_size_report_difference == 0){
+                if (((summed_min_size_report_difference > stats.min_size_report_difference) and (stats.min_size_report_difference != 0)) or (summed_min_size_report_difference == 0)){
                     summed_min_size_report_difference = stats.min_size_report_difference;
                 }
                 if (summed_max_size_report_difference < stats.max_size_report_difference){
