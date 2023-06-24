@@ -103,7 +103,8 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
       bad_sizes_since_last_reset = 0;
       bad_seq_ids_since_last_reset = 0;
     }
-    
+
+    operator std::string() const;
   };
   
   class PacketInfoAccumulator {
@@ -115,16 +116,14 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     PacketInfoAccumulator(int64_t expected_seq_id_step = ignorable_value,
 			  int64_t expected_timestamp_step = ignorable_value,
 			  int64_t expected_size = ignorable_value) :
-      //      m_stream_stats(),
       m_expected_seq_id_step(expected_seq_id_step),
       m_expected_timestamp_step(expected_timestamp_step),
       m_expected_size(expected_size)
-      //      m_stream_last_timestamp(),
-      //      m_stream_last_seq_id()
     {}
 
     void process_packet(const rte_mbuf *mbuf);
     void reset();
+    void dump();
     
     PacketInfoAccumulator(const PacketInfoAccumulator&) = delete;           
     PacketInfoAccumulator& operator=(const PacketInfoAccumulator&) = delete;

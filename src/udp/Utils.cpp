@@ -311,12 +311,13 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
 
     if (m_stream_last_timestamp.find(unique_str_id) != m_stream_last_timestamp.end()) {
 
-      auto timestamp_delta = daq_hdr.timestamp - (m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step);
+      int64_t timestamp_delta = daq_hdr.timestamp - (m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step);
+      
       if (timestamp_delta != 0) {
 	m_stream_stats[unique_str_id].bad_timestamps_since_last_reset++;
 
 	if (timestamp_delta < 0) {
-	  timestamp_delta == -timestamp_delta;
+	  timestamp_delta = -timestamp_delta;
 	}
 
 	if (timestamp_delta > m_stream_stats[unique_str_id].max_timestamp_deviation) {
@@ -334,12 +335,13 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
     
     if (m_stream_last_seq_id.find(unique_str_id) != m_stream_last_seq_id.end()) {
 
-      auto seq_id_delta = daq_hdr.seq_id - (m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step);
+      int64_t seq_id_delta = daq_hdr.seq_id - (m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step);
+
       if (seq_id_delta != 0) {
 	m_stream_stats[unique_str_id].bad_seq_ids_since_last_reset++;
 
 	if (seq_id_delta < 0) {
-	  seq_id_delta == -seq_id_delta;
+	  seq_id_delta = -seq_id_delta;
 	}
 
 	if (seq_id_delta > m_stream_stats[unique_str_id].max_seq_id_deviation) {
@@ -358,6 +360,37 @@ void PacketInfoAccumulator::reset() {
   for (auto& stream_stat : m_stream_stats ) {
     stream_stat.second.reset();
   }
+}
+
+void PacketInfoAccumulator::dump() {
+
+  for (auto& stream_stat : m_stream_stats ) {
+    std::stringstream info;
+
+    auto& streamid = stream_stat.first;
+    auto& stats = stream_stat.second;
+    
+    TLOG() << static_cast<std::string>(streamid) + "\n" + static_cast<std::string>(stats);
+  }
+}
+
+ReceiverStats::operator std::string() const {
+
+  std::stringstream reportstr;
+
+  reportstr
+    << "total_packets == " << total_packets << "\n"
+    << "min_packet_size == " << min_packet_size << "\n"
+    << "max_packet_size == " << max_packet_size << "\n"
+    << "max_timestamp_deviation == " << max_timestamp_deviation << "\n"
+    << "max_seq_id_deviation == " << max_seq_id_deviation << "\n"
+    << "packets_since_last_reset == " << packets_since_last_reset << "\n"
+    << "bytes_since_last_reset == " << bytes_since_last_reset << "\n"
+    << "bad_timestamps_since_last_reset == " << bad_timestamps_since_last_reset << "\n"
+    << "bad_sizes_since_last_reset == " << bad_sizes_since_last_reset << "\n"
+    << "bad_seq_ids_since_last_reset == " << bad_seq_ids_since_last_reset << "\n";
+
+  return reportstr.str();
 }
 
 } // namespace udp
