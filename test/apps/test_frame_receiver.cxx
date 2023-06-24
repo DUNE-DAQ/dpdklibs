@@ -46,27 +46,8 @@ using namespace udp;
 
 namespace {
 
-    struct StreamUID {
-        uint64_t det_id : 6;
-        uint64_t crate_id : 10;
-        uint64_t slot_id : 4;
-        uint64_t stream_id : 8;
-
-        bool operator<(const StreamUID& rhs) const
-        {
-            // compares n to rhs.n,
-            // then s to rhs.s,
-            // then d to rhs.d
-            return std::tie(det_id, crate_id, slot_id, stream_id) < std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id);
-        }
-
-        operator std::string() const {
-            return fmt::format("({}, {}, {}, {})", det_id, crate_id, slot_id, stream_id);
-        }
-    };
-
     std::ostream & operator <<(std::ostream &out, const StreamUID &obj) {
-        return out << static_cast<std::string>(obj);
+      return out << static_cast<std::string>(obj);
     }
 
     struct StreamStats {
@@ -160,7 +141,7 @@ std::vector<char*> construct_argv(std::vector<std::string> &std_argv){
 
 static inline int check_against_previous_stream(const detdataformats::DAQEthHeader* daq_hdr, uint64_t exp_ts_diff){
     // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;  
-    StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};  
+  StreamUID unique_str_id( *daq_hdr );
     uint64_t stream_ts     = daq_hdr->timestamp;
     uint64_t seq_id        = daq_hdr->seq_id;
     int ret_val = 0;
@@ -318,7 +299,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
 
             // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
-            StreamUID unique_str_id = {daq_hdr->det_id, daq_hdr->crate_id, daq_hdr->slot_id, daq_hdr->stream_id};
+            StreamUID unique_str_id { *daq_hdr } ; 
             // if ((udp_pkt_counter % 1000000) == 0 ) {
             //     std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
             // }

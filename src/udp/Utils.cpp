@@ -71,7 +71,7 @@ get_ipv4_decimal_addr_str(struct ipaddr ipv4_address) {
 }
 
 char *
-get_udp_payload(struct rte_mbuf *mbuf)
+get_udp_payload(const rte_mbuf* mbuf)
 {
   struct ipv4_udp_packet_hdr * udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
   //dump_udp_header(udp_packet);
@@ -272,6 +272,93 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
   return ss.str();
 }
 
+void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
+  
+  const char* udp_payload = udp::get_udp_payload(mbuf);
+
+  if (udp_payload == nullptr) {
+    throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, "Got a null pointer on a call to udp::get_udp_payload");
+  }
+    
+  const auto daq_hdr { *reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload) };
+
+  StreamUID unique_str_id(daq_hdr);
+  
+  // std::map::contains is available in C++20...
+  if (m_stream_stats.find(unique_str_id) == m_stream_stats.end()) {
+    m_stream_stats[unique_str_id] = ReceiverStats();    
+  }
+
+  m_stream_stats[unique_str_id].total_packets++;
+  m_stream_stats[unique_str_id].packets_since_last_reset++;
+  m_stream_stats[unique_str_id].bytes_since_last_reset += mbuf->pkt_len;
+
+  if (mbuf->data_len > m_stream_stats[unique_str_id].max_packet_size) {
+    m_stream_stats[unique_str_id].max_packet_size = mbuf->data_len;
+  }
+
+  if (mbuf->data_len < m_stream_stats[unique_str_id].min_packet_size) {
+    m_stream_stats[unique_str_id].min_packet_size = mbuf->data_len;
+  }
+
+  if (m_expected_size != ignorable_value) {
+    if (mbuf->data_len != m_expected_size) {
+      m_stream_stats[unique_str_id].bad_sizes_since_last_reset++;
+    }
+  }
+  
+  if (m_expected_timestamp_step != ignorable_value) {
+
+    if (m_stream_last_timestamp.find(unique_str_id) != m_stream_last_timestamp.end()) {
+
+      auto timestamp_delta = daq_hdr.timestamp - (m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step);
+      if (timestamp_delta != 0) {
+	m_stream_stats[unique_str_id].bad_timestamps_since_last_reset++;
+
+	if (timestamp_delta < 0) {
+	  timestamp_delta == -timestamp_delta;
+	}
+
+	if (timestamp_delta > m_stream_stats[unique_str_id].max_timestamp_deviation) {
+	  m_stream_stats[unique_str_id].max_timestamp_deviation = timestamp_delta;
+	}
+      }
+      
+    } else {
+      m_stream_last_timestamp[unique_str_id] = daq_hdr.timestamp;
+    }
+  }
+  
+  
+  if (m_expected_seq_id_step != ignorable_value) {
+    
+    if (m_stream_last_seq_id.find(unique_str_id) != m_stream_last_seq_id.end()) {
+
+      auto seq_id_delta = daq_hdr.seq_id - (m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step);
+      if (seq_id_delta != 0) {
+	m_stream_stats[unique_str_id].bad_seq_ids_since_last_reset++;
+
+	if (seq_id_delta < 0) {
+	  seq_id_delta == -seq_id_delta;
+	}
+
+	if (seq_id_delta > m_stream_stats[unique_str_id].max_seq_id_deviation) {
+	  m_stream_stats[unique_str_id].max_seq_id_deviation = seq_id_delta;
+	}
+      }
+      
+    } else {
+      m_stream_last_seq_id[unique_str_id] = daq_hdr.seq_id;
+    }
+  }
+}
+
+void PacketInfoAccumulator::reset() {
+
+  for (auto& stream_stat : m_stream_stats ) {
+    stream_stat.second.reset();
+  }
+}
 
 } // namespace udp
 } // namespace dpdklibs
