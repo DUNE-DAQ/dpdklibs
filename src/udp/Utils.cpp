@@ -313,6 +313,7 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
     if (m_stream_last_timestamp.find(unique_str_id) != m_stream_last_timestamp.end()) {
 
       int64_t timestamp_delta = daq_hdr.timestamp - (m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step);
+      m_stream_last_timestamp[unique_str_id] = daq_hdr.timestamp;
       
       if (timestamp_delta != 0) {
 	m_stream_stats[unique_str_id].bad_timestamps_since_last_reset++;
@@ -338,7 +339,8 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
 
       int64_t expected_seq_id = m_stream_last_seq_id[unique_str_id] == s_max_seq_id ? 0 : m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step;
       int64_t seq_id_delta = daq_hdr.seq_id - expected_seq_id;
-
+      m_stream_last_seq_id[unique_str_id] = daq_hdr.seq_id;
+      
       if (seq_id_delta != 0) {
 	m_stream_stats[unique_str_id].bad_seq_ids_since_last_reset++;
 

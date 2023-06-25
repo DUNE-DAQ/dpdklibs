@@ -47,12 +47,12 @@ using namespace udp;
 namespace {
 
   constexpr int expected_timestamp_step = 2048;
-  constexpr int expected_seq_id_step = 1;
+  constexpr int expected_seq_id_step = 1; 
   
   // Might need to make the expected packet size settable after construction
-  PacketInfoAccumulator processor(PacketInfoAccumulator::s_ignorable_value,  
+  PacketInfoAccumulator processor(expected_seq_id_step,
 				  expected_timestamp_step,
-				  expected_seq_id_step);
+				  PacketInfoAccumulator::s_ignorable_value);
   
     std::ostream & operator <<(std::ostream &out, const StreamUID &obj) {
       return out << static_cast<std::string>(obj);
