@@ -16,6 +16,7 @@
 #include "boost/test/unit_test.hpp"
 
 #include <fstream>
+#include <limits>
 #include <string>
 
 using namespace dunedaq::dpdklibs;
@@ -112,4 +113,52 @@ BOOST_AUTO_TEST_CASE(GetEthernetPackets)
 
 }
 
+
+BOOST_AUTO_TEST_CASE(TestReceiverStats)
+{
+  udp::ReceiverStats stats;
+  constexpr auto biggest_int = std::numeric_limits<uint64_t>::max();
+  
+  stats.total_packets = biggest_int;
+  stats.min_packet_size = biggest_int;
+  stats.max_packet_size = biggest_int;
+  stats.max_timestamp_deviation = biggest_int;
+  stats.max_seq_id_deviation = biggest_int;
+
+  stats.packets_since_last_reset = biggest_int;
+  stats.bytes_since_last_reset = biggest_int;
+  stats.bad_timestamps_since_last_reset = biggest_int;
+  stats.bad_sizes_since_last_reset = biggest_int;
+  stats.bad_seq_ids_since_last_reset = biggest_int;
+  
+  receiverinfo::Info derived = DeriveFromReceiverStats(stats, 2.0); // Pretend we're sampling every two seconds
+
+  BOOST_REQUIRE_EQUAL(derived.total_packets, stats.total_packets);
+  BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.max_bad_ts_deviation, stats.max_timestamp_deviation);
+  BOOST_REQUIRE_EQUAL(derived.max_bad_seq_id_deviation, stats.max_seq_id_deviation);
+  BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
+
+  BOOST_REQUIRE_EQUAL(derived.packets_per_second * 2.0, stats.packets_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bytes_per_second * 2.0, stats.bytes_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_ts_packets_per_second * 2.0, stats.bad_timestamps_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second * 2.0, stats.bad_seq_ids_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second * 2.0, stats.bad_sizes_since_last_reset);
+
+  stats.reset();
+  derived = DeriveFromReceiverStats(stats, 2.0);
+
+  BOOST_REQUIRE_EQUAL(derived.packets_per_second, 0);
+  BOOST_REQUIRE_EQUAL(derived.bytes_per_second, 0); 
+  BOOST_REQUIRE_EQUAL(derived.bad_ts_packets_per_second, 0);
+  BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second, 0); 
+  BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second, 0);
+
+  
+}
+
+
+  
 BOOST_AUTO_TEST_SUITE_END()

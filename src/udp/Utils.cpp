@@ -273,9 +273,10 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
 }
 
 void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
+  std::lock_guard<std::mutex> l(m_mutex); 
   
   const char* udp_payload = udp::get_udp_payload(mbuf);
-
+  
   if (udp_payload == nullptr) {
     throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, "Got a null pointer on a call to udp::get_udp_payload");
   }
@@ -301,13 +302,13 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
     m_stream_stats[unique_str_id].min_packet_size = mbuf->data_len;
   }
 
-  if (m_expected_size != ignorable_value) {
+  if (m_expected_size != s_ignorable_value) {
     if (mbuf->data_len != m_expected_size) {
       m_stream_stats[unique_str_id].bad_sizes_since_last_reset++;
     }
   }
   
-  if (m_expected_timestamp_step != ignorable_value) {
+  if (m_expected_timestamp_step != s_ignorable_value) {
 
     if (m_stream_last_timestamp.find(unique_str_id) != m_stream_last_timestamp.end()) {
 
@@ -331,11 +332,12 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
   }
   
   
-  if (m_expected_seq_id_step != ignorable_value) {
+  if (m_expected_seq_id_step != s_ignorable_value) {
     
     if (m_stream_last_seq_id.find(unique_str_id) != m_stream_last_seq_id.end()) {
 
-      int64_t seq_id_delta = daq_hdr.seq_id - (m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step);
+      int64_t expected_seq_id = m_stream_last_seq_id[unique_str_id] == s_max_seq_id ? 0 : m_stream_last_seq_id[unique_str_id] + m_expected_seq_id_step;
+      int64_t seq_id_delta = daq_hdr.seq_id - expected_seq_id;
 
       if (seq_id_delta != 0) {
 	m_stream_stats[unique_str_id].bad_seq_ids_since_last_reset++;
@@ -356,14 +358,16 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
 }
 
 void PacketInfoAccumulator::reset() {
-
+  std::lock_guard<std::mutex> l(m_mutex); 
+  
   for (auto& stream_stat : m_stream_stats ) {
     stream_stat.second.reset();
   }
 }
 
 void PacketInfoAccumulator::dump() {
-
+  std::lock_guard<std::mutex> l(m_mutex); 
+  
   for (auto& stream_stat : m_stream_stats ) {
     std::stringstream info;
 
@@ -374,6 +378,12 @@ void PacketInfoAccumulator::dump() {
   }
 }
 
+std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_stream_stats() {
+  std::lock_guard<std::mutex> l(m_mutex);
+
+  return m_stream_stats;
+}
+  
 ReceiverStats::operator std::string() const {
 
   std::stringstream reportstr;
@@ -391,6 +401,24 @@ ReceiverStats::operator std::string() const {
     << "bad_seq_ids_since_last_reset == " << bad_seq_ids_since_last_reset << "\n";
 
   return reportstr.str();
+}
+
+receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report) {
+
+  receiverinfo::Info derived_stats;
+  
+  derived_stats.total_packets = receiver_stats.total_packets;
+  derived_stats.packets_per_second = receiver_stats.packets_since_last_reset / time_per_report;
+  derived_stats.bytes_per_second = receiver_stats.bytes_since_last_reset / time_per_report;
+  derived_stats.bad_ts_packets_per_second = receiver_stats.bad_timestamps_since_last_reset / time_per_report;
+  derived_stats.max_bad_ts_deviation = receiver_stats.max_timestamp_deviation;
+  derived_stats.bad_seq_id_packets_per_second = receiver_stats.bad_seq_ids_since_last_reset / time_per_report;
+  derived_stats.max_bad_seq_id_deviation = receiver_stats.max_seq_id_deviation;
+  derived_stats.bad_size_packets_per_second = receiver_stats.bad_sizes_since_last_reset / time_per_report;
+  derived_stats.max_packet_size = receiver_stats.max_packet_size;
+  derived_stats.min_packet_size	= receiver_stats.min_packet_size;
+
+  return derived_stats;
 }
 
 } // namespace udp

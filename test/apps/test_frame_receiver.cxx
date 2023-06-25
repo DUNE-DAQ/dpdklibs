@@ -46,6 +46,14 @@ using namespace udp;
 
 namespace {
 
+  constexpr int expected_timestamp_step = 2048;
+  constexpr int expected_seq_id_step = 1;
+  
+  // Might need to make the expected packet size settable after construction
+  PacketInfoAccumulator processor(PacketInfoAccumulator::s_ignorable_value,  
+				  expected_timestamp_step,
+				  expected_seq_id_step);
+  
     std::ostream & operator <<(std::ostream &out, const StreamUID &obj) {
       return out << static_cast<std::string>(obj);
     }
@@ -88,7 +96,7 @@ namespace {
     // divisible by 4 or 8, depending on the driver implementation."
 
     bool check_timestamp = false;
-    bool per_stream_reports         = false;
+    bool per_stream_reports         = true;
 
     constexpr int burst_size = 256;
 
@@ -240,9 +248,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
 
             fmt::print("\n");
-            // for (auto stream = stream_stats.begin(); stream != stream_stats.end(); stream++) {
+
+
+	    auto receiver_stats_by_stream = processor.get_stream_stats();
+	    
             for ( auto& [suid, stats] : stream_stats) {
-                fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, stats.num_packets, stats.total_packets);
+                fmt::print("\nStream {:15}: n.pkts {} (tot. {})", (std::string)suid, stats.num_packets, stats.total_packets);
                 if (per_stream_reports){
                     float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
                     fmt::print(
@@ -252,7 +263,21 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 }
                 stats.reset();
                 fmt::print("\n");
+
+		receiverinfo::Info new_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
+
+		fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, new_stats.total_packets);
+                if (per_stream_reports){
+                    fmt::print(
+                        " {:8.3f} MB/s, seq. jumps/s: {}", 
+                        new_stats.bytes_per_second / (1024.*1024.), new_stats.bad_seq_id_packets_per_second
+                    );
+                }
             }
+
+	    processor.reset();
+
+	    
 
             fmt::print("\n");
             num_packets.exchange(0);
@@ -279,7 +304,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     while (true) {
         /* Get burst of RX packets, from first iface of pair. */
         const uint16_t nb_rx = rte_eth_rx_burst(iface, 0, bufs, burst_size);
-
+	
         num_packets   += nb_rx;
         total_packets += nb_rx;
 
@@ -295,6 +320,8 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
             ++udp_pkt_counter;
 
+	    processor.process_packet(bufs[i_b]);
+	    
             char* udp_payload = udp::get_udp_payload(bufs[i_b]);
             const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
 
@@ -309,7 +336,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             }
             stream_stats[unique_str_id].num_bytes += bufs[i_b]->pkt_len;
 
-            if (check_against_previous_stream(daq_hdr, 2048) != 0){
+            if (check_against_previous_stream(daq_hdr, expected_timestamp_step) != 0){
                 dump_packet = true;
             }
             if (check_packet_size(bufs[i_b], unique_str_id) != 0){

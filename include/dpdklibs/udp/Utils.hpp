@@ -9,6 +9,7 @@
 #define DPDKLIBS_SRC_UTILS_HPP_
 
 #include "IPV4UDPPacket.hpp"
+#include "dpdklibs/receiverinfo/InfoStructs.hpp"
 
 #include "detdataformats/DAQEthHeader.hpp"
 #include "logging/Logging.hpp"
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include <mutex>
 #include <set>
 #include <vector>
 #include <utility>
@@ -106,16 +108,19 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
 
     operator std::string() const;
   };
+
+  receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report);
   
   class PacketInfoAccumulator {
 
   public:
 
-    static constexpr int64_t ignorable_value = std::numeric_limits<int64_t>::max();
+    static constexpr int64_t s_ignorable_value = std::numeric_limits<int64_t>::max();
+    static constexpr int64_t s_max_seq_id = 4095;
     
-    PacketInfoAccumulator(int64_t expected_seq_id_step = ignorable_value,
-			  int64_t expected_timestamp_step = ignorable_value,
-			  int64_t expected_size = ignorable_value) :
+    PacketInfoAccumulator(int64_t expected_seq_id_step = s_ignorable_value,
+			  int64_t expected_timestamp_step = s_ignorable_value,
+			  int64_t expected_size = s_ignorable_value) :
       m_expected_seq_id_step(expected_seq_id_step),
       m_expected_timestamp_step(expected_timestamp_step),
       m_expected_size(expected_size)
@@ -124,6 +129,7 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     void process_packet(const rte_mbuf *mbuf);
     void reset();
     void dump();
+    std::map<StreamUID, ReceiverStats> get_stream_stats(); 
     
     PacketInfoAccumulator(const PacketInfoAccumulator&) = delete;           
     PacketInfoAccumulator& operator=(const PacketInfoAccumulator&) = delete;
@@ -141,7 +147,8 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
 
     std::map<StreamUID, int64_t> m_stream_last_timestamp;
     std::map<StreamUID, int64_t> m_stream_last_seq_id;
-    
+
+    std::mutex m_mutex;
   };
 
   
