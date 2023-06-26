@@ -247,6 +247,8 @@ NICReceiver::do_configure(const data_t& args)
 //  }
   
   TLOG() << "DPDK EAL & RTE configured.";
+
+  m_accum_ptr.reset( new udp::PacketInfoAccumulator() ); // Constructor arguments should be configurable...
 }
 
 void
@@ -264,6 +266,8 @@ NICReceiver::do_start(const data_t&)
     }
     return;
 
+
+    
 /*
     m_stat_thread = std::thread([&]() {
       while (m_run_marker.load()) {
@@ -286,12 +290,45 @@ NICReceiver::do_start(const data_t&)
       }
     });
 */
+
+    auto m_stat_thread = std::thread([&]() {
+				       
+        uint64_t time_per_report = 1; // In seconds 				       
+				       
+        while (true) {
+
+	    auto receiver_stats_by_stream = m_accum_ptr->get_stream_stats();
+	    
+            for ( auto& [suid, stats] : receiver_stats_by_stream) {
+
+                fmt::print("\n");
+
+		receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
+
+		fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, derived_stats.total_packets);
+                if (m_per_stream_reports){
+                    fmt::print(
+                        " {:8.3f} MB/s, seq. jumps/s: {}", 
+                        derived_stats.bytes_per_second / (1024.*1024.), derived_stats.bad_seq_id_packets_per_second
+                    );
+                }
+            }
+
+	    m_accum_ptr->reset(); // *not* to be confused with "m_accum_ptr.reset", which would be a call to std::unique_ptr's reset
+            std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
+        }
+    });
+
+
+    
     TLOG() << "Starting LCore processors:";
     for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
       int ret = rte_eal_remote_launch((int (*)(void*))(&NICReceiver::rx_runner), this, lcoreid);
       TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret;
     }
 
+    
+    
   } else {
     TLOG_DEBUG(5) << "NICReader is already running!";
   }
