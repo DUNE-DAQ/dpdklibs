@@ -25,6 +25,11 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "logging/Logging.hpp"
 #include "dpdklibs/EALSetup.hpp"
+#include "opmonlib/InfoCollector.hpp"
+#include "opmonlib/OpmonService.hpp"
+#include "opmonlib/JSONTags.hpp"
+
+#include "dpdklibs/receiverinfo/InfoNljs.hpp"
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -219,7 +224,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     }
 
     auto stats = std::thread([&]() {
-        while (true) {
+
+         auto service = opmonlib::makeOpmonService("stdout");			       
+
+         while (true) {
+            opmonlib::InfoCollector ic;
+	   
             uint64_t packets_per_second = num_packets / time_per_report;
             uint64_t bytes_per_second   = num_bytes   / time_per_report;
             fmt::print(
@@ -250,7 +260,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
             fmt::print("\n");
 
 
-	    auto receiver_stats_by_stream = processor.get_stream_stats();
+	    auto receiver_stats_by_stream = processor.get_and_reset_stream_stats();
 	    
             for ( auto& [suid, stats] : stream_stats) {
                 fmt::print("\nStream {:15}: n.pkts {} (tot. {})", (std::string)suid, stats.num_packets, stats.total_packets);
@@ -264,18 +274,35 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 stats.reset();
                 fmt::print("\n");
 
-		receiverinfo::Info new_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
+		receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
 
-		fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, new_stats.total_packets);
+		fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, derived_stats.total_packets);
                 if (per_stream_reports){
                     fmt::print(
                         " {:8.3f} MB/s, seq. jumps/s: {}", 
-                        new_stats.bytes_per_second / (1024.*1024.), new_stats.bad_seq_id_packets_per_second
+                        derived_stats.bytes_per_second / (1024.*1024.), derived_stats.bad_seq_id_packets_per_second
                     );
                 }
+
+		opmonlib::InfoCollector tmp_ic;
+
+		tmp_ic.add(derived_stats);
+
+		ic.add(udp::get_opmon_string(suid), tmp_ic);
             }
 
-	    processor.reset();
+		// Following logic taken from InfoManager::gather_info in opmonlib
+		nlohmann::json j_info;
+		nlohmann::json j_parent;
+	    
+		j_info = ic.get_collected_infos();
+		j_parent[opmonlib::JSONTags::parent] = {};
+		j_parent[opmonlib::JSONTags::parent].swap(j_info[opmonlib::JSONTags::children]);
+		j_parent[opmonlib::JSONTags::tags] = { { "partition_id", "test_frame_receiver_partition" } } ;
+		service->publish(j_parent);
+
+	    
+
 
 	    
 

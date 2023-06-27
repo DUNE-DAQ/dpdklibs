@@ -84,6 +84,17 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     }
   };
 
+  // Note that there's a difference between the string representation
+  // we'd want for a stream as an opmon label and the kind we'd want
+  // to print to screen. Thus this function...
+  
+  std::string get_opmon_string(const StreamUID& sid);
+
+
+  // ReceiverStats contains no rates, just counts, mins and
+  // maxes. This way you can add ReceiverStats objects across threads
+  // if you wish.
+  
   struct ReceiverStats {
 
     int64_t total_packets = 0;
@@ -109,7 +120,13 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     operator std::string() const;
   };
 
+  // Derive quantities (e.g., bytes/s) from a ReceiverStats object and store it in a jsonnet-based struct
   receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report);
+
+  // This class will, on a per-stream basis, fill in ReceiverStats
+  // instances given packets. In the constructor you can tell it
+  // whether you want it to pay attention to a packet's sequence ID
+  // and/or timestamp and/or size.
   
   class PacketInfoAccumulator {
 
@@ -129,7 +146,8 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     void process_packet(const rte_mbuf *mbuf);
     void reset();
     void dump();
-    std::map<StreamUID, ReceiverStats> get_stream_stats(); 
+
+    std::map<StreamUID, ReceiverStats> get_and_reset_stream_stats(); 
     
     PacketInfoAccumulator(const PacketInfoAccumulator&) = delete;           
     PacketInfoAccumulator& operator=(const PacketInfoAccumulator&) = delete;

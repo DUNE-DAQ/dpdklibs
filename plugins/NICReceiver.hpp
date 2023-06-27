@@ -30,6 +30,7 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -118,6 +119,9 @@ private:
 
   std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   bool m_per_stream_reports = true;
+
+  opmonlib::InfoCollector m_ic;
+  std::mutex m_ic_mutex;
 };
 
 } // namespace dunedaq::dpdklibs

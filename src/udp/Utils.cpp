@@ -359,13 +359,9 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
   }
 }
 
-void PacketInfoAccumulator::reset() {
-  std::lock_guard<std::mutex> l(m_mutex); 
-  
-  for (auto& stream_stat : m_stream_stats ) {
-    stream_stat.second.reset();
-  }
-}
+// dump() is more a function to test the development of
+// PacketInfoAccumulator itself than a function users of
+// PacketInfoAccumulator would call
 
 void PacketInfoAccumulator::dump() {
   std::lock_guard<std::mutex> l(m_mutex); 
@@ -380,10 +376,17 @@ void PacketInfoAccumulator::dump() {
   }
 }
 
-std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_stream_stats() {
+
+std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_and_reset_stream_stats() {
   std::lock_guard<std::mutex> l(m_mutex);
 
-  return m_stream_stats;
+  auto snapshot_before_reset = m_stream_stats;
+  
+  for (auto& stream_stat : m_stream_stats) {
+    stream_stat.second.reset();
+  }
+
+  return snapshot_before_reset;
 }
   
 ReceiverStats::operator std::string() const {
@@ -422,6 +425,13 @@ receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, 
 
   return derived_stats;
 }
+  
+std::string get_opmon_string(const StreamUID& sid) {
+  std::stringstream opmonstr;
+  opmonstr << "det" << sid.det_id << "_crt" << sid.crate_id << "_slt" << sid.slot_id << "_str" << sid.stream_id;
+  return opmonstr.str();
+}
+
 
 } // namespace udp
 } // namespace dpdklibs

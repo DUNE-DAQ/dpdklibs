@@ -17,8 +17,11 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
 #include "NICReceiver.hpp"
+
+#include "opmonlib/InfoCollector.hpp"
 
 #include <cinttypes>
 #include <chrono>
@@ -293,11 +296,12 @@ NICReceiver::do_start(const data_t&)
 
     auto m_stat_thread = std::thread([&]() {
 				       
-        uint64_t time_per_report = 1; // In seconds 				       
-				       
-        while (true) {
+        uint64_t time_per_report = 1; // In seconds
 
-	    auto receiver_stats_by_stream = m_accum_ptr->get_stream_stats();
+        while (true) {
+	  opmonlib::InfoCollector ic;
+	  
+	    auto receiver_stats_by_stream = m_accum_ptr->get_and_reset_stream_stats();
 	    
             for ( auto& [suid, stats] : receiver_stats_by_stream) {
 
@@ -312,9 +316,18 @@ NICReceiver::do_start(const data_t&)
                         derived_stats.bytes_per_second / (1024.*1024.), derived_stats.bad_seq_id_packets_per_second
                     );
                 }
-            }
 
-	    m_accum_ptr->reset(); // *not* to be confused with "m_accum_ptr.reset", which would be a call to std::unique_ptr's reset
+		opmonlib::InfoCollector tmp_ic;
+		tmp_ic.add(derived_stats);
+
+                ic.add(udp::get_opmon_string(suid), tmp_ic);
+	    }
+
+	    {
+	      std::lock_guard<std::mutex> l(m_ic_mutex);
+	      m_ic = ic;
+	    }
+
             std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
         }
     });
@@ -375,9 +388,16 @@ NICReceiver::do_scrap(const data_t&)
 void
 NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 {
+  {
+    std::lock_guard<std::mutex> l(m_ic_mutex);
+    ci = m_ic;
+  }
+  
   nicreaderinfo::Info nri;
   nri.groups_sent = m_groups_sent.exchange(0);
   nri.total_groups_sent = m_total_groups_sent.load();
+
+  
 }
 
 void
