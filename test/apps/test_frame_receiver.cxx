@@ -51,46 +51,17 @@ using namespace udp;
 
 namespace {
 
-  constexpr int expected_timestamp_step = 2048;
-  constexpr int expected_seq_id_step = 1; 
+  constexpr int64_t expected_timestamp_step = 2048;
+  constexpr int64_t expected_seq_id_step = 1;
+  int64_t expected_packet_size = PacketInfoAccumulator::s_ignorable_value;
   
   // Might need to make the expected packet size settable after construction
   PacketInfoAccumulator processor(expected_seq_id_step,
-				  expected_timestamp_step,
-				  PacketInfoAccumulator::s_ignorable_value);
+				  expected_timestamp_step);
   
     std::ostream & operator <<(std::ostream &out, const StreamUID &obj) {
       return out << static_cast<std::string>(obj);
     }
-
-    struct StreamStats {
-        std::atomic<uint64_t> total_packets          = 0;
-        std::atomic<uint64_t> num_packets            = 0;
-        std::atomic<uint64_t> num_bytes              = 0;
-        std::atomic<uint64_t> num_bad_timestamp      = 0;
-        std::atomic<uint64_t> max_timestamp_skip     = 0;
-        std::atomic<uint64_t> num_bad_seq_id         = 0;
-        std::atomic<uint64_t> max_seq_id_skip        = 0;
-        std::atomic<uint64_t> num_bad_payload_size   = 0;
-        std::atomic<uint64_t> min_payload_size       = 0;
-        std::atomic<uint64_t> max_payload_size       = 0;
-        std::atomic<uint64_t> prev_seq_id            = 0;
-        std::atomic<uint64_t> prev_timestamp         = 0;
-
-        void reset() {
-            num_packets.exchange(0);
-            num_bytes.exchange(0);
-            num_bad_timestamp.exchange(0);
-            max_timestamp_skip.exchange(0);
-            num_bad_seq_id.exchange(0);
-            max_seq_id_skip.exchange(0);
-            num_bad_payload_size.exchange(0);
-            min_payload_size.exchange(0);
-            max_payload_size.exchange(0);
-        }
-    };
-
-    std::map<StreamUID, StreamStats> stream_stats;
 
     // Apparently only 8 and above works for "burst_size"
 
@@ -100,35 +71,18 @@ namespace {
     // "Some drivers using vector instructions require that nb_pkts is
     // divisible by 4 or 8, depending on the driver implementation."
 
-    bool check_timestamp = false;
+    bool check_timestamp = true;
     bool per_stream_reports         = true;
 
     constexpr int burst_size = 256;
 
-    constexpr uint32_t expected_packet_type = 0x291;
-
-    constexpr int default_mbuf_size = 9000; // As opposed to RTE_MBUF_DEFAULT_BUF_SIZE
-
     constexpr int max_packets_to_dump = 10; 
     int dumped_packet_count           = 0;
 
-    uint16_t expected_packet_size = 0; //7243; // i.e., every packet that isn't the initial one
-
-    std::atomic<uint64_t> num_packets            = 0;
-    std::atomic<uint64_t> num_bytes              = 0;
-    std::atomic<uint64_t> total_packets          = 0;
-    std::atomic<uint64_t> non_ipv4_packets       = 0;
-    std::atomic<uint64_t> total_bad_timestamp    = 0;
-    std::atomic<uint64_t> num_bad_timestamp      = 0;
-    std::atomic<uint64_t> max_timestamp_skip     = 0;
-    std::atomic<uint64_t> total_bad_seq_id       = 0;
-    std::atomic<uint64_t> num_bad_seq_id         = 0;
-    std::atomic<uint64_t> max_seq_id_skip        = 0;
-    std::atomic<uint64_t> total_bad_payload_size = 0;
-    std::atomic<uint64_t> num_bad_payload_size   = 0;
-    std::atomic<uint64_t> min_payload_size       = 0;
-    std::atomic<uint64_t> max_payload_size       = 0;
-    std::atomic<uint64_t> udp_pkt_counter        = 0;
+    std::atomic<int64_t> num_packets            = 0;
+    std::atomic<int64_t> num_bytes              = 0;
+    std::atomic<int64_t> total_packets          = 0;
+    std::atomic<int64_t> non_ipv4_packets       = 0;
 
     std::ofstream datafile;
     const std::string output_data_filename = "dpdklibs_test_frame_receiver.dat";
@@ -152,65 +106,6 @@ std::vector<char*> construct_argv(std::vector<std::string> &std_argv){
     return vec_argv;
 }
 
-static inline int check_against_previous_stream(const detdataformats::DAQEthHeader* daq_hdr, uint64_t exp_ts_diff){
-    // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;  
-  StreamUID unique_str_id( *daq_hdr );
-    uint64_t stream_ts     = daq_hdr->timestamp;
-    uint64_t seq_id        = daq_hdr->seq_id;
-    int ret_val = 0;
-
-    if (check_timestamp) {
-        if (stream_stats[unique_str_id].prev_timestamp == 0 ) {
-            stream_stats[unique_str_id].prev_timestamp = stream_ts;
-        }else{
-            uint64_t expected_ts   = stream_stats[unique_str_id].prev_timestamp + exp_ts_diff;
-            if (stream_ts != expected_ts) {
-                uint64_t ts_difference = stream_ts - stream_stats[unique_str_id].prev_timestamp;
-                ret_val = 1;
-                ++num_bad_timestamp;
-                ++stream_stats[unique_str_id].num_bad_timestamp;
-                ++total_bad_timestamp;
-                if (ts_difference > max_timestamp_skip) {max_timestamp_skip = ts_difference;}
-                if (ts_difference > stream_stats[unique_str_id].max_timestamp_skip) {stream_stats[unique_str_id].max_timestamp_skip = ts_difference;}
-            }
-            stream_stats[unique_str_id].prev_timestamp = stream_ts;
-        }
-    }
-
-
-    uint64_t expected_seq_id = (stream_stats[unique_str_id].prev_seq_id == 4095) ? 0 : stream_stats[unique_str_id].prev_seq_id + 1;
-    if (seq_id != expected_seq_id) {
-        uint64_t adj_expected_seq_id = (expected_seq_id == 0) ? 4096 : expected_seq_id;
-        uint64_t adj_seq_id          = (seq_id < adj_expected_seq_id) ? (4096 + seq_id) : seq_id;
-        uint64_t seq_id_difference   = adj_seq_id - adj_expected_seq_id;
-        ret_val += 2;
-        ++num_bad_seq_id;
-        ++total_bad_seq_id;
-        ++stream_stats[unique_str_id].num_bad_seq_id;
-        if (seq_id_difference > max_seq_id_skip) {max_seq_id_skip = seq_id_difference;}
-        if (seq_id_difference > stream_stats[unique_str_id].max_seq_id_skip) {stream_stats[unique_str_id].max_seq_id_skip = seq_id_difference;}
-    }
-
-    return ret_val;
-}
-
-static inline int check_packet_size(struct rte_mbuf* mbuf, StreamUID unique_str_id){
-    std::size_t packet_size = mbuf->data_len;
-
-    if (packet_size > max_payload_size) {max_payload_size = packet_size;}
-    if (packet_size < min_payload_size) {min_payload_size = packet_size;}
-    if (packet_size > stream_stats[unique_str_id].max_payload_size) {stream_stats[unique_str_id].max_payload_size = packet_size;}
-    if (packet_size < stream_stats[unique_str_id].min_payload_size) {stream_stats[unique_str_id].min_payload_size = packet_size;}
-
-    if (expected_packet_size and (packet_size != expected_packet_size)){
-        ++num_bad_payload_size;
-        ++total_bad_payload_size;
-        ++stream_stats[unique_str_id].num_bad_payload_size;
-        return 1;
-    }
-    return 0;
-}
-
 static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t time_per_report){
     /*
      * Check that the iface is on the same NUMA node as the polling thread
@@ -226,14 +121,92 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     auto stats = std::thread([&]() {
 
          auto service = opmonlib::makeOpmonService("stdout");			       
-
+	 int64_t udp_pkt_counter = 0;
+	 int64_t total_bad_seq_id = 0;
+	 int64_t total_bad_timestamp = 0;
+	 int64_t total_bad_payload_size = 0;
+	 int64_t max_timestamp_skip = 0;
+	 int64_t max_seq_id_skip = 0;
+	 int64_t min_payload_size = std::numeric_limits<int64_t>::max();
+	 int64_t max_payload_size = std::numeric_limits<int64_t>::min();
+	 
+	 
          while (true) {
-            opmonlib::InfoCollector ic;
-	   
-            uint64_t packets_per_second = num_packets / time_per_report;
+
+	    opmonlib::InfoCollector ic;
+
+	    uint64_t packets_per_second = num_packets / time_per_report;
             uint64_t bytes_per_second   = num_bytes   / time_per_report;
+
+	    auto receiver_stats_by_stream = processor.get_and_reset_stream_stats();
+	    
+	    int64_t num_bad_seq_id = 0;
+	    int64_t num_bad_timestamp = 0;
+	    int64_t num_bad_payload_size = 0;
+	    
+            num_packets.exchange(0);
+            num_bytes.exchange(0);
+	    
+            for ( auto& [suid, stats] : receiver_stats_by_stream) {
+
+		receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
+
+		fmt::print("\nStream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, derived_stats.total_packets);
+                if (per_stream_reports){
+
+		  std::stringstream seqidstr;
+		  if (expected_seq_id_step != PacketInfoAccumulator::s_ignorable_value) {
+		    seqidstr << derived_stats.bad_seq_id_packets_per_second;
+		  } else {
+		    seqidstr << "(ignored)";
+		  }
+
+		  std::stringstream timestampstr;
+		  if (expected_timestamp_step != PacketInfoAccumulator::s_ignorable_value) {
+		    timestampstr << derived_stats.bad_ts_packets_per_second;
+		  } else {
+		    timestampstr << "(ignored)";
+		  }
+
+		  std::stringstream sizestr;
+		  if (expected_packet_size != PacketInfoAccumulator::s_ignorable_value) {
+		    sizestr << derived_stats.bad_size_packets_per_second;
+		  } else {
+		    sizestr << "(ignored)";
+		  }
+		  
+                    fmt::print(
+                        " {:8.3f} MiB/s, seq. jumps/s: {}, ts jumps/s: {}, unexpected size/s: {}", 
+                        derived_stats.bytes_per_second / (1024.*1024.), seqidstr.str(), timestampstr.str(), sizestr.str()
+			       );
+                }
+
+		udp_pkt_counter += receiver_stats_by_stream[suid].packets_since_last_reset;
+
+		num_bad_seq_id += receiver_stats_by_stream[suid].bad_seq_ids_since_last_reset;
+		num_bad_timestamp += receiver_stats_by_stream[suid].bad_timestamps_since_last_reset;
+		num_bad_payload_size += receiver_stats_by_stream[suid].bad_sizes_since_last_reset;
+		
+		max_seq_id_skip = derived_stats.max_bad_seq_id_deviation > max_seq_id_skip ? derived_stats.max_bad_seq_id_deviation : max_seq_id_skip;
+		max_timestamp_skip = derived_stats.max_bad_ts_deviation > max_timestamp_skip ? derived_stats.max_bad_ts_deviation : max_timestamp_skip;
+		max_payload_size = receiver_stats_by_stream[suid].max_packet_size > max_payload_size ?
+		  receiver_stats_by_stream[suid].max_packet_size : max_payload_size;
+		min_payload_size = receiver_stats_by_stream[suid].min_packet_size < min_payload_size ?
+										    receiver_stats_by_stream[suid].min_packet_size : min_payload_size;
+		
+		opmonlib::InfoCollector tmp_ic;
+
+		tmp_ic.add(derived_stats);
+
+		ic.add(udp::get_opmon_string(suid), tmp_ic);
+            }
+
+	    total_bad_seq_id += num_bad_seq_id;
+	    total_bad_timestamp += num_bad_timestamp;
+	    total_bad_payload_size += num_bad_payload_size;
+	    
             fmt::print(
-                "Since the last report {} seconds ago:\n"
+                "\nSince the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
                 "Max udp payload: {}, Min udp payload: {}\n",
@@ -243,53 +216,22 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 max_payload_size, min_payload_size
             );
 
-            if (expected_packet_size){
+            if (expected_packet_size != PacketInfoAccumulator::s_ignorable_value){
                 fmt::print(
                     "Packets with wrong payload size: {}, Total Packets with Wrong size {}\n",
                     num_bad_payload_size, total_bad_payload_size
                 );
             }
 
-            if (check_timestamp) {
+            if (expected_timestamp_step != PacketInfoAccumulator::s_ignorable_value) {
                 fmt::print(
-                    "Wrong Timestamp difference Packets: {}, Max wrong Timestamp difference {}, Total Packets with Wrong Timestamp {}\n",
+                    "Wrong Timestamp difference Packets: {}, Max wrong Timestamp difference overall {}, Total Packets with Wrong Timestamp {}\n",
                     num_bad_timestamp, max_timestamp_skip, total_bad_timestamp
                 );
             }
 
             fmt::print("\n");
 
-
-	    auto receiver_stats_by_stream = processor.get_and_reset_stream_stats();
-	    
-            for ( auto& [suid, stats] : stream_stats) {
-                fmt::print("\nStream {:15}: n.pkts {} (tot. {})", (std::string)suid, stats.num_packets, stats.total_packets);
-                if (per_stream_reports){
-                    float stream_bytes_per_second = (float)stats.num_bytes / (1024.*1024.) / (float)time_per_report;
-                    fmt::print(
-                        " {:8.3f} MB/s, seq. jumps: {}", 
-                        stream_bytes_per_second, stats.num_bad_seq_id
-                    );
-                }
-                stats.reset();
-                fmt::print("\n");
-
-		receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_by_stream[suid], time_per_report);
-
-		fmt::print("Stream {:15}: n.pkts {} (tot. {})", (std::string)suid, receiver_stats_by_stream[suid].packets_since_last_reset, derived_stats.total_packets);
-                if (per_stream_reports){
-                    fmt::print(
-                        " {:8.3f} MB/s, seq. jumps/s: {}", 
-                        derived_stats.bytes_per_second / (1024.*1024.), derived_stats.bad_seq_id_packets_per_second
-                    );
-                }
-
-		opmonlib::InfoCollector tmp_ic;
-
-		tmp_ic.add(derived_stats);
-
-		ic.add(udp::get_opmon_string(suid), tmp_ic);
-            }
 
 		// Following logic taken from InfoManager::gather_info in opmonlib
 		nlohmann::json j_info;
@@ -299,23 +241,8 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
 		j_parent[opmonlib::JSONTags::parent] = {};
 		j_parent[opmonlib::JSONTags::parent].swap(j_info[opmonlib::JSONTags::children]);
 		j_parent[opmonlib::JSONTags::tags] = { { "partition_id", "test_frame_receiver_partition" } } ;
-		service->publish(j_parent);
+		//service->publish(j_parent);
 
-	    
-
-
-	    
-
-            fmt::print("\n");
-            num_packets.exchange(0);
-            num_bytes.exchange(0);
-            num_bad_timestamp.exchange(0);
-            num_bad_seq_id.exchange(0);
-            num_bad_payload_size.exchange(0);
-            max_payload_size.exchange(0);
-            min_payload_size.exchange(0);
-            max_seq_id_skip.exchange(0);
-            max_timestamp_skip.exchange(0);
             std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
         }
     });
@@ -345,34 +272,16 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 dump_packet = true;
                 continue;
             }
-            ++udp_pkt_counter;
 
-	    processor.process_packet(bufs[i_b]);
+	    bool bad_seq_id_found = false;
+	    bool bad_timestamp_found = false;
+	    bool bad_payload_size_found = false;
 	    
-            char* udp_payload = udp::get_udp_payload(bufs[i_b]);
-            const detdataformats::DAQEthHeader* daq_hdr = reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload);
+	    processor.process_packet(bufs[i_b], bad_seq_id_found, bad_timestamp_found, bad_payload_size_found);
 
-            // uint64_t unique_str_id = (daq_hdr->det_id<<22) + (daq_hdr->crate_id<<12) + (daq_hdr->slot_id<<8) + daq_hdr->stream_id;
-            StreamUID unique_str_id { *daq_hdr } ; 
-            // if ((udp_pkt_counter % 1000000) == 0 ) {
-            //     std::cout << "\nDAQ HEADER:\n" << *daq_hdr<< "\n";
-            // }
-            if (stream_stats.find(unique_str_id) == stream_stats.end()) {
-                stream_stats[unique_str_id];
-                stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id - 1;
+            if (bad_seq_id_found || bad_timestamp_found || bad_payload_size_found) {
+	      dump_packet = true;
             }
-            stream_stats[unique_str_id].num_bytes += bufs[i_b]->pkt_len;
-
-            if (check_against_previous_stream(daq_hdr, expected_timestamp_step) != 0){
-                dump_packet = true;
-            }
-            if (check_packet_size(bufs[i_b], unique_str_id) != 0){
-                dump_packet = true;
-            }
-
-            ++stream_stats[unique_str_id].total_packets;
-            ++stream_stats[unique_str_id].num_packets;
-            stream_stats[unique_str_id].prev_seq_id = daq_hdr->seq_id;
 
             if (dump_packet && dumped_packet_count < max_packets_to_dump) {
                 dumped_packet_count++;
@@ -409,6 +318,8 @@ int main(int argc, char** argv){
     app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
 
+    processor.set_expected_packet_size(expected_packet_size);
+    
     //    define function to be called when ctrl+c is called.
     std::signal(SIGINT, signal_callback_handler);
     

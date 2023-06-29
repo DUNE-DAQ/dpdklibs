@@ -143,11 +143,19 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
       m_expected_size(expected_size)
     {}
 
-    void process_packet(const rte_mbuf *mbuf);
+    // Set the booleans you pass to this function to false; they'll
+    // get set to true if (1) the constructor for the instance of this
+    // class was given an expected value for the error mode in
+    // question that wasn't "s_ignorable_value", and (2) an error was
+    // actually found
+    
+    void process_packet(const rte_mbuf *mbuf, bool& bad_seq_id_found, bool& bad_timestamp_found, bool& bad_payload_size_found);
     void reset();
     void dump();
 
     std::map<StreamUID, ReceiverStats> get_and_reset_stream_stats(); 
+
+    void set_expected_packet_size(int64_t packet_size) { m_expected_size = packet_size; }
     
     PacketInfoAccumulator(const PacketInfoAccumulator&) = delete;           
     PacketInfoAccumulator& operator=(const PacketInfoAccumulator&) = delete;
@@ -161,7 +169,7 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     std::map<StreamUID, ReceiverStats> m_stream_stats;
     const int64_t m_expected_seq_id_step;
     const int64_t m_expected_timestamp_step;
-    const int64_t m_expected_size;
+    int64_t m_expected_size;
 
     std::map<StreamUID, int64_t> m_stream_last_timestamp;
     std::map<StreamUID, int64_t> m_stream_last_seq_id;

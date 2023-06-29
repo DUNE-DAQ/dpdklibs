@@ -272,7 +272,7 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
   return ss.str();
 }
 
-void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
+void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf, bool& bad_seq_id_found, bool& bad_timestamp_found, bool& bad_payload_size_found) {
   std::lock_guard<std::mutex> l(m_mutex); 
   
   const char* udp_payload = udp::get_udp_payload(mbuf);
@@ -305,6 +305,7 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
   if (m_expected_size != s_ignorable_value) {
     if (mbuf->data_len != m_expected_size) {
       m_stream_stats[unique_str_id].bad_sizes_since_last_reset++;
+      bad_payload_size_found = true;
     }
   }
   
@@ -317,7 +318,8 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
       
       if (timestamp_delta != 0) {
 	m_stream_stats[unique_str_id].bad_timestamps_since_last_reset++;
-
+	bad_timestamp_found = true;
+	
 	if (timestamp_delta < 0) {
 	  timestamp_delta = -timestamp_delta;
 	}
@@ -343,7 +345,8 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf) {
       
       if (seq_id_delta != 0) {
 	m_stream_stats[unique_str_id].bad_seq_ids_since_last_reset++;
-
+	bad_seq_id_found = true;
+	
 	if (seq_id_delta < 0) {
 	  seq_id_delta = -seq_id_delta;
 	}
