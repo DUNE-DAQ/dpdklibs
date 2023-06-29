@@ -65,6 +65,7 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
           // Check for UDP frames
           //if (pkt_type == RTE_PTYPE_L4_UDP) {
             // Check for JUMBO frames
+	  bool dummy = false;
           if (m_bufs[src_rx_q][i_b]->pkt_len > 7000) { // do proper check on data length later
             // Handle them.
             std::size_t data_len = m_bufs[src_rx_q][i_b]->data_len;
@@ -73,7 +74,7 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
             m_num_frames[src_rx_q]++;
             m_num_bytes[src_rx_q] += data_len;
 
-	    m_accum_ptr->process_packet(m_bufs[src_rx_q][i_b]);
+	    m_accum_ptr->process_packet(m_bufs[src_rx_q][i_b], dummy, dummy, dummy);
           }
         }
 
