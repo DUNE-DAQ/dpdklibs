@@ -73,8 +73,6 @@ NICReceiver::rx_runner(void *arg __rte_unused) {
             handle_eth_payload(src_rx_q, message, data_len);
             m_num_frames[src_rx_q]++;
             m_num_bytes[src_rx_q] += data_len;
-
-	    m_accum_ptr->process_packet(m_bufs[src_rx_q][i_b], dummy, dummy, dummy);
           }
         }
 

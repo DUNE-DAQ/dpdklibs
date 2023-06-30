@@ -282,9 +282,9 @@ void PacketInfoAccumulator::process_packet(const rte_mbuf *mbuf, bool& bad_seq_i
   }
     
   const auto daq_hdr { *reinterpret_cast<const detdataformats::DAQEthHeader*>(udp_payload) };
-
-  StreamUID unique_str_id(daq_hdr);
   
+  StreamUID unique_str_id(daq_hdr);
+   
   // std::map::contains is available in C++20...
   if (m_stream_stats.find(unique_str_id) == m_stream_stats.end()) {
     m_stream_stats[unique_str_id] = ReceiverStats();    
@@ -410,6 +410,27 @@ ReceiverStats::operator std::string() const {
 
   return reportstr.str();
 }
+
+ReceiverStats merge(const std::vector<ReceiverStats>& stats_vector) {
+
+  ReceiverStats result;
+
+  for (auto& stats : stats_vector) {
+    result.total_packets += stats.total_packets;
+    result.min_packet_size = result.min_packet_size < stats.min_packet_size ? result.min_packet_size : stats.min_packet_size;
+    result.max_packet_size = result.max_packet_size > stats.max_packet_size ? result.max_packet_size : stats.max_packet_size;
+    result.max_timestamp_deviation = result.max_timestamp_deviation > stats.max_timestamp_deviation ? result.max_timestamp_deviation : stats.max_timestamp_deviation;
+    result.max_seq_id_deviation = result.max_seq_id_deviation > stats.max_seq_id_deviation ? result.max_seq_id_deviation : stats.max_seq_id_deviation;
+    result.packets_since_last_reset += stats.packets_since_last_reset;
+    result.bytes_since_last_reset += stats.bytes_since_last_reset;
+    result.bad_timestamps_since_last_reset += stats.bad_timestamps_since_last_reset;
+    result.bad_sizes_since_last_reset += stats.bad_sizes_since_last_reset;
+    result.bad_seq_ids_since_last_reset += stats.bad_seq_ids_since_last_reset;
+  }
+
+  return result;
+}
+
 
 receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report) {
 

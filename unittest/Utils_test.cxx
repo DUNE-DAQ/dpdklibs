@@ -156,7 +156,56 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second, 0); 
   BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second, 0);
 
+  udp::ReceiverStats stats1;
+  udp::ReceiverStats stats2;
+
+  stats1.total_packets = 1;
+  stats2.total_packets = 2;
+
+  stats1.min_packet_size = 100;
+  stats2.min_packet_size = 200;
+
+  stats1.max_packet_size = 300;
+  stats2.max_packet_size = 400;
+
+  stats1.max_timestamp_deviation = 600;
+  stats2.max_timestamp_deviation = 500;
+
+  stats1.max_seq_id_deviation = 17;
+  stats2.max_seq_id_deviation = 0;
+
+  stats1.packets_since_last_reset = 0;
+  stats2.packets_since_last_reset = 314;
+
+  stats1.bytes_since_last_reset = 12;
+  stats2.bytes_since_last_reset = 13;
+
+  stats1.bad_timestamps_since_last_reset = 22;
+  stats2.bad_timestamps_since_last_reset = 23;
+
+  stats1.bad_sizes_since_last_reset = 32;
+  stats2.bad_sizes_since_last_reset = 33;
+
+  stats1.bad_seq_ids_since_last_reset = 52;
+  stats2.bad_seq_ids_since_last_reset = 53;
+
+  std::vector<udp::ReceiverStats> stats_vec;
+  stats_vec.emplace_back( stats1 );
+  stats_vec.emplace_back( stats2 );
   
+  udp::ReceiverStats result = udp::merge(stats_vec);
+
+  BOOST_REQUIRE_EQUAL(result.total_packets, 3);
+  BOOST_REQUIRE_EQUAL(result.min_packet_size, 100);
+  BOOST_REQUIRE_EQUAL(result.max_packet_size, 400);
+  BOOST_REQUIRE_EQUAL(result.max_timestamp_deviation, 600);
+  BOOST_REQUIRE_EQUAL(result.max_seq_id_deviation, 17);
+  BOOST_REQUIRE_EQUAL(result.packets_since_last_reset, 314);
+  BOOST_REQUIRE_EQUAL(result.bytes_since_last_reset, 25);
+  BOOST_REQUIRE_EQUAL(result.bad_timestamps_since_last_reset, 45);
+  BOOST_REQUIRE_EQUAL(result.bad_sizes_since_last_reset, 65);
+  BOOST_REQUIRE_EQUAL(result.bad_seq_ids_since_last_reset, 105);
+
 }
 
 

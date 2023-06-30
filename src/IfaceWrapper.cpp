@@ -217,6 +217,8 @@ IfaceWrapper::conf(const iface_conf_t& args)
 
   }
 
+  m_accum_ptr.reset( new udp::PacketInfoAccumulator() ); // Constructor arguments should be configurable...
+
 }
 
 void
@@ -224,7 +226,9 @@ IfaceWrapper::start()
 {
   m_stat_thread = std::thread([&]() {
     TLOG() << "Launching stat thread of iface=" << m_iface_id;
+
     while (m_run_marker.load()) {
+      
       for (auto& [qid, nframes] : m_num_frames_rxq) { // check for new frames
         if (nframes.load() > 0) {
           auto nbytes = m_num_bytes_rxq[qid].load();
@@ -242,6 +246,7 @@ IfaceWrapper::start()
           nframes.exchange(0);
         }
       }
+      
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });

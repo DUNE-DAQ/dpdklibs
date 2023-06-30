@@ -79,6 +79,9 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
       return std::tie(det_id, crate_id, slot_id, stream_id) < std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id);
     }
 
+    bool operator==(const StreamUID& rhs) const {
+      return det_id == rhs.det_id && crate_id == rhs.crate_id && slot_id == rhs.slot_id && stream_id == rhs.stream_id;
+    }    
     operator std::string() const {
       return fmt::format("({}, {}, {}, {})", det_id, crate_id, slot_id, stream_id);
     }
@@ -120,6 +123,12 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     operator std::string() const;
   };
 
+  // Probably more efficient than implementing a "+" operator in
+  // ReceiverStats, so we don't keep creating/copying instances of the
+  // struct
+  
+  ReceiverStats merge(const std::vector<ReceiverStats>& stats_vector);
+  
   // Derive quantities (e.g., bytes/s) from a ReceiverStats object and store it in a jsonnet-based struct
   receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report);
 
