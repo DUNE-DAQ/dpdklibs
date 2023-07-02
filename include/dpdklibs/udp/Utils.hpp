@@ -94,23 +94,23 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
   std::string get_opmon_string(const StreamUID& sid);
 
 
-  // ReceiverStats contains no rates, just counts, mins and
-  // maxes. This way you can add ReceiverStats objects across threads
-  // if you wish.
-  
   struct ReceiverStats {
 
-    int64_t total_packets = 0;
-    int64_t min_packet_size = std::numeric_limits<int64_t>::max();
-    int64_t max_packet_size = std::numeric_limits<int64_t>::min();
-    int64_t max_timestamp_deviation = 0; // In absolute terms (positive *or* negative)
-    int64_t max_seq_id_deviation = 0;     // " " "
+    std::atomic<int64_t> total_packets = 0;
+    std::atomic<int64_t> min_packet_size = std::numeric_limits<int64_t>::max();
+    std::atomic<int64_t> max_packet_size = std::numeric_limits<int64_t>::min();
+    std::atomic<int64_t> max_timestamp_deviation = 0; // In absolute terms (positive *or* negative)
+    std::atomic<int64_t> max_seq_id_deviation = 0;     // " " "
+    
+    std::atomic<int64_t> packets_since_last_reset = 0;
+    std::atomic<int64_t> bytes_since_last_reset = 0;
+    std::atomic<int64_t> bad_timestamps_since_last_reset = 0;
+    std::atomic<int64_t> bad_sizes_since_last_reset = 0;
+    std::atomic<int64_t> bad_seq_ids_since_last_reset = 0;
 
-    int64_t packets_since_last_reset = 0;
-    int64_t bytes_since_last_reset = 0;
-    int64_t bad_timestamps_since_last_reset = 0;
-    int64_t bad_sizes_since_last_reset = 0;
-    int64_t bad_seq_ids_since_last_reset = 0;
+    ReceiverStats() = default;
+    ReceiverStats(const ReceiverStats& rhs);
+    ReceiverStats& operator=(const ReceiverStats& rhs);
 
     void reset() {
       packets_since_last_reset = 0;
@@ -120,14 +120,10 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
       bad_seq_ids_since_last_reset = 0;
     }
 
+    void merge(const std::vector<ReceiverStats>& stats_vector);
+    
     operator std::string() const;
   };
-
-  // Probably more efficient than implementing a "+" operator in
-  // ReceiverStats, so we don't keep creating/copying instances of the
-  // struct
-  
-  ReceiverStats merge(const std::vector<ReceiverStats>& stats_vector);
   
   // Derive quantities (e.g., bytes/s) from a ReceiverStats object and store it in a jsonnet-based struct
   receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report);
@@ -146,24 +142,22 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     
     PacketInfoAccumulator(int64_t expected_seq_id_step = s_ignorable_value,
 			  int64_t expected_timestamp_step = s_ignorable_value,
-			  int64_t expected_size = s_ignorable_value) :
-      m_expected_seq_id_step(expected_seq_id_step),
-      m_expected_timestamp_step(expected_timestamp_step),
-      m_expected_size(expected_size)
-    {}
+			  int64_t expected_size = s_ignorable_value);
 
-    // Set the booleans you pass to this function to false; they'll
-    // get set to true if (1) the constructor for the instance of this
-    // class was given an expected value for the error mode in
-    // question that wasn't "s_ignorable_value", and (2) an error was
-    // actually found
-    
-    void process_packet(const rte_mbuf *mbuf, bool& bad_seq_id_found, bool& bad_timestamp_found, bool& bad_payload_size_found);
+
+    void process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len);
     void reset();
     void dump();
 
+    // get_and_reset_stream_stats() will take each per-stream statistic
+    // and reset the values used to calculate rates (packets per
+    // second, etc.)
+    
     std::map<StreamUID, ReceiverStats> get_and_reset_stream_stats(); 
 
+    // erase_stream_stats() is what you'd call between runs, so, e.g., your total packet count doesn't persist
+    void erase_stream_stats(); 
+    
     void set_expected_packet_size(int64_t packet_size) { m_expected_size = packet_size; }
     
     PacketInfoAccumulator(const PacketInfoAccumulator&) = delete;           
@@ -175,15 +169,17 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     
   private:
 
-    std::map<StreamUID, ReceiverStats> m_stream_stats;
+    std::map<StreamUID, ReceiverStats> m_stream_stats_atomic;
+    
     const int64_t m_expected_seq_id_step;
+
     const int64_t m_expected_timestamp_step;
     int64_t m_expected_size;
 
+    int64_t m_next_expected_seq_id[s_max_seq_id + 1];
+
     std::map<StreamUID, int64_t> m_stream_last_timestamp;
     std::map<StreamUID, int64_t> m_stream_last_seq_id;
-
-    std::mutex m_mutex;
   };
 
   

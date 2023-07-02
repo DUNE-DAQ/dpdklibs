@@ -17,7 +17,9 @@
 
 #include <fstream>
 #include <limits>
+#include <map>
 #include <string>
+#include <unordered_map>
 
 using namespace dunedaq::dpdklibs;
 
@@ -193,7 +195,8 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   stats_vec.emplace_back( stats1 );
   stats_vec.emplace_back( stats2 );
   
-  udp::ReceiverStats result = udp::merge(stats_vec);
+  udp::ReceiverStats result;
+  result.merge(stats_vec);
 
   BOOST_REQUIRE_EQUAL(result.total_packets, 3);
   BOOST_REQUIRE_EQUAL(result.min_packet_size, 100);
@@ -205,6 +208,42 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   BOOST_REQUIRE_EQUAL(result.bad_timestamps_since_last_reset, 45);
   BOOST_REQUIRE_EQUAL(result.bad_sizes_since_last_reset, 65);
   BOOST_REQUIRE_EQUAL(result.bad_seq_ids_since_last_reset, 105);
+
+  std::map<udp::StreamUID, udp::ReceiverStats> am;
+  std::map<udp::StreamUID, udp::ReceiverStats> am2;
+  //  std::unordered_map<udp::StreamUID, udp::ReceiverStats> uam;
+
+  udp::StreamUID mystream;
+  mystream.det_id = 3;
+  mystream.crate_id = 1;
+  mystream.slot_id = 2;
+  mystream.stream_id = 64;
+
+  am[mystream]; // = udp::ReceiverStats();
+  am2[mystream]; // = udp::ReceiverStats();
+  //  uam[mystream] = udp::ReceiverStats();
+
+  am[mystream].total_packets = 49;
+  am2[mystream].total_packets = 149;
+  //  uam[mystream].total_packets = 149;
+
+  BOOST_REQUIRE_EQUAL(am[mystream].total_packets + 100, am2[mystream].total_packets);
+  BOOST_REQUIRE_EQUAL(am[mystream].total_packets + 100 + am2[mystream].total_packets, 298);
+
+
+  am[mystream].packets_since_last_reset = 10;
+  am[mystream].reset();
+  BOOST_REQUIRE_EQUAL(am[mystream].packets_since_last_reset, 0);
+
+  std::map<udp::StreamUID, udp::ReceiverStats> am3 = am;
+
+  udp::ReceiverStats default_constructed;
+  BOOST_REQUIRE_EQUAL(default_constructed.max_packet_size, std::numeric_limits<int64_t>::min());
+
+  default_constructed.max_packet_size = std::numeric_limits<int64_t>::max() ;
+
+  udp::ReceiverStats assigned = default_constructed;
+  BOOST_REQUIRE_EQUAL(assigned.max_packet_size, std::numeric_limits<int64_t>::max());
 
 }
 

@@ -39,7 +39,6 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         }
         
 
-	bool dummy = false; // Value doesn't matter; see below
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
@@ -74,8 +73,6 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
             handle_eth_payload(src_rx_q, message, data_len);
             m_num_frames_rxq[src_rx_q]++;
             m_num_bytes_rxq[src_rx_q] += data_len;
-
-	    m_accum_ptr->process_packet(m_bufs[src_rx_q][i_b], dummy, dummy, dummy);
           }
         }
 

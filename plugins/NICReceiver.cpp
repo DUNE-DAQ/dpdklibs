@@ -259,24 +259,36 @@ NICReceiver::do_start(const data_t&)
   TLOG() << get_name() << ": Entering do_start() method";
 
   m_stat_thread = std::thread([&]() {
-  				TLOG() << "Inside the stats reporting thread";			       
-        uint64_t time_per_report = 1; // In seconds
 
+        uint64_t time_per_report = 10; // In seconds
+	std::atomic<bool> last_run_marker_value = m_run_marker.load();
+	std::atomic<bool> current_run_marker = false;
+	
         while (true) {
+
+	  std::chrono::steady_clock::time_point loop_start_time = std::chrono::steady_clock::now();
+	  
+	  current_run_marker = m_run_marker.load();
+	  if (current_run_marker == false && last_run_marker_value == true) {
+	    break;
+	  } else {
+	    last_run_marker_value = current_run_marker.load();
+	  }
 
 	  std::map<udp::StreamUID, udp::ReceiverStats> receiver_stats_across_ifaces;
   
 	  for (auto& [iface_id, iface] : m_ifaces) {
 	    auto receiver_stats_by_stream = iface->get_and_reset_stream_stats();
-    
+
+	    
 	    for (auto& [suid, stats] : receiver_stats_by_stream) {
 
 	      // std::map::contains is available in C++20...
 	      if (receiver_stats_across_ifaces.find(suid) == receiver_stats_across_ifaces.end()) {
-		receiver_stats_across_ifaces[suid] = udp::ReceiverStats();    
+		receiver_stats_across_ifaces[suid];
 	      }
       
-	      receiver_stats_across_ifaces[suid] = udp::merge( {receiver_stats_across_ifaces[suid], receiver_stats_by_stream[suid]} );
+	      receiver_stats_across_ifaces[suid].merge( { receiver_stats_by_stream[suid]} );
 	    }
 	  }
 
@@ -285,9 +297,6 @@ NICReceiver::do_start(const data_t&)
 	  for (auto& [suid, stats] : receiver_stats_across_ifaces) {
 	  
 	    receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_across_ifaces[suid], time_per_report);
-
-	    TLOG() << "Stream " << static_cast<std::string>(suid) << ": n.pkts " << receiver_stats_across_ifaces[suid].packets_since_last_reset << "(tot. " << derived_stats.total_packets << ") " << derived_stats.bytes_per_second / (1024.*1024.) << " MiB/s";
-
 	    opmonlib::InfoCollector tmp_ic;
 	    tmp_ic.add(derived_stats);
 	    ic.add(udp::get_opmon_string(suid), tmp_ic);
@@ -298,7 +307,7 @@ NICReceiver::do_start(const data_t&)
 	    m_ic = ic;
 	  }
 
-	  std::this_thread::sleep_for(std::chrono::seconds(time_per_report));
+	  std::this_thread::sleep_until(loop_start_time + std::chrono::milliseconds(1000*time_per_report));
         }
 			      });
 
@@ -362,7 +371,6 @@ NICReceiver::do_scrap(const data_t&)
 void
 NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 {
-  TLOG() << "Get info just called";
   
   {
     std::lock_guard<std::mutex> l(m_ic_mutex);

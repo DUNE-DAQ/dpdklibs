@@ -101,10 +101,12 @@ int main(int argc, char* argv[]) {
 
   rte_mbuf_sanity_check(bufs[0], 1);
 
+  char* udp_payload = udp::get_udp_payload(bufs[0]);
+  auto daq_hdr = reinterpret_cast<detdataformats::DAQEthHeader*>(udp_payload);
+  
   PacketInfoAccumulator processor;
-  bool dummy; 
-  processor.process_packet(bufs[0], dummy, dummy, dummy);
-  processor.process_packet(bufs[0], dummy, dummy, dummy);
+  processor.process_packet(*daq_hdr, bufs[0]->data_len);
+  processor.process_packet(*daq_hdr, bufs[0]->data_len);
 
   TLOG() << "Dump after processing two identical packets while ignoring size, timestamp and sequence ID: ";
   processor.dump();
@@ -114,8 +116,8 @@ int main(int argc, char* argv[]) {
 
   PacketInfoAccumulator processor2(0, 0, bufs[0]->data_len);
   TLOG() << "Dump after processing two identical packets while expecting no change in the sequence ID and timestamp, and setting a (correct) expectation about the packet sizes: ";
-  processor2.process_packet(bufs[0], dummy, dummy, dummy);
-  processor2.process_packet(bufs[0], dummy, dummy, dummy);
+  processor2.process_packet(*daq_hdr, bufs[0]->data_len);
+  processor2.process_packet(*daq_hdr, bufs[0]->data_len);
   processor2.dump();
 
   // Expected step in sequence ID and timestamp is 1, expected size in
@@ -125,17 +127,16 @@ int main(int argc, char* argv[]) {
   TLOG() << "Dump after processing two identical packets while incorrectly expecting the sequence ID and timestamp to increment by 1, and incorrectly expecting the packet size to be 999 bytes: ";
   
   PacketInfoAccumulator processor3(1, 1, 999);
-  processor3.process_packet(bufs[0], dummy, dummy, dummy);
-  processor3.process_packet(bufs[0], dummy, dummy, dummy);
+  processor3.process_packet(*daq_hdr, bufs[0]->data_len);
+  processor3.process_packet(*daq_hdr, bufs[0]->data_len);
   processor3.dump();  
 
   // Make the constructed packet appear as if it's from a different stream
-  char* udp_payload = udp::get_udp_payload(bufs[0]);
-  auto daq_hdr = reinterpret_cast<detdataformats::DAQEthHeader*>(udp_payload);
+
   daq_hdr->stream_id++ ; 
 
-  processor3.process_packet(bufs[0], dummy, dummy, dummy);
-  processor3.process_packet(bufs[0], dummy, dummy, dummy);
+  processor3.process_packet(*daq_hdr, bufs[0]->data_len);
+  processor3.process_packet(*daq_hdr, bufs[0]->data_len);
 
   TLOG() << "Dump after adding two more packets, where I've changed the stream. Should get reports for two different streams now: ";
   processor3.dump();
