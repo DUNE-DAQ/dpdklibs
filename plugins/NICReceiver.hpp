@@ -8,6 +8,8 @@
 #ifndef DPDKLIBS_PLUGINS_NICRECEIVER_HPP_
 #define DPDKLIBS_PLUGINS_NICRECEIVER_HPP_
 
+#include "dpdklibs/udp/Utils.hpp"
+
 #include "appfwk/app/Nljs.hpp"
 #include "appfwk/cmd/Nljs.hpp"
 #include "appfwk/cmd/Structs.hpp"
@@ -28,6 +30,7 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -113,6 +116,12 @@ private:
   // Opmon
   std::atomic<int> m_total_groups_sent {0};
   std::atomic<int> m_groups_sent {0};
+
+  std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
+  bool m_per_stream_reports = true;
+
+  opmonlib::InfoCollector m_ic;
+  std::mutex m_ic_mutex;
 };
 
 } // namespace dunedaq::dpdklibs

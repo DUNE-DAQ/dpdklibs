@@ -53,6 +53,10 @@ public:
   void setup_interface();
   void setup_flow_steering();
 
+  std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
+    return m_accum.get_and_reset_stream_stats();
+  }
+  
 protected:
   iface_conf_t m_cfg;
   int m_iface_id;
@@ -104,6 +108,8 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
+  udp::PacketInfoAccumulator m_accum;
+  
   // Lcore processor
   //template<class T> 
   int rx_runner(void *arg __rte_unused);

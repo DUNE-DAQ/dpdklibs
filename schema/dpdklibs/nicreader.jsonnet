@@ -69,12 +69,21 @@ local nicreader = {
 
     ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),
 
+    // stats : s.record("StatsReporting", [
+    // 	s.field("expected_seq_id_step", self.big_count, -999, doc="Expected sequence ID increase per packet in a stream"),
+    //     s.field("expected_timestamp_step", self.big_count, -999, doc="Expected timestamp increase per packet in a stream"),
+    // 	s.field("expected_packet_size", self.big_count, -999, doc="Expected packet size")
+    // 	], doc="Source field"),
+
     conf: s.record("Conf", [
         s.field("ifaces", self.ifaces,
                 doc="List of interfaces to configure"),
 
         s.field("eal_arg_list", self.string, "",
-                doc="A string with EAL arguments")
+                doc="A string with EAL arguments"),
+
+//        s.field("stats", self.stats,
+//		doc="Control over how stats are reported (see PacketInfoAccumulator class)")
 
     ], doc="Generic UIO reader DAQ Module Configuration"),
 

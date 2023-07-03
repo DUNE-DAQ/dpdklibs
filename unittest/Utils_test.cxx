@@ -16,7 +16,10 @@
 #include "boost/test/unit_test.hpp"
 
 #include <fstream>
+#include <limits>
+#include <map>
 #include <string>
+#include <unordered_map>
 
 using namespace dunedaq::dpdklibs;
 
@@ -112,4 +115,138 @@ BOOST_AUTO_TEST_CASE(GetEthernetPackets)
 
 }
 
+
+BOOST_AUTO_TEST_CASE(TestReceiverStats)
+{
+  udp::ReceiverStats stats;
+  constexpr auto biggest_int = std::numeric_limits<uint64_t>::max();
+  
+  stats.total_packets = biggest_int;
+  stats.min_packet_size = biggest_int;
+  stats.max_packet_size = biggest_int;
+  stats.max_timestamp_deviation = biggest_int;
+  stats.max_seq_id_deviation = biggest_int;
+
+  stats.packets_since_last_reset = biggest_int;
+  stats.bytes_since_last_reset = biggest_int;
+  stats.bad_timestamps_since_last_reset = biggest_int;
+  stats.bad_sizes_since_last_reset = biggest_int;
+  stats.bad_seq_ids_since_last_reset = biggest_int;
+  
+  receiverinfo::Info derived = DeriveFromReceiverStats(stats, 2.0); // Pretend we're sampling every two seconds
+
+  BOOST_REQUIRE_EQUAL(derived.total_packets, stats.total_packets);
+  BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.max_bad_ts_deviation, stats.max_timestamp_deviation);
+  BOOST_REQUIRE_EQUAL(derived.max_bad_seq_id_deviation, stats.max_seq_id_deviation);
+  BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
+  BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
+
+  BOOST_REQUIRE_EQUAL(derived.packets_per_second * 2.0, stats.packets_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bytes_per_second * 2.0, stats.bytes_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_ts_packets_per_second * 2.0, stats.bad_timestamps_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second * 2.0, stats.bad_seq_ids_since_last_reset);
+  BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second * 2.0, stats.bad_sizes_since_last_reset);
+
+  stats.reset();
+  derived = DeriveFromReceiverStats(stats, 2.0);
+
+  BOOST_REQUIRE_EQUAL(derived.packets_per_second, 0);
+  BOOST_REQUIRE_EQUAL(derived.bytes_per_second, 0); 
+  BOOST_REQUIRE_EQUAL(derived.bad_ts_packets_per_second, 0);
+  BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second, 0); 
+  BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second, 0);
+
+  udp::ReceiverStats stats1;
+  udp::ReceiverStats stats2;
+
+  stats1.total_packets = 1;
+  stats2.total_packets = 2;
+
+  stats1.min_packet_size = 100;
+  stats2.min_packet_size = 200;
+
+  stats1.max_packet_size = 300;
+  stats2.max_packet_size = 400;
+
+  stats1.max_timestamp_deviation = 600;
+  stats2.max_timestamp_deviation = 500;
+
+  stats1.max_seq_id_deviation = 17;
+  stats2.max_seq_id_deviation = 0;
+
+  stats1.packets_since_last_reset = 0;
+  stats2.packets_since_last_reset = 314;
+
+  stats1.bytes_since_last_reset = 12;
+  stats2.bytes_since_last_reset = 13;
+
+  stats1.bad_timestamps_since_last_reset = 22;
+  stats2.bad_timestamps_since_last_reset = 23;
+
+  stats1.bad_sizes_since_last_reset = 32;
+  stats2.bad_sizes_since_last_reset = 33;
+
+  stats1.bad_seq_ids_since_last_reset = 52;
+  stats2.bad_seq_ids_since_last_reset = 53;
+
+  std::vector<udp::ReceiverStats> stats_vec;
+  stats_vec.emplace_back( stats1 );
+  stats_vec.emplace_back( stats2 );
+  
+  udp::ReceiverStats result;
+  result.merge(stats_vec);
+
+  BOOST_REQUIRE_EQUAL(result.total_packets, 3);
+  BOOST_REQUIRE_EQUAL(result.min_packet_size, 100);
+  BOOST_REQUIRE_EQUAL(result.max_packet_size, 400);
+  BOOST_REQUIRE_EQUAL(result.max_timestamp_deviation, 600);
+  BOOST_REQUIRE_EQUAL(result.max_seq_id_deviation, 17);
+  BOOST_REQUIRE_EQUAL(result.packets_since_last_reset, 314);
+  BOOST_REQUIRE_EQUAL(result.bytes_since_last_reset, 25);
+  BOOST_REQUIRE_EQUAL(result.bad_timestamps_since_last_reset, 45);
+  BOOST_REQUIRE_EQUAL(result.bad_sizes_since_last_reset, 65);
+  BOOST_REQUIRE_EQUAL(result.bad_seq_ids_since_last_reset, 105);
+
+  std::map<udp::StreamUID, udp::ReceiverStats> am;
+  std::map<udp::StreamUID, udp::ReceiverStats> am2;
+  //  std::unordered_map<udp::StreamUID, udp::ReceiverStats> uam;
+
+  udp::StreamUID mystream;
+  mystream.det_id = 3;
+  mystream.crate_id = 1;
+  mystream.slot_id = 2;
+  mystream.stream_id = 64;
+
+  am[mystream]; // = udp::ReceiverStats();
+  am2[mystream]; // = udp::ReceiverStats();
+  //  uam[mystream] = udp::ReceiverStats();
+
+  am[mystream].total_packets = 49;
+  am2[mystream].total_packets = 149;
+  //  uam[mystream].total_packets = 149;
+
+  BOOST_REQUIRE_EQUAL(am[mystream].total_packets + 100, am2[mystream].total_packets);
+  BOOST_REQUIRE_EQUAL(am[mystream].total_packets + 100 + am2[mystream].total_packets, 298);
+
+
+  am[mystream].packets_since_last_reset = 10;
+  am[mystream].reset();
+  BOOST_REQUIRE_EQUAL(am[mystream].packets_since_last_reset, 0);
+
+  std::map<udp::StreamUID, udp::ReceiverStats> am3 = am;
+
+  udp::ReceiverStats default_constructed;
+  BOOST_REQUIRE_EQUAL(default_constructed.max_packet_size, std::numeric_limits<int64_t>::min());
+
+  default_constructed.max_packet_size = std::numeric_limits<int64_t>::max() ;
+
+  udp::ReceiverStats assigned = default_constructed;
+  BOOST_REQUIRE_EQUAL(assigned.max_packet_size, std::numeric_limits<int64_t>::max());
+
+}
+
+
+  
 BOOST_AUTO_TEST_SUITE_END()
