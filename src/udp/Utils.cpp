@@ -310,7 +310,7 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
     m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
     m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
 
-    TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
+    //TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
   }
 
   m_stream_stats_atomic[unique_str_id].total_packets++;

@@ -26,6 +26,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       const uint16_t nb_rx = rte_eth_rx_burst(iface, src_rx_q, m_bufs[src_rx_q], m_burst_size);
       if (nb_rx != 0) {
         // Print first packet for FYI
+        /*
         if (once && m_bufs[src_rx_q][0]->pkt_len > 7000) {
           TLOG() << "lid = " << lid;
           TLOG() << "src_rx_q = " << src_rx_q;
@@ -37,28 +38,28 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           TLOG() << "UDP Header: " << udp_hdr_str;
     	    once = false;
         }
-        
+        */
 
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
           if (m_bufs[src_rx_q][i_b]->nb_segs > 1) {
-	          TLOG() << "It appears a packet is spread across more than one receiving buffer;" 
-                   << " there's currently no logic in this program to handle this";
+	          //TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
+            //               << " there's currently no logic in this program to handle this";
 	        }
 
           // Check packet type
           auto pkt_type = m_bufs[src_rx_q][i_b]->packet_type;
           //// Handle non IPV4 packets
           if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
-            TLOG() << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+            //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
             if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
-              TLOG() << "TODO: Handle ARP request!";
+              //TLOG_DEBUG(10) << "TODO: Handle ARP request!";
             } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
-              TLOG() << "TODO: Handle LLDP packet!";
+              //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
             } else {
-              TLOG() << "Unidentified! Dumping...";
-              rte_pktmbuf_dump(stdout, m_bufs[src_rx_q][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+              //TLOG_DEBUG(10) << "Unidentified! Dumping...";
+              //rte_pktmbuf_dump(stdout, m_bufs[src_rx_q][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
             }
             continue;
           }
