@@ -232,17 +232,17 @@ IfaceWrapper::start()
       for (auto& [qid, nframes] : m_num_frames_rxq) { // check for new frames
         if (nframes.load() > 0) {
           auto nbytes = m_num_bytes_rxq[qid].load();
-          TLOG() << "Received payloads on iface=" << m_iface_id 
-                 << " of q[" << qid << "] is: " << nframes.load()
-                 << " Bytes: " << nbytes << " Rate: " << nbytes / 1e6 * 8 << " Mbps";
+          TLOG_DEBUG(10) << "Received payloads on iface=" << m_iface_id 
+                         << " of q[" << qid << "] is: " << nframes.load()
+                         << " Bytes: " << nbytes << " Rate: " << nbytes / 1e6 * 8 << " Mbps";
           nframes.exchange(0);
           m_num_bytes_rxq[qid].exchange(0);
         }
       }
       for (auto& [strid, nframes] : m_num_unexid_frames) { // check for unexpected StreamID frames
         if (nframes.load() > 0) {
-          TLOG() << "Unexpected StreamID frames on iface= " << m_iface_id 
-                 << " with strid[" << strid << "]! Num: " << nframes.load();
+          TLOG_DEBUG(10) << "Unexpected StreamID frames on iface= " << m_iface_id 
+                         << " with strid[" << strid << "]! Num: " << nframes.load();
           nframes.exchange(0);
         }
       }

@@ -63,7 +63,7 @@ pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_addr
   struct rte_mbuf *arp_tx_mbuf[1];
   arp_tx_mbuf[0] = m;
   rte_eth_tx_burst(port_id, 0, arp_tx_mbuf, 1);
-  printf("Sending ARP reply\n");
+  //printf("Sending ARP reply\n");
 }
 
 
