@@ -313,21 +313,23 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
     //TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
   }
 
-  m_stream_stats_atomic[unique_str_id].total_packets++;
-  m_stream_stats_atomic[unique_str_id].packets_since_last_reset++;
+  ReceiverStats& receiver_stats { m_stream_stats_atomic[unique_str_id] };
   
-  m_stream_stats_atomic[unique_str_id].bytes_since_last_reset += data_len; 
+  receiver_stats.total_packets++;
+  receiver_stats.packets_since_last_reset++;
+  
+  receiver_stats.bytes_since_last_reset += data_len; 
 
-  if (data_len > m_stream_stats_atomic[unique_str_id].max_packet_size) {
-    m_stream_stats_atomic[unique_str_id].max_packet_size = data_len;
+  if (data_len > receiver_stats.max_packet_size) {
+    receiver_stats.max_packet_size = data_len;
   } 
 
-  if (data_len < m_stream_stats_atomic[unique_str_id].min_packet_size) {
-    m_stream_stats_atomic[unique_str_id].min_packet_size = data_len;
+  if (data_len < receiver_stats.min_packet_size) {
+    receiver_stats.min_packet_size = data_len;
   }
 
   if (m_expected_size != s_ignorable_value && data_len != m_expected_size) {
-    m_stream_stats_atomic[unique_str_id].bad_sizes_since_last_reset++;
+    receiver_stats.bad_sizes_since_last_reset++;
   }
   
   if (m_expected_seq_id_step != s_ignorable_value && !first_packet_in_stream) {
@@ -337,39 +339,42 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
     // before doing arithmetic, bad things will happen.
 
     auto seq_id = static_cast<int64_t>(daq_hdr.seq_id);
-    if (seq_id != m_next_expected_seq_id[ m_stream_last_seq_id[unique_str_id] ]) {
-      m_stream_stats_atomic[unique_str_id].bad_seq_ids_since_last_reset++;
+    auto& last_seq_id = m_stream_last_seq_id[unique_str_id];
+
+    if (seq_id != m_next_expected_seq_id[last_seq_id]) {
+      receiver_stats.bad_seq_ids_since_last_reset++;
       
-      int64_t seq_id_delta = seq_id - m_next_expected_seq_id[ m_stream_last_seq_id[unique_str_id] ];	
+      int64_t seq_id_delta = seq_id - m_next_expected_seq_id[last_seq_id];	
 	
       if (seq_id_delta < 0) { // e.g., we expected seq ID 4095 but got 0 instead
   	  seq_id_delta += PacketInfoAccumulator::s_max_seq_id + 1;
       }
 
-      if (seq_id_delta > m_stream_stats_atomic[unique_str_id].max_seq_id_deviation.load()) {
-	//TLOG() << static_cast<std::string>(unique_str_id) << "Assigning " << seq_id_delta << " (" << m_stream_stats_atomic[unique_str_id].total_packets << " packets so far)"; 
-	m_stream_stats_atomic[unique_str_id].max_seq_id_deviation = seq_id_delta;
+      if (seq_id_delta > receiver_stats.max_seq_id_deviation.load()) {
+	//TLOG() << static_cast<std::string>(unique_str_id) << "Assigning " << seq_id_delta << " (" << receiver_stats.total_packets << " packets so far)"; 
+	receiver_stats.max_seq_id_deviation = seq_id_delta;
       }
     }
 
-    m_stream_last_seq_id[unique_str_id] = daq_hdr.seq_id;
+    last_seq_id = daq_hdr.seq_id;
   }
     
   if (m_expected_timestamp_step != s_ignorable_value && !first_packet_in_stream) {
 
     auto timestamp = static_cast<int64_t>(daq_hdr.timestamp);
-      
-    if (timestamp != m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step) {
+    auto& last_timestamp = m_stream_last_timestamp[unique_str_id];
+    
+    if (timestamp != last_timestamp + m_expected_timestamp_step) {
 
-      int64_t timestamp_delta = daq_hdr.timestamp - (m_stream_last_timestamp[unique_str_id] + m_expected_timestamp_step);
-      m_stream_stats_atomic[unique_str_id].bad_timestamps_since_last_reset++;
+      int64_t timestamp_delta = daq_hdr.timestamp - (last_timestamp + m_expected_timestamp_step);
+      receiver_stats.bad_timestamps_since_last_reset++;
 
-      if (timestamp_delta > m_stream_stats_atomic[unique_str_id].max_timestamp_deviation.load()) {
-	m_stream_stats_atomic[unique_str_id].max_timestamp_deviation = timestamp_delta;
+      if (timestamp_delta > receiver_stats.max_timestamp_deviation.load()) {
+	receiver_stats.max_timestamp_deviation = timestamp_delta;
       }
     }
 
-    m_stream_last_timestamp[unique_str_id] = timestamp;
+    last_timestamp = timestamp;
   }
 
 }
