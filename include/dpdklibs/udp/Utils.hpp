@@ -112,6 +112,17 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     ReceiverStats(const ReceiverStats& rhs);
     ReceiverStats& operator=(const ReceiverStats& rhs);
 
+    // If you've only been collecting stats for one out of every N
+    // packets, you'd want to pass N to "scale" to correct for this
+
+    void scale(int64_t sf) {
+      packets_since_last_reset = packets_since_last_reset.load() * sf;
+      bytes_since_last_reset = bytes_since_last_reset.load() * sf;
+      bad_timestamps_since_last_reset = bad_timestamps_since_last_reset.load() * sf;
+      bad_sizes_since_last_reset = bad_sizes_since_last_reset.load() * sf;
+      bad_seq_ids_since_last_reset = bad_seq_ids_since_last_reset.load() * sf;
+    }
+
     void reset() {
       packets_since_last_reset = 0;
       bytes_since_last_reset = 0;
@@ -142,7 +153,8 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
     
     PacketInfoAccumulator(int64_t expected_seq_id_step = s_ignorable_value,
 			  int64_t expected_timestamp_step = s_ignorable_value,
-			  int64_t expected_size = s_ignorable_value);
+			  int64_t expected_size = s_ignorable_value,
+			  int64_t process_nth_packet = 1);
 
 
     void process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len);
@@ -175,6 +187,7 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
 
     const int64_t m_expected_timestamp_step;
     int64_t m_expected_size;
+    const int64_t m_process_nth_packet;
 
     int64_t m_next_expected_seq_id[s_max_seq_id + 1];
 
