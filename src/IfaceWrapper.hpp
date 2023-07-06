@@ -68,6 +68,7 @@ protected:
   std::string m_ip_addr;
   rte_be32_t m_ip_addr_bin;
   std::string m_mac_addr;
+  int m_socket_id;
   int m_mtu;
   int m_rx_ring_size;
   int m_tx_ring_size;

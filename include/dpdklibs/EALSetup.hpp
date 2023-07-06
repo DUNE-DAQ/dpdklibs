@@ -196,15 +196,20 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
 }
 
 std::unique_ptr<rte_mempool>
-get_mempool(const std::string& pool_name) {
-  TLOG() << "RTE_MBUF_DEFAULT_BUF_SIZE = " << RTE_MBUF_DEFAULT_BUF_SIZE;
-  TLOG() << "NUM_MBUFS = " << NUM_MBUFS;
+get_mempool(const std::string& pool_name, 
+            int num_mbufs=NUM_MBUFS, int mbuf_cache_size=MBUF_CACHE_SIZE,
+            int data_room_size=9800, int socket_id=0) {
+  TLOG() << "get_mempool with: NUM_MBUFS = " << NUM_MBUFS
+         << " | MBUF_CACHE_SIZE = " << MBUF_CACHE_SIZE
+         << " | data_room_size = 9800 (JUMBO RX packet length with headroom)"
+         << " | SOCKET_ID = " << socket_id;
 
   struct rte_mempool *mbuf_pool;
-  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), NUM_MBUFS, //* nb_ifaces,
+  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), num_mbufs, //* nb_ifaces,
     //MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    MBUF_CACHE_SIZE, 0, 9800, rte_socket_id()); // RX packet length(9618) with head-room(128) = 9746 
-
+    mbuf_cache_size, 0, data_room_size, // RX packet length(9618) with head-room(128) = 9746 
+    socket_id); //rte_socket_id()); 
+  
   if (mbuf_pool == NULL) {
     // ers fatal
     rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");

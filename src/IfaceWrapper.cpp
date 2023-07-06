@@ -41,6 +41,7 @@ IfaceWrapper::IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std
     , m_prom_mode(false)
     , m_ip_addr("")
     , m_mac_addr("")
+    , m_socket_id(-1)
     , m_mtu(0)
     , m_rx_ring_size(0)
     , m_tx_ring_size(0)
@@ -70,7 +71,7 @@ IfaceWrapper::allocate_mbufs()
     std::stringstream ss;
     ss << "MBP-" << m_iface_id << '-' << i;
     TLOG() << "Acquire pool with name=" << ss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
-    m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
+    m_mbuf_pools[i] = ealutils::get_mempool(ss.str(), m_num_mbufs, m_mbuf_cache_size, 9800, m_socket_id);
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
@@ -169,6 +170,10 @@ IfaceWrapper::conf(const iface_conf_t& args)
     m_num_mbufs = m_cfg.num_mbufs;
     m_rx_ring_size = m_cfg.rx_ring_size;
     m_tx_ring_size = m_cfg.tx_ring_size;
+
+    // Get NUMA/Socket of interface
+    m_socket_id = rte_eth_dev_socket_id(m_iface_id);
+    TLOG() << "NUMA/Socket ID of iface[" << m_iface_id << "] is node=" << m_socket_id;
  
     for (const auto& exp_src : m_cfg.expected_sources) {
       if (m_ips.count(exp_src.ip_addr) != 0) {
