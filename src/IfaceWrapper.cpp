@@ -50,7 +50,7 @@ IfaceWrapper::IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std
     , m_mbuf_cache_size(0)
     , m_sources(sources)
     , m_run_marker(run_marker)
-    , m_accum(1, udp::PacketInfoAccumulator::s_ignorable_value, 7243) // Ignore the timestamp, assume a packet size of 7243 bytes
+    , m_accum(1, 7243)
 { 
   m_iface_id_str = "iface-" + std::to_string(m_iface_id);
 }

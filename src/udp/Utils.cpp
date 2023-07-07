@@ -202,8 +202,8 @@ get_ethernet_packets(const std::vector<char>& buffervec) {
     bool match = false;
     for (auto allowed_ethertype : allowed_ethertypes) {
       if (hdr->eth_hdr.ether_type == rte_be_to_cpu_16(allowed_ethertype)) {
-	match = true;
-	break;
+  match = true;
+  break;
       }
     }
 
@@ -274,11 +274,9 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
 }
 
 PacketInfoAccumulator::PacketInfoAccumulator(int64_t expected_seq_id_step,
-			  int64_t expected_timestamp_step,
-			  int64_t expected_size)
+        int64_t expected_size)
   :
   m_expected_seq_id_step(expected_seq_id_step),
-  m_expected_timestamp_step(expected_timestamp_step),
   m_expected_size(expected_size)
 {
   // To be clear, the reason you'd set "expected_seq_id_step" to
@@ -291,38 +289,40 @@ PacketInfoAccumulator::PacketInfoAccumulator(int64_t expected_seq_id_step,
     for (int i = 0; i <= s_max_seq_id; ++i) {
       m_next_expected_seq_id[i] = i + expected_seq_id_step;
       if (m_next_expected_seq_id[i] > s_max_seq_id) {
-	m_next_expected_seq_id[i] -= (s_max_seq_id + 1);
+        m_next_expected_seq_id[i] -= (s_max_seq_id + 1);
       }
     }
   }
 }
 
-void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len) {
+void
+PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len)
+{
 
-  StreamUID unique_str_id(daq_hdr);
+  StreamUID s_uid(daq_hdr);
   bool first_packet_in_stream = false;
-  
+
   // std::map::contains is available in C++20...
-  if (m_stream_stats_atomic.find(unique_str_id) == m_stream_stats_atomic.end()) {
+  if (m_stream_stats_atomic.find(s_uid) == m_stream_stats_atomic.end()) {
 
     first_packet_in_stream = true;
-    m_stream_stats_atomic[unique_str_id];
-    m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
-    m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
+    m_stream_stats_atomic[s_uid];
+    m_stream_last_seq_id[s_uid] = static_cast<int64_t>(daq_hdr.seq_id);
+    // m_stream_last_timestamp[s_uid] = static_cast<int64_t>(daq_hdr.timestamp);
 
-    //TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
+    // TLOG() << "Found first packet in " << static_cast<std::string>(s_uid);
   }
 
-  ReceiverStats& receiver_stats { m_stream_stats_atomic[unique_str_id] };
-  
+  ReceiverStats& receiver_stats{ m_stream_stats_atomic[s_uid] };
+
   receiver_stats.total_packets++;
   receiver_stats.packets_since_last_reset++;
-  
-  receiver_stats.bytes_since_last_reset += data_len; 
+
+  receiver_stats.bytes_since_last_reset += data_len;
 
   if (data_len > receiver_stats.max_packet_size) {
     receiver_stats.max_packet_size = data_len;
-  } 
+  }
 
   if (data_len < receiver_stats.min_packet_size) {
     receiver_stats.min_packet_size = data_len;
@@ -331,80 +331,66 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
   if (m_expected_size != s_ignorable_value && data_len != m_expected_size) {
     receiver_stats.bad_sizes_since_last_reset++;
   }
-  
+
   if (m_expected_seq_id_step != s_ignorable_value && !first_packet_in_stream) {
-    
+
     // seq_id is represented in an unsigned 64-bit int in
     // DAQEthHeader, so if we don't convert it to a *signed* int
     // before doing arithmetic, bad things will happen.
 
     auto seq_id = static_cast<int64_t>(daq_hdr.seq_id);
-    auto& last_seq_id = m_stream_last_seq_id[unique_str_id];
+    auto& last_seq_id = m_stream_last_seq_id[s_uid];
 
     if (seq_id != m_next_expected_seq_id[last_seq_id]) {
       receiver_stats.bad_seq_ids_since_last_reset++;
-      
-      int64_t seq_id_delta = seq_id - m_next_expected_seq_id[last_seq_id];	
-	
+
+      int64_t seq_id_delta = seq_id - m_next_expected_seq_id[last_seq_id];
+
       if (seq_id_delta < 0) { // e.g., we expected seq ID 4095 but got 0 instead
-  	  seq_id_delta += PacketInfoAccumulator::s_max_seq_id + 1;
+        seq_id_delta += PacketInfoAccumulator::s_max_seq_id + 1;
       }
 
       if (seq_id_delta > receiver_stats.max_seq_id_deviation.load()) {
-	//TLOG() << static_cast<std::string>(unique_str_id) << "Assigning " << seq_id_delta << " (" << receiver_stats.total_packets << " packets so far)"; 
-	receiver_stats.max_seq_id_deviation = seq_id_delta;
+        // TLOG() << static_cast<std::string>(s_uid) << "Assigning " << seq_id_delta << " (" << receiver_stats.total_packets << " packets so far)";
+        receiver_stats.max_seq_id_deviation = seq_id_delta;
       }
     }
 
     last_seq_id = daq_hdr.seq_id;
   }
-    
-  if (m_expected_timestamp_step != s_ignorable_value && !first_packet_in_stream) {
-
-    auto timestamp = static_cast<int64_t>(daq_hdr.timestamp);
-    auto& last_timestamp = m_stream_last_timestamp[unique_str_id];
-    
-    if (timestamp != last_timestamp + m_expected_timestamp_step) {
-
-      int64_t timestamp_delta = daq_hdr.timestamp - (last_timestamp + m_expected_timestamp_step);
-      receiver_stats.bad_timestamps_since_last_reset++;
-
-      if (timestamp_delta > receiver_stats.max_timestamp_deviation.load()) {
-	receiver_stats.max_timestamp_deviation = timestamp_delta;
-      }
-    }
-
-    last_timestamp = timestamp;
-  }
 
 }
-
 
 // dump() is more a function to test the development of
 // PacketInfoAccumulator itself than a function users of
 // PacketInfoAccumulator would call
 
-void PacketInfoAccumulator::dump() {
-  
-  for (auto& stream_stat : m_stream_stats_atomic ) {
+void
+PacketInfoAccumulator::dump()
+{
+
+  for (auto& stream_stat : m_stream_stats_atomic) {
     std::stringstream info;
 
     auto& streamid = stream_stat.first;
     auto& stats = stream_stat.second;
-    
+
     TLOG() << static_cast<std::string>(streamid) + "\n" + static_cast<std::string>(stats);
   }
 }
 
-void PacketInfoAccumulator::erase_stream_stats() {
+void
+PacketInfoAccumulator::erase_stream_stats()
+{
 
   m_stream_stats_atomic.clear();
-  m_stream_last_timestamp.clear();
   m_stream_last_seq_id.clear();
 }
 
-std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_and_reset_stream_stats() {
-  
+std::map<StreamUID, ReceiverStats>
+PacketInfoAccumulator::get_and_reset_stream_stats()
+{
+
   auto snapshot_before_reset = m_stream_stats_atomic;
 
   for (auto& stream_stat : m_stream_stats_atomic) {
@@ -414,97 +400,93 @@ std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_and_reset_stream_s
   return snapshot_before_reset;
 }
 
-ReceiverStats::ReceiverStats(const ReceiverStats& rhs) :
-      total_packets(rhs.total_packets.load()),
-      min_packet_size(rhs.min_packet_size.load()),
-      max_packet_size(rhs.max_packet_size.load()),
-      max_timestamp_deviation(rhs.max_timestamp_deviation.load()),
-      max_seq_id_deviation(rhs.max_seq_id_deviation.load()),
-      packets_since_last_reset(rhs.packets_since_last_reset.load()),
-      bytes_since_last_reset(rhs.bytes_since_last_reset.load()),
-      bad_timestamps_since_last_reset(rhs.bad_timestamps_since_last_reset.load()),
-      bad_sizes_since_last_reset(rhs.bad_sizes_since_last_reset.load()),
-      bad_seq_ids_since_last_reset(rhs.bad_seq_ids_since_last_reset.load())
-    {}
-
-ReceiverStats& ReceiverStats::operator=(const ReceiverStats& rhs) {
-  ReceiverStats lhs;
-
-      lhs.total_packets = rhs.total_packets.load();
-      lhs.min_packet_size = rhs.min_packet_size.load();
-      lhs.max_packet_size = rhs.max_packet_size.load();
-      lhs.max_timestamp_deviation = rhs.max_timestamp_deviation.load();
-      lhs.max_seq_id_deviation = rhs.max_seq_id_deviation.load();
-      lhs.packets_since_last_reset = rhs.packets_since_last_reset.load();
-      lhs.bytes_since_last_reset = rhs.bytes_since_last_reset.load();
-      lhs.bad_timestamps_since_last_reset = rhs.bad_timestamps_since_last_reset.load();
-      lhs.bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
-      lhs.bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
-
-      return lhs;
+ReceiverStats::ReceiverStats(const ReceiverStats& rhs)
+  : total_packets(rhs.total_packets.load())
+  , min_packet_size(rhs.min_packet_size.load())
+  , max_packet_size(rhs.max_packet_size.load())
+  , max_seq_id_deviation(rhs.max_seq_id_deviation.load())
+  , packets_since_last_reset(rhs.packets_since_last_reset.load())
+  , bytes_since_last_reset(rhs.bytes_since_last_reset.load())
+  , bad_sizes_since_last_reset(rhs.bad_sizes_since_last_reset.load())
+  , bad_seq_ids_since_last_reset(rhs.bad_seq_ids_since_last_reset.load())
+{
 }
 
-ReceiverStats::operator std::string() const {
+ReceiverStats&
+ReceiverStats::operator=(const ReceiverStats& rhs)
+{
+  ReceiverStats lhs;
+
+  lhs.total_packets = rhs.total_packets.load();
+  lhs.min_packet_size = rhs.min_packet_size.load();
+  lhs.max_packet_size = rhs.max_packet_size.load();
+  lhs.max_seq_id_deviation = rhs.max_seq_id_deviation.load();
+  lhs.packets_since_last_reset = rhs.packets_since_last_reset.load();
+  lhs.bytes_since_last_reset = rhs.bytes_since_last_reset.load();
+  lhs.bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
+  lhs.bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
+
+  return lhs;
+}
+
+ReceiverStats::operator std::string() const
+{
 
   std::stringstream reportstr;
 
-  reportstr
-    << "total_packets == " << total_packets << "\n"
-    << "min_packet_size == " << min_packet_size << "\n"
-    << "max_packet_size == " << max_packet_size << "\n"
-    << "max_timestamp_deviation == " << max_timestamp_deviation << "\n"
-    << "max_seq_id_deviation == " << max_seq_id_deviation << "\n"
-    << "packets_since_last_reset == " << packets_since_last_reset << "\n"
-    << "bytes_since_last_reset == " << bytes_since_last_reset << "\n"
-    << "bad_timestamps_since_last_reset == " << bad_timestamps_since_last_reset << "\n"
-    << "bad_sizes_since_last_reset == " << bad_sizes_since_last_reset << "\n"
-    << "bad_seq_ids_since_last_reset == " << bad_seq_ids_since_last_reset << "\n";
+  reportstr << "total_packets == " << total_packets << "\n"
+            << "min_packet_size == " << min_packet_size << "\n"
+            << "max_packet_size == " << max_packet_size << "\n"
+            << "max_seq_id_deviation == " << max_seq_id_deviation << "\n"
+            << "packets_since_last_reset == " << packets_since_last_reset << "\n"
+            << "bytes_since_last_reset == " << bytes_since_last_reset << "\n"
+            << "bad_sizes_since_last_reset == " << bad_sizes_since_last_reset << "\n"
+            << "bad_seq_ids_since_last_reset == " << bad_seq_ids_since_last_reset << "\n";
 
   return reportstr.str();
 }
 
-void ReceiverStats::merge(const std::vector<ReceiverStats>& stats_vector) {
+void
+ReceiverStats::merge(const std::vector<ReceiverStats>& stats_vector)
+{
 
   for (auto& stats : stats_vector) {
     total_packets += stats.total_packets.load();
     min_packet_size = min_packet_size.load() < stats.min_packet_size.load() ? min_packet_size.load() : stats.min_packet_size.load();
     max_packet_size = max_packet_size.load() > stats.max_packet_size.load() ? max_packet_size.load() : stats.max_packet_size.load();
-    max_timestamp_deviation = max_timestamp_deviation.load() > stats.max_timestamp_deviation.load() ? max_timestamp_deviation.load() : stats.max_timestamp_deviation.load();
     max_seq_id_deviation = max_seq_id_deviation.load() > stats.max_seq_id_deviation.load() ? max_seq_id_deviation.load() : stats.max_seq_id_deviation.load();
     packets_since_last_reset += stats.packets_since_last_reset.load();
     bytes_since_last_reset += stats.bytes_since_last_reset.load();
-    bad_timestamps_since_last_reset += stats.bad_timestamps_since_last_reset.load();
     bad_sizes_since_last_reset += stats.bad_sizes_since_last_reset.load();
     bad_seq_ids_since_last_reset += stats.bad_seq_ids_since_last_reset.load();
   }
-
 }
 
-
-receiverinfo::Info DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report) {
+receiverinfo::Info
+DeriveFromReceiverStats(const ReceiverStats& receiver_stats, double time_per_report)
+{
 
   receiverinfo::Info derived_stats;
-  
+
   derived_stats.total_packets = receiver_stats.total_packets.load();
   derived_stats.packets_per_second = receiver_stats.packets_since_last_reset.load() / time_per_report;
   derived_stats.bytes_per_second = receiver_stats.bytes_since_last_reset.load() / time_per_report;
-  derived_stats.bad_ts_packets_per_second = receiver_stats.bad_timestamps_since_last_reset.load() / time_per_report;
-  derived_stats.max_bad_ts_deviation = receiver_stats.max_timestamp_deviation.load();
   derived_stats.bad_seq_id_packets_per_second = receiver_stats.bad_seq_ids_since_last_reset.load() / time_per_report;
   derived_stats.max_bad_seq_id_deviation = receiver_stats.max_seq_id_deviation.load();
   derived_stats.bad_size_packets_per_second = receiver_stats.bad_sizes_since_last_reset.load() / time_per_report;
   derived_stats.max_packet_size = receiver_stats.max_packet_size.load();
-  derived_stats.min_packet_size	= receiver_stats.min_packet_size.load();
-  
+  derived_stats.min_packet_size = receiver_stats.min_packet_size.load();
+
   return derived_stats;
 }
-  
-std::string get_opmon_string(const StreamUID& sid) {
+
+std::string
+get_opmon_string(const StreamUID& sid)
+{
   std::stringstream opmonstr;
   opmonstr << "det" << sid.det_id << "_crt" << sid.crate_id << "_slt" << sid.slot_id << "_str" << sid.stream_id;
   return opmonstr.str();
 }
-
 
 } // namespace udp
 } // namespace dpdklibs

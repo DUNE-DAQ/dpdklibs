@@ -124,12 +124,10 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   stats.total_packets = biggest_int;
   stats.min_packet_size = biggest_int;
   stats.max_packet_size = biggest_int;
-  stats.max_timestamp_deviation = biggest_int;
   stats.max_seq_id_deviation = biggest_int;
 
   stats.packets_since_last_reset = biggest_int;
   stats.bytes_since_last_reset = biggest_int;
-  stats.bad_timestamps_since_last_reset = biggest_int;
   stats.bad_sizes_since_last_reset = biggest_int;
   stats.bad_seq_ids_since_last_reset = biggest_int;
   
@@ -138,14 +136,12 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   BOOST_REQUIRE_EQUAL(derived.total_packets, stats.total_packets);
   BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
   BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
-  BOOST_REQUIRE_EQUAL(derived.max_bad_ts_deviation, stats.max_timestamp_deviation);
   BOOST_REQUIRE_EQUAL(derived.max_bad_seq_id_deviation, stats.max_seq_id_deviation);
   BOOST_REQUIRE_EQUAL(derived.max_packet_size, stats.max_packet_size);
   BOOST_REQUIRE_EQUAL(derived.min_packet_size, stats.min_packet_size);
 
   BOOST_REQUIRE_EQUAL(derived.packets_per_second * 2.0, stats.packets_since_last_reset);
   BOOST_REQUIRE_EQUAL(derived.bytes_per_second * 2.0, stats.bytes_since_last_reset);
-  BOOST_REQUIRE_EQUAL(derived.bad_ts_packets_per_second * 2.0, stats.bad_timestamps_since_last_reset);
   BOOST_REQUIRE_EQUAL(derived.bad_seq_id_packets_per_second * 2.0, stats.bad_seq_ids_since_last_reset);
   BOOST_REQUIRE_EQUAL(derived.bad_size_packets_per_second * 2.0, stats.bad_sizes_since_last_reset);
 
@@ -170,9 +166,6 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   stats1.max_packet_size = 300;
   stats2.max_packet_size = 400;
 
-  stats1.max_timestamp_deviation = 600;
-  stats2.max_timestamp_deviation = 500;
-
   stats1.max_seq_id_deviation = 17;
   stats2.max_seq_id_deviation = 0;
 
@@ -182,8 +175,6 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   stats1.bytes_since_last_reset = 12;
   stats2.bytes_since_last_reset = 13;
 
-  stats1.bad_timestamps_since_last_reset = 22;
-  stats2.bad_timestamps_since_last_reset = 23;
 
   stats1.bad_sizes_since_last_reset = 32;
   stats2.bad_sizes_since_last_reset = 33;
@@ -201,11 +192,9 @@ BOOST_AUTO_TEST_CASE(TestReceiverStats)
   BOOST_REQUIRE_EQUAL(result.total_packets, 3);
   BOOST_REQUIRE_EQUAL(result.min_packet_size, 100);
   BOOST_REQUIRE_EQUAL(result.max_packet_size, 400);
-  BOOST_REQUIRE_EQUAL(result.max_timestamp_deviation, 600);
   BOOST_REQUIRE_EQUAL(result.max_seq_id_deviation, 17);
   BOOST_REQUIRE_EQUAL(result.packets_since_last_reset, 314);
   BOOST_REQUIRE_EQUAL(result.bytes_since_last_reset, 25);
-  BOOST_REQUIRE_EQUAL(result.bad_timestamps_since_last_reset, 45);
   BOOST_REQUIRE_EQUAL(result.bad_sizes_since_last_reset, 65);
   BOOST_REQUIRE_EQUAL(result.bad_seq_ids_since_last_reset, 105);
 

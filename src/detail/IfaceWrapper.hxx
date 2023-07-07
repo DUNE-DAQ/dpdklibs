@@ -98,11 +98,10 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       }
 
     if (!fb_count) {
-      struct timespec remaining, request = { 0, 1'000'000 };
+      struct timespec remaining, request = { 0, 100'000 };
   
       // printf("Taking a nap...\n");
-      int response = nanosleep(&request, &remaining);
-
+      int response = nanosleep(&request, nullptr);
       // std::this_thread::sleep_for(std::chrono::microseconds(1000));
     }
     } // per Q
