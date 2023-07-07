@@ -92,13 +92,16 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
 
 
 inline int
-iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
+iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
+           uint16_t rx_ring_size, uint16_t tx_ring_size,
 	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
            bool with_reset=false, bool with_mq_rss=false)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
-  uint16_t nb_rxd = RX_RING_SIZE;
-  uint16_t nb_txd = TX_RING_SIZE;
+  // uint16_t nb_rxd = RX_RING_SIZE;
+  // uint16_t nb_txd = TX_RING_SIZE;
+  uint16_t nb_rxd = rx_ring_size;
+  uint16_t nb_txd = tx_ring_size;
   int retval = -1;
   uint16_t q;
   struct rte_eth_dev_info dev_info;
@@ -116,6 +119,12 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
     return retval;
   }
+
+  TLOG() << "Iface " << iface << " RX Ring info :" 
+    << " min " << dev_info.rx_desc_lim.nb_min 
+    << " max " << dev_info.rx_desc_lim.nb_max 
+    << " align " << dev_info.rx_desc_lim.nb_align 
+  ;
 
   // Carry out a reset of the interface
   if (with_reset) {

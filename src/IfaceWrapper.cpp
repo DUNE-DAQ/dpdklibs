@@ -89,7 +89,7 @@ IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
   bool with_reset = true, with_mq_mode = true; // go to config
-  ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_mbuf_pools, with_reset, with_mq_mode);
+  ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode);
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
 }
@@ -131,18 +131,18 @@ IfaceWrapper::setup_flow_steering()
 
   return;
 
-#warning RS FIXME -> Removed for conf overhaul
-//  if (m_cfg.with_drop_flow) {
-    // Adding drop flow
-    TLOG() << "Adding Drop Flow.";
-    flow = generate_drop_flow(m_iface_id, &error);
-    if (not flow) { // ers::fatal
-      TLOG() << "Drop flow can't be created for interface!"
-             << " Error type: " << (unsigned)error.type
-             << " Message: " << error.message;
-      rte_exit(EXIT_FAILURE, "error in creating flow");
-    }
-  //}
+// #warning RS FIXME -> Removed for conf overhaul
+// //  if (m_cfg.with_drop_flow) {
+//     // Adding drop flow
+//     TLOG() << "Adding Drop Flow.";
+//     flow = generate_drop_flow(m_iface_id, &error);
+//     if (not flow) { // ers::fatal
+//       TLOG() << "Drop flow can't be created for interface!"
+//              << " Error type: " << (unsigned)error.type
+//              << " Message: " << error.message;
+//       rte_exit(EXIT_FAILURE, "error in creating flow");
+//     }
+//   //}
 }
 
 void
@@ -328,3 +328,6 @@ IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
 
 } // namespace dpdklibs
 } // namespace dunedaq
+
+// 
+#include "detail/IfaceWrapper.hxx"

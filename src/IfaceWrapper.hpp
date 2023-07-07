@@ -70,8 +70,8 @@ protected:
   std::string m_mac_addr;
   int m_socket_id;
   int m_mtu;
-  int m_rx_ring_size;
-  int m_tx_ring_size;
+  uint16_t m_rx_ring_size;
+  uint16_t m_tx_ring_size;
   int m_num_mbufs;
   int m_burst_size;
   int m_mbuf_cache_size;
@@ -123,6 +123,6 @@ private:
 } // namespace dpdklibs
 } // namespace dunedaq
 
-#include "detail/IfaceWrapper.hxx"
+// #include "detail/IfaceWrapper.hxx"
 
 #endif // DPDKLIBS_SRC_IFACEWRAPPER_HPP_

@@ -126,6 +126,6 @@ private:
 
 } // namespace dunedaq::dpdklibs
 
-#include "detail/NICReceiver.hxx"
+// #include "detail/NICReceiver.hxx"
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

@@ -118,6 +118,8 @@ std::string get_udp_packet_str(struct rte_mbuf *mbuf);
       bad_timestamps_since_last_reset = 0;
       bad_sizes_since_last_reset = 0;
       bad_seq_ids_since_last_reset = 0;
+      max_timestamp_deviation = 0;
+      max_seq_id_deviation = 0;
     }
 
     void merge(const std::vector<ReceiverStats>& stats_vector);
