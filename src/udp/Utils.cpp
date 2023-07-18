@@ -275,11 +275,12 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
 
 PacketInfoAccumulator::PacketInfoAccumulator(int64_t expected_seq_id_step,
 			  int64_t expected_timestamp_step,
-			  int64_t expected_size)
+					     int64_t expected_size, int64_t process_nth_packet)
   :
   m_expected_seq_id_step(expected_seq_id_step),
   m_expected_timestamp_step(expected_timestamp_step),
-  m_expected_size(expected_size)
+  m_expected_size(expected_size),
+  m_process_nth_packet(process_nth_packet)
 {
   // To be clear, the reason you'd set "expected_seq_id_step" to
   // anything other than 1 or PacketInfoAccumulator::s_ignorable_value
@@ -301,19 +302,25 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
 
   StreamUID unique_str_id(daq_hdr);
   bool first_packet_in_stream = false;
+
+  // n.b. C++ knows to add the unique_str_id as a key and a default-constructed ReceiverStats as a value if it's not already in the map
+  ReceiverStats& receiver_stats { m_stream_stats_atomic[unique_str_id] };
+
+  if (receiver_stats.total_packets % m_process_nth_packet != 0) {
+    receiver_stats.total_packets++;
+    m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
+    m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
+    return;
+  }
   
-  // std::map::contains is available in C++20...
-  if (m_stream_stats_atomic.find(unique_str_id) == m_stream_stats_atomic.end()) {
+  if (receiver_stats.total_packets == 0) {
 
     first_packet_in_stream = true;
-    m_stream_stats_atomic[unique_str_id];
     m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
     m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
 
     //TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
   }
-
-  ReceiverStats& receiver_stats { m_stream_stats_atomic[unique_str_id] };
   
   receiver_stats.total_packets++;
   receiver_stats.packets_since_last_reset++;
@@ -351,8 +358,7 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
       }
 
       if (seq_id_delta > receiver_stats.max_seq_id_deviation.load()) {
-	//TLOG() << static_cast<std::string>(unique_str_id) << "Assigning " << seq_id_delta << " (" << receiver_stats.total_packets << " packets so far)"; 
-	receiver_stats.max_seq_id_deviation = seq_id_delta;
+         receiver_stats.max_seq_id_deviation = seq_id_delta;
       }
     }
 
@@ -370,7 +376,7 @@ void PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& d
       receiver_stats.bad_timestamps_since_last_reset++;
 
       if (timestamp_delta > receiver_stats.max_timestamp_deviation.load()) {
-	receiver_stats.max_timestamp_deviation = timestamp_delta;
+        receiver_stats.max_timestamp_deviation = timestamp_delta;
       }
     }
 
@@ -411,6 +417,12 @@ std::map<StreamUID, ReceiverStats> PacketInfoAccumulator::get_and_reset_stream_s
     stream_stat.second.reset();
   }
 
+  if (m_process_nth_packet != 1) {
+    for (auto& stream_stat : snapshot_before_reset) {
+      stream_stat.second.scale(m_process_nth_packet);
+    }
+  }
+
   return snapshot_before_reset;
 }
 
@@ -428,20 +440,19 @@ ReceiverStats::ReceiverStats(const ReceiverStats& rhs) :
     {}
 
 ReceiverStats& ReceiverStats::operator=(const ReceiverStats& rhs) {
-  ReceiverStats lhs;
 
-      lhs.total_packets = rhs.total_packets.load();
-      lhs.min_packet_size = rhs.min_packet_size.load();
-      lhs.max_packet_size = rhs.max_packet_size.load();
-      lhs.max_timestamp_deviation = rhs.max_timestamp_deviation.load();
-      lhs.max_seq_id_deviation = rhs.max_seq_id_deviation.load();
-      lhs.packets_since_last_reset = rhs.packets_since_last_reset.load();
-      lhs.bytes_since_last_reset = rhs.bytes_since_last_reset.load();
-      lhs.bad_timestamps_since_last_reset = rhs.bad_timestamps_since_last_reset.load();
-      lhs.bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
-      lhs.bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
+      total_packets = rhs.total_packets.load();
+      min_packet_size = rhs.min_packet_size.load();
+      max_packet_size = rhs.max_packet_size.load();
+      max_timestamp_deviation = rhs.max_timestamp_deviation.load();
+      max_seq_id_deviation = rhs.max_seq_id_deviation.load();
+      packets_since_last_reset = rhs.packets_since_last_reset.load();
+      bytes_since_last_reset = rhs.bytes_since_last_reset.load();
+      bad_timestamps_since_last_reset = rhs.bad_timestamps_since_last_reset.load();
+      bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
+      bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
 
-      return lhs;
+      return *this;
 }
 
 ReceiverStats::operator std::string() const {
