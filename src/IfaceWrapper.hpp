@@ -54,7 +54,7 @@ public:
   void setup_flow_steering();
 
   std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
-    return m_accum.get_and_reset_stream_stats();
+    return m_accum_ptr->get_and_reset_stream_stats();
   }
   
 protected:
@@ -110,7 +110,7 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
-  udp::PacketInfoAccumulator m_accum;
+  std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   
   // Lcore processor
   //template<class T> 

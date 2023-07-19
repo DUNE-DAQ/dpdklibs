@@ -12,6 +12,12 @@ local ns = "dunedaq.dpdklibs.nicreader";
 local s = moo.oschema.schema(ns);
 
 // Object structure used by the test/fake producer module
+
+
+// Setting any of the expected quantities in the StatsReporting
+// record to a negative value translates to "don't bother checking
+// this quantity when you analyze a packet"
+
 local nicreader = {
     count  : s.number("Count", "u4", doc="Count of things"),
 
@@ -53,6 +59,13 @@ local nicreader = {
 
     sources : s.sequence("Sources", self.source, doc="A list of sources"),
 
+    stats_reporting : s.record("StatsReporting", [
+       s.field("expected_seq_id_step", self.big_count, 1, doc="Expected sequence ID increase per packet in a stream"),
+       s.field("expected_timestamp_step", self.big_count, -999, doc="Expected timestamp increase per packet in a stream"),
+       s.field("expected_packet_size", self.big_count, 7243, doc="Expected packet size"),
+       s.field("analyze_nth_packet", self.count, 1, doc="Analyze only every (1/analyze_nth_packet) packet"),
+    ], doc="Source field"),
+
     iface : s.record("Interface", [
         s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
         s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
@@ -65,16 +78,11 @@ local nicreader = {
         s.field("mbuf_cache_size", self.count, 256, doc="MBUF cache size"),
         s.field("burst_size", self.count, 256, doc="RX burst size"),
         s.field("lcore_sleep_us", self.count, 10, doc="LCore loop sleep in microseconds - 0 to disable"),
-        s.field("expected_sources", self.sources, doc="A list of expected sources")
+        s.field("expected_sources", self.sources, doc="A list of expected sources"),
+        s.field("stats_reporting_cfg", self.stats_reporting, doc="Defines how stats are reported"),
     ], doc="Configuration an Ethernet interface through DPDK RTE"),
 
     ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),
-
-    // stats : s.record("StatsReporting", [
-    // 	s.field("expected_seq_id_step", self.big_count, -999, doc="Expected sequence ID increase per packet in a stream"),
-    //     s.field("expected_timestamp_step", self.big_count, -999, doc="Expected timestamp increase per packet in a stream"),
-    // 	s.field("expected_packet_size", self.big_count, -999, doc="Expected packet size")
-    // 	], doc="Source field"),
 
     conf: s.record("Conf", [
         s.field("ifaces", self.ifaces,
@@ -82,10 +90,6 @@ local nicreader = {
 
         s.field("eal_arg_list", self.string, "",
                 doc="A string with EAL arguments"),
-
-//        s.field("stats", self.stats,
-//		doc="Control over how stats are reported (see PacketInfoAccumulator class)")
-
     ], doc="Generic UIO reader DAQ Module Configuration"),
 
 };

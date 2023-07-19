@@ -14,38 +14,35 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
-#include <sstream>
 #include <iomanip>
 #include <iterator>
+#include <sstream>
 #include <string>
-#include <vector>
 #include <utility>
-
+#include <vector>
 
 namespace dunedaq {
 namespace dpdklibs {
 namespace udp {
 
 std::uint16_t
-get_payload_size_udp_hdr(struct rte_udp_hdr * udp_hdr)
+get_payload_size_udp_hdr(struct rte_udp_hdr* udp_hdr)
 {
   return rte_be_to_cpu_16(udp_hdr->dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
 std::uint16_t
-get_payload_size(struct ipv4_udp_packet_hdr * ipv4_udp_hdr)
+get_payload_size(struct ipv4_udp_packet_hdr* ipv4_udp_hdr)
 {
   return rte_be_to_cpu_16(ipv4_udp_hdr->udp_hdr.dgram_len) - sizeof(struct rte_udp_hdr);
 }
 
 rte_be32_t
-ip_address_dotdecimal_to_binary(std::uint8_t byte1, std::uint8_t byte2, 
-                                std::uint8_t byte3, std::uint8_t byte4)
-{ 
+ip_address_dotdecimal_to_binary(std::uint8_t byte1, std::uint8_t byte2, std::uint8_t byte3, std::uint8_t byte4)
+{
   rte_le32_t ip_address = (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4;
   return rte_cpu_to_be_32(ip_address);
 }
-
 
 struct ipaddr
 ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address)
@@ -56,12 +53,10 @@ ip_address_binary_to_dotdecimal(rte_le32_t binary_ipv4_address)
 }
 
 std::string
-get_ipv4_decimal_addr_str(struct ipaddr ipv4_address) {
+get_ipv4_decimal_addr_str(struct ipaddr ipv4_address)
+{
   std::ostringstream ostrs;
-  ostrs << (unsigned)ipv4_address.addr_bytes[3] << '.'
-        << (unsigned)ipv4_address.addr_bytes[2] << '.'
-        << (unsigned)ipv4_address.addr_bytes[1] << '.'
-        << (unsigned)ipv4_address.addr_bytes[0];
+  ostrs << (unsigned)ipv4_address.addr_bytes[3] << '.' << (unsigned)ipv4_address.addr_bytes[2] << '.' << (unsigned)ipv4_address.addr_bytes[1] << '.' << (unsigned)ipv4_address.addr_bytes[0];
   return ostrs.str();
   /*printf("%i.%i.%i.%i",
         ipv4_address.addr_bytes[3],
@@ -71,13 +66,13 @@ get_ipv4_decimal_addr_str(struct ipaddr ipv4_address) {
   */
 }
 
-char *
+char*
 get_udp_payload(const rte_mbuf* mbuf)
 {
-  struct ipv4_udp_packet_hdr * udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
-  //dump_udp_header(udp_packet);
-  //uint16_t payload_size = get_payload_size(udp_packet);
-  char* payload = (char *)(udp_packet + 1);
+  struct ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr*);
+  // dump_udp_header(udp_packet);
+  // uint16_t payload_size = get_payload_size(udp_packet);
+  char* payload = (char*)(udp_packet + 1);
   return payload;
 
   /*
@@ -102,16 +97,17 @@ get_udp_payload(const rte_mbuf* mbuf)
   */
 }
 
-inline void 
-hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ':', char fill = '0', int digits = 2) {
+inline void
+hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ':', char fill = '0', int digits = 2)
+{
   ostrs << std::setfill(fill) << std::setw(digits) << std::hex << value << std::dec << separator;
 }
 
 std::string
-//dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
-get_udp_header_str(struct rte_mbuf *mbuf)
+// dump_udp_header(struct ipv4_udp_packet_hdr * pkt)
+get_udp_header_str(struct rte_mbuf* mbuf)
 {
-  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
+  struct ipv4_udp_packet_hdr* pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr*);
   std::ostringstream ostrs;
   ostrs << "\n------ start of packet ----- \n";
   ostrs << "dst mac addr: ";
@@ -139,10 +135,8 @@ get_udp_header_str(struct rte_mbuf *mbuf)
   ostrs << "ipv4 time_to_live: " << (unsigned)pkt->ipv4_hdr.time_to_live << '\n';
   ostrs << "ipv4 next_proto_id: " << (unsigned)pkt->ipv4_hdr.next_proto_id << '\n';
   ostrs << "ipv4 checksum: " << (unsigned)rte_be_to_cpu_16(pkt->ipv4_hdr.hdr_checksum) << '\n';
-  std::string srcaddr = get_ipv4_decimal_addr_str(
-    ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
-  std::string dstaddr = get_ipv4_decimal_addr_str(
-    ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
+  std::string srcaddr = get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
+  std::string dstaddr = get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
   ostrs << "src_addr: " << srcaddr << '\n';
   ostrs << "dst_addr: " << dstaddr << '\n';
 
@@ -151,26 +145,28 @@ get_udp_header_str(struct rte_mbuf *mbuf)
   ostrs << "UDP dst_port: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dst_port) << '\n';
   ostrs << "UDP len: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dgram_len) << '\n';
   ostrs << "UDP checksum: " << (unsigned)rte_be_to_cpu_16(pkt->udp_hdr.dgram_cksum) << '\n';
-  
+
   return ostrs.str();
 }
 
 std::string
-get_udp_packet_str(struct rte_mbuf *mbuf)
+get_udp_packet_str(struct rte_mbuf* mbuf)
 {
-  struct ipv4_udp_packet_hdr * pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr *);
-  char* payload = (char *)(pkt);
+  struct ipv4_udp_packet_hdr* pkt = rte_pktmbuf_mtod(mbuf, struct ipv4_udp_packet_hdr*);
+  char* payload = (char*)(pkt);
   std::ostringstream ostrs;
   std::uint8_t byte;
   for (byte = 0; byte < rte_be_to_cpu_16(pkt->udp_hdr.dgram_len); byte++) {
     hex_digits_to_stream(ostrs, (unsigned)(*(payload + byte)), ' ');
-    //printf("%02x ", *(payload + byte) & 0xFF);
-    //printf("%s", (payload + byte));
+    // printf("%02x ", *(payload + byte) & 0xFF);
+    // printf("%s", (payload + byte));
   }
   return ostrs.str();
 }
 
-void add_file_contents_to_vector(const std::string& filename, std::vector<char>& buffervec ) {
+void
+add_file_contents_to_vector(const std::string& filename, std::vector<char>& buffervec)
+{
 
   char byte = 0x0;
 
@@ -184,26 +180,27 @@ void add_file_contents_to_vector(const std::string& filename, std::vector<char>&
   while (packetfile.get(byte)) {
     buffervec.push_back(byte);
   }
-  
+
   packetfile.close();
 }
 
 std::vector<std::pair<const void*, int>>
-get_ethernet_packets(const std::vector<char>& buffervec) {
+get_ethernet_packets(const std::vector<char>& buffervec)
+{
 
   std::vector<std::pair<const void*, int>> ethernet_packets;
-  const std::vector<uint16_t> allowed_ethertypes {0x0800, 0x0806};
-  
-  for (int byte_index = 0; byte_index < buffervec.size(); ) {
+  const std::vector<uint16_t> allowed_ethertypes{ 0x0800, 0x0806 };
+
+  for (int byte_index = 0; byte_index < buffervec.size();) {
     const auto buf_ptr = &buffervec.at(byte_index);
     auto hdr = reinterpret_cast<const ipv4_udp_packet_hdr*>(buf_ptr);
-    
+
     // A sanity check
     bool match = false;
     for (auto allowed_ethertype : allowed_ethertypes) {
       if (hdr->eth_hdr.ether_type == rte_be_to_cpu_16(allowed_ethertype)) {
-  match = true;
-  break;
+        match = true;
+        break;
       }
     }
 
@@ -224,14 +221,16 @@ get_ethernet_packets(const std::vector<char>& buffervec) {
     }
 
     int ethernet_packet_size = sizeof(rte_ether_hdr) + ipv4_packet_size;
-    ethernet_packets.emplace_back(std::pair<const void*, int>{buf_ptr, ethernet_packet_size});
+    ethernet_packets.emplace_back(std::pair<const void*, int>{ buf_ptr, ethernet_packet_size });
     byte_index += ethernet_packet_size;
   }
 
   return ethernet_packets;
 }
 
-void set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj) noexcept {
+void
+set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj) noexcept
+{
   daqethheader_obj.version = 0;
   daqethheader_obj.det_id = 1;
   daqethheader_obj.crate_id = 2;
@@ -239,12 +238,13 @@ void set_daqethheader_test_values(detdataformats::DAQEthHeader& daqethheader_obj
   daqethheader_obj.stream_id = 4;
   daqethheader_obj.reserved = 5;
   daqethheader_obj.seq_id = 6;
-  daqethheader_obj.block_length = 7;  
+  daqethheader_obj.block_length = 7;
   daqethheader_obj.timestamp = 8;
 }
 
-
-std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
+std::string
+get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept
+{
   std::stringstream ss;
 
   ss << "\nrte_mbuf info:";
@@ -273,17 +273,17 @@ std::string get_rte_mbuf_str(const rte_mbuf* mbuf) noexcept {
   return ss.str();
 }
 
-PacketInfoAccumulator::PacketInfoAccumulator(int64_t expected_seq_id_step,
-        int64_t expected_size)
-  :
-  m_expected_seq_id_step(expected_seq_id_step),
-  m_expected_size(expected_size)
+PacketInfoAccumulator::PacketInfoAccumulator(int64_t expected_seq_id_step, int64_t expected_timestamp_step, int64_t expected_size, int64_t process_nth_packet)
+  : m_expected_seq_id_step(expected_seq_id_step)
+  , m_expected_timestamp_step(expected_timestamp_step)
+  , m_expected_size(expected_size)
+  , m_process_nth_packet(process_nth_packet)
 {
   // To be clear, the reason you'd set "expected_seq_id_step" to
   // anything other than 1 or PacketInfoAccumulator::s_ignorable_value
   // is to test that the code correctly handles unexpected sequence
   // IDs
-  
+
   if (expected_seq_id_step != PacketInfoAccumulator::s_ignorable_value) {
 
     for (int i = 0; i <= s_max_seq_id; ++i) {
@@ -299,21 +299,27 @@ void
 PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len)
 {
 
-  StreamUID s_uid(daq_hdr);
+  StreamUID unique_str_id(daq_hdr);
   bool first_packet_in_stream = false;
 
-  // std::map::contains is available in C++20...
-  if (m_stream_stats_atomic.find(s_uid) == m_stream_stats_atomic.end()) {
+  // n.b. C++ knows to add the unique_str_id as a key and a default-constructed ReceiverStats as a value if it's not already in the map
+  ReceiverStats& receiver_stats{ m_stream_stats_atomic[unique_str_id] };
 
-    first_packet_in_stream = true;
-    m_stream_stats_atomic[s_uid];
-    m_stream_last_seq_id[s_uid] = static_cast<int64_t>(daq_hdr.seq_id);
-    // m_stream_last_timestamp[s_uid] = static_cast<int64_t>(daq_hdr.timestamp);
-
-    // TLOG() << "Found first packet in " << static_cast<std::string>(s_uid);
+  if (receiver_stats.total_packets % m_process_nth_packet != 0) {
+    receiver_stats.total_packets++;
+    m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
+    m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
+    return;
   }
 
-  ReceiverStats& receiver_stats{ m_stream_stats_atomic[s_uid] };
+  if (receiver_stats.total_packets == 0) {
+
+    first_packet_in_stream = true;
+    m_stream_last_seq_id[unique_str_id] = static_cast<int64_t>(daq_hdr.seq_id);
+    m_stream_last_timestamp[unique_str_id] = static_cast<int64_t>(daq_hdr.timestamp);
+
+    // TLOG() << "Found first packet in " << static_cast<std::string>(unique_str_id);
+  }
 
   receiver_stats.total_packets++;
   receiver_stats.packets_since_last_reset++;
@@ -339,7 +345,7 @@ PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hd
     // before doing arithmetic, bad things will happen.
 
     auto seq_id = static_cast<int64_t>(daq_hdr.seq_id);
-    auto& last_seq_id = m_stream_last_seq_id[s_uid];
+    auto& last_seq_id = m_stream_last_seq_id[unique_str_id];
 
     if (seq_id != m_next_expected_seq_id[last_seq_id]) {
       receiver_stats.bad_seq_ids_since_last_reset++;
@@ -351,7 +357,6 @@ PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hd
       }
 
       if (seq_id_delta > receiver_stats.max_seq_id_deviation.load()) {
-        // TLOG() << static_cast<std::string>(s_uid) << "Assigning " << seq_id_delta << " (" << receiver_stats.total_packets << " packets so far)";
         receiver_stats.max_seq_id_deviation = seq_id_delta;
       }
     }
@@ -359,6 +364,23 @@ PacketInfoAccumulator::process_packet(const detdataformats::DAQEthHeader& daq_hd
     last_seq_id = daq_hdr.seq_id;
   }
 
+  if (m_expected_timestamp_step != s_ignorable_value && !first_packet_in_stream) {
+
+    auto timestamp = static_cast<int64_t>(daq_hdr.timestamp);
+    auto& last_timestamp = m_stream_last_timestamp[unique_str_id];
+
+    if (timestamp != last_timestamp + m_expected_timestamp_step) {
+
+      int64_t timestamp_delta = daq_hdr.timestamp - (last_timestamp + m_expected_timestamp_step);
+      receiver_stats.bad_timestamps_since_last_reset++;
+
+      if (timestamp_delta > receiver_stats.max_timestamp_deviation.load()) {
+        receiver_stats.max_timestamp_deviation = timestamp_delta;
+      }
+    }
+
+    last_timestamp = timestamp;
+  }
 }
 
 // dump() is more a function to test the development of
@@ -397,6 +419,12 @@ PacketInfoAccumulator::get_and_reset_stream_stats()
     stream_stat.second.reset();
   }
 
+  if (m_process_nth_packet != 1) {
+    for (auto& stream_stat : snapshot_before_reset) {
+      stream_stat.second.scale(m_process_nth_packet);
+    }
+  }
+
   return snapshot_before_reset;
 }
 
@@ -404,9 +432,11 @@ ReceiverStats::ReceiverStats(const ReceiverStats& rhs)
   : total_packets(rhs.total_packets.load())
   , min_packet_size(rhs.min_packet_size.load())
   , max_packet_size(rhs.max_packet_size.load())
+  , max_timestamp_deviation(rhs.max_timestamp_deviation.load())
   , max_seq_id_deviation(rhs.max_seq_id_deviation.load())
   , packets_since_last_reset(rhs.packets_since_last_reset.load())
   , bytes_since_last_reset(rhs.bytes_since_last_reset.load())
+  , bad_timestamps_since_last_reset(rhs.bad_timestamps_since_last_reset.load())
   , bad_sizes_since_last_reset(rhs.bad_sizes_since_last_reset.load())
   , bad_seq_ids_since_last_reset(rhs.bad_seq_ids_since_last_reset.load())
 {
@@ -415,18 +445,19 @@ ReceiverStats::ReceiverStats(const ReceiverStats& rhs)
 ReceiverStats&
 ReceiverStats::operator=(const ReceiverStats& rhs)
 {
-  ReceiverStats lhs;
 
-  lhs.total_packets = rhs.total_packets.load();
-  lhs.min_packet_size = rhs.min_packet_size.load();
-  lhs.max_packet_size = rhs.max_packet_size.load();
-  lhs.max_seq_id_deviation = rhs.max_seq_id_deviation.load();
-  lhs.packets_since_last_reset = rhs.packets_since_last_reset.load();
-  lhs.bytes_since_last_reset = rhs.bytes_since_last_reset.load();
-  lhs.bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
-  lhs.bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
+  total_packets = rhs.total_packets.load();
+  min_packet_size = rhs.min_packet_size.load();
+  max_packet_size = rhs.max_packet_size.load();
+  max_timestamp_deviation = rhs.max_timestamp_deviation.load();
+  max_seq_id_deviation = rhs.max_seq_id_deviation.load();
+  packets_since_last_reset = rhs.packets_since_last_reset.load();
+  bytes_since_last_reset = rhs.bytes_since_last_reset.load();
+  bad_timestamps_since_last_reset = rhs.bad_timestamps_since_last_reset.load();
+  bad_sizes_since_last_reset = rhs.bad_sizes_since_last_reset.load();
+  bad_seq_ids_since_last_reset = rhs.bad_seq_ids_since_last_reset.load();
 
-  return lhs;
+  return *this;
 }
 
 ReceiverStats::operator std::string() const
@@ -437,9 +468,11 @@ ReceiverStats::operator std::string() const
   reportstr << "total_packets == " << total_packets << "\n"
             << "min_packet_size == " << min_packet_size << "\n"
             << "max_packet_size == " << max_packet_size << "\n"
+            << "max_timestamp_deviation == " << max_timestamp_deviation << "\n"
             << "max_seq_id_deviation == " << max_seq_id_deviation << "\n"
             << "packets_since_last_reset == " << packets_since_last_reset << "\n"
             << "bytes_since_last_reset == " << bytes_since_last_reset << "\n"
+            << "bad_timestamps_since_last_reset == " << bad_timestamps_since_last_reset << "\n"
             << "bad_sizes_since_last_reset == " << bad_sizes_since_last_reset << "\n"
             << "bad_seq_ids_since_last_reset == " << bad_seq_ids_since_last_reset << "\n";
 

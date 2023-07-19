@@ -77,7 +77,6 @@ struct StreamUID
   uint64_t crate_id : 10;
   uint64_t slot_id : 4;
   uint64_t stream_id : 8;
-  uint64_t x;
 
   StreamUID() = default;
 
@@ -85,22 +84,12 @@ struct StreamUID
     : det_id(daq_hdr.det_id)
     , crate_id(daq_hdr.crate_id)
     , slot_id(daq_hdr.slot_id)
-    , stream_id(daq_hdr.stream_id){
+    , stream_id(daq_hdr.stream_id){};
 
-      x = (daq_hdr.det_id << 48) + (daq_hdr.crate_id << 32) + (daq_hdr.slot_id << 16) + (daq_hdr.stream_id << 0);
-    };
+  bool operator<(const StreamUID& rhs) const { return std::tie(det_id, crate_id, slot_id, stream_id) < std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id); }
 
-  bool operator<(const StreamUID& rhs) const { return x < rhs.x; }
-
-  bool operator==(const StreamUID& rhs) const { return x == rhs.x; }
-  
+  bool operator==(const StreamUID& rhs) const { return det_id == rhs.det_id && crate_id == rhs.crate_id && slot_id == rhs.slot_id && stream_id == rhs.stream_id; }
   operator std::string() const { return fmt::format("({}, {}, {}, {})", det_id, crate_id, slot_id, stream_id); }
-};
-
-union StreamUID_X
-{
-  uint32_t id;
-  StreamUID fields;
 };
 
 // Note that there's a difference between the string representation
@@ -116,10 +105,12 @@ struct ReceiverStats
   std::atomic<int64_t> total_packets = 0;
   std::atomic<int64_t> min_packet_size = std::numeric_limits<int64_t>::max();
   std::atomic<int64_t> max_packet_size = std::numeric_limits<int64_t>::min();
-  std::atomic<int64_t> max_seq_id_deviation = 0; // " " "
+  std::atomic<int64_t> max_timestamp_deviation = 0; // In absolute terms (positive *or* negative)
+  std::atomic<int64_t> max_seq_id_deviation = 0;    // " " "
 
   std::atomic<int64_t> packets_since_last_reset = 0;
   std::atomic<int64_t> bytes_since_last_reset = 0;
+  std::atomic<int64_t> bad_timestamps_since_last_reset = 0;
   std::atomic<int64_t> bad_sizes_since_last_reset = 0;
   std::atomic<int64_t> bad_seq_ids_since_last_reset = 0;
 
@@ -127,13 +118,25 @@ struct ReceiverStats
   ReceiverStats(const ReceiverStats& rhs);
   ReceiverStats& operator=(const ReceiverStats& rhs);
 
+  // If you've only been collecting stats for one out of every N
+  // packets, you'd want to pass N to "scale" to correct for this
+
+  void scale(int64_t sf)
+  {
+    packets_since_last_reset = packets_since_last_reset.load() * sf;
+    bytes_since_last_reset = bytes_since_last_reset.load() * sf;
+    bad_timestamps_since_last_reset = bad_timestamps_since_last_reset.load() * sf;
+    bad_sizes_since_last_reset = bad_sizes_since_last_reset.load() * sf;
+    bad_seq_ids_since_last_reset = bad_seq_ids_since_last_reset.load() * sf;
+  }
+
   void reset()
   {
     packets_since_last_reset = 0;
     bytes_since_last_reset = 0;
+    bad_timestamps_since_last_reset = 0;
     bad_sizes_since_last_reset = 0;
     bad_seq_ids_since_last_reset = 0;
-    max_seq_id_deviation = 0;
   }
 
   void merge(const std::vector<ReceiverStats>& stats_vector);
@@ -157,7 +160,7 @@ public:
   static constexpr int64_t s_ignorable_value = std::numeric_limits<int64_t>::max();
   static constexpr int64_t s_max_seq_id = 4095;
 
-  PacketInfoAccumulator(int64_t expected_seq_id_step = s_ignorable_value, int64_t expected_size = s_ignorable_value);
+  PacketInfoAccumulator(int64_t expected_seq_id_step = s_ignorable_value, int64_t expected_timestamp_step = s_ignorable_value, int64_t expected_size = s_ignorable_value, int64_t process_nth_packet = 1);
 
   void process_packet(const detdataformats::DAQEthHeader& daq_hdr, const int64_t data_len);
   void reset();
@@ -186,13 +189,15 @@ private:
 
   const int64_t m_expected_seq_id_step;
 
+  const int64_t m_expected_timestamp_step;
   int64_t m_expected_size;
+  const int64_t m_process_nth_packet;
 
   int64_t m_next_expected_seq_id[s_max_seq_id + 1];
 
+  std::map<StreamUID, int64_t> m_stream_last_timestamp;
   std::map<StreamUID, int64_t> m_stream_last_seq_id;
 };
-
 } // namespace udp
 } // namespace dpdklibs
 } // namespace dunedaq

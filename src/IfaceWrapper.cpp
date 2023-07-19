@@ -50,7 +50,6 @@ IfaceWrapper::IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std
     , m_mbuf_cache_size(0)
     , m_sources(sources)
     , m_run_marker(run_marker)
-    , m_accum(1, 7243)
 { 
   m_iface_id_str = "iface-" + std::to_string(m_iface_id);
 }
@@ -222,6 +221,11 @@ IfaceWrapper::conf(const iface_conf_t& args)
     TLOG() << "Append TX_Q=0 for ARP responses.";
     m_tx_qs.insert(0);
 
+    auto& sr = m_cfg.stats_reporting_cfg;
+    m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr.expected_seq_id_step > 0 ? sr.expected_seq_id_step : udp::PacketInfoAccumulator::s_ignorable_value,
+						      sr.expected_timestamp_step > 0 ? sr.expected_timestamp_step : udp::PacketInfoAccumulator::s_ignorable_value,
+						      sr.expected_packet_size > 0 ? sr.expected_packet_size : udp::PacketInfoAccumulator::s_ignorable_value,
+						      sr.analyze_nth_packet));
   }
 
 
@@ -283,7 +287,7 @@ IfaceWrapper::stop()
     TLOG() << "GARP thrad is not joinable!";
   }
 
-  m_accum.erase_stream_stats();
+  m_accum_ptr->erase_stream_stats();
 }
 
 void
@@ -291,6 +295,8 @@ IfaceWrapper::scrap()
 {
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
+
+  m_accum_ptr.reset(nullptr);
 }
 
 void
@@ -312,7 +318,7 @@ IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
   auto src_id = m_stream_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
 
-  // m_accum.process_packet(*daq_header, size);
+  m_accum_ptr->process_packet(*daq_header, size);
   
   if (m_sources.count(src_id) != 0) {
     auto ret = m_sources[src_id]->handle_payload(payload, size);
