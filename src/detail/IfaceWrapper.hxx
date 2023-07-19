@@ -6,6 +6,9 @@ namespace dpdklibs {
 
 int 
 IfaceWrapper::rx_runner(void *arg __rte_unused) {
+
+  struct timespec sleep_request = { 0, m_lcore_sleep_ns };
+
   bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
 
@@ -86,7 +89,6 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
         // From John's example: more efficient bulk free
         rte_pktmbuf_free_bulk(m_bufs[src_rx_q], nb_rx);
-        // Clear message buffers
        	//for (int i=0; i < nb_rx; i++) {
         //  rte_pktmbuf_free(m_bufs[src_rx_q][i]);
         //}
@@ -98,11 +100,9 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       }
 
     if (!fb_count) {
-      struct timespec remaining, request = { 0, 100'000 };
+      // Sleep n microsecond
   
-      // printf("Taking a nap...\n");
-      int response = nanosleep(&request, nullptr);
-      // std::this_thread::sleep_for(std::chrono::microseconds(1000));
+      int response = nanosleep(&sleep_request, nullptr);
     }
     } // per Q
   } // main loop

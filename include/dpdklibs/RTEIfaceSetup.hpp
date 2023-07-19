@@ -148,100 +148,100 @@ iface_reset(uint16_t iface)
   return retval;
 }
 
-inline int
-iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
-	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
-           bool with_reset=false, bool with_mq_rss=false)
-{
-  struct rte_eth_conf iface_conf = iface_conf_default;
-  uint16_t nb_rxd = RX_RING_SIZE;
-  uint16_t nb_txd = TX_RING_SIZE;
-  int retval = -1;
-  uint16_t q;
-  struct rte_eth_dev_info dev_info;
-  struct rte_eth_txconf txconf;
+// inline int
+// iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
+// 	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+//            bool with_reset=false, bool with_mq_rss=false)
+// {
+//   struct rte_eth_conf iface_conf = iface_conf_default;
+//   uint16_t nb_rxd = RX_RING_SIZE;
+//   uint16_t nb_txd = TX_RING_SIZE;
+//   int retval = -1;
+//   uint16_t q;
+//   struct rte_eth_dev_info dev_info;
+//   struct rte_eth_txconf txconf;
 
-  // Get interface validity
-  if (!rte_eth_dev_is_valid_port(iface)) {
-    TLOG() << "Specified interface " << iface << " is not valid in EAL!";
-    return retval;
-  }
+//   // Get interface validity
+//   if (!rte_eth_dev_is_valid_port(iface)) {
+//     TLOG() << "Specified interface " << iface << " is not valid in EAL!";
+//     return retval;
+//   }
   
-  // Get interface info
-  retval = rte_eth_dev_info_get(iface, &dev_info);
-  if (retval != 0) {
-    TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
-    return retval;
-  }
+//   // Get interface info
+//   retval = rte_eth_dev_info_get(iface, &dev_info);
+//   if (retval != 0) {
+//     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
+//     return retval;
+//   }
 
-  // Carry out a reset of the interface
-  if (with_reset) {
-    retval = rte_eth_dev_reset(iface);
-    if (retval != 0) {
-      TLOG() << "Error during resetting device (iface " << iface << ") retval: " << retval;
-      return retval;
-    }
-  }
+//   // Carry out a reset of the interface
+//   if (with_reset) {
+//     retval = rte_eth_dev_reset(iface);
+//     if (retval != 0) {
+//       TLOG() << "Error during resetting device (iface " << iface << ") retval: " << retval;
+//       return retval;
+//     }
+//   }
 
-  // Should we configure MQ RSS and offload?
-  if (with_mq_rss) {
-    iface_conf_rss_mode(iface_conf, true, true); // with_rss, with_offload
-    // RSS
-    if ((iface_conf.rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) != 0) {
-      TLOG() << "Ethdev port config prepared with RX RSS mq_mode!";
-      if ((iface_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH) != 0) {
-        TLOG() << "Ethdev port config prepared with RX RSS mq_mode with offloading is requested!";
-      }
-    }
-  }
+//   // Should we configure MQ RSS and offload?
+//   if (with_mq_rss) {
+//     iface_conf_rss_mode(iface_conf, true, true); // with_rss, with_offload
+//     // RSS
+//     if ((iface_conf.rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) != 0) {
+//       TLOG() << "Ethdev port config prepared with RX RSS mq_mode!";
+//       if ((iface_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH) != 0) {
+//         TLOG() << "Ethdev port config prepared with RX RSS mq_mode with offloading is requested!";
+//       }
+//     }
+//   }
 
-  // Configure the Ethernet interface
-  retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf);
-  if (retval != 0)
-    return retval;
+//   // Configure the Ethernet interface
+//   retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf);
+//   if (retval != 0)
+//     return retval;
 
-  // Set MTU of interface
-  rte_eth_dev_set_mtu(iface, RTE_JUMBO_ETHER_MTU);
-  {
-    uint16_t mtu;
-    rte_eth_dev_get_mtu(iface, &mtu);
-    TLOG() << "Interface: " << iface << " MTU: " << mtu;
-  }
+//   // Set MTU of interface
+//   rte_eth_dev_set_mtu(iface, RTE_JUMBO_ETHER_MTU);
+//   {
+//     uint16_t mtu;
+//     rte_eth_dev_get_mtu(iface, &mtu);
+//     TLOG() << "Interface: " << iface << " MTU: " << mtu;
+//   }
 
-  // Adjust RX/TX ring sizes
-  retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
-  if (retval != 0)
-    return retval;
+//   // Adjust RX/TX ring sizes
+//   retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
+//   if (retval != 0)
+//     return retval;
 
-  // Allocate and set up RX queues for interface.
-  for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
-    if (retval < 0)
-      return retval;
-  }
+//   // Allocate and set up RX queues for interface.
+//   for (q = 0; q < rx_rings; q++) {
+//     retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
+//     if (retval < 0)
+//       return retval;
+//   }
 
-  txconf = dev_info.default_txconf;
-  txconf.offloads = iface_conf.txmode.offloads;
-  // Allocate and set up TX queues for interface.
-  for (q = 0; q < tx_rings; q++) {
-    retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf);
-    if (retval < 0)
-      return retval;
-  }
+//   txconf = dev_info.default_txconf;
+//   txconf.offloads = iface_conf.txmode.offloads;
+//   // Allocate and set up TX queues for interface.
+//   for (q = 0; q < tx_rings; q++) {
+//     retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf);
+//     if (retval < 0)
+//       return retval;
+//   }
 
-  // Start the Ethernet interface.
-  retval = rte_eth_dev_start(iface);
-  if (retval < 0)
-    return retval;
+//   // Start the Ethernet interface.
+//   retval = rte_eth_dev_start(iface);
+//   if (retval < 0)
+//     return retval;
 
-  // Display the interface MAC address.
-  struct rte_ether_addr addr;
-  retval = rte_eth_macaddr_get(iface, &addr);
-  if (retval != 0)
-    return retval;
+//   // Display the interface MAC address.
+//   struct rte_ether_addr addr;
+//   retval = rte_eth_macaddr_get(iface, &addr);
+//   if (retval != 0)
+//     return retval;
 
-  return 0;
-}
+//   return 0;
+// }
 
 } // namespace ifaceutils
 } // namespace dpdklibs

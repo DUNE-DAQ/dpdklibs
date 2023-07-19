@@ -74,6 +74,7 @@ protected:
   uint16_t m_tx_ring_size;
   int m_num_mbufs;
   int m_burst_size;
+  uint32_t m_lcore_sleep_ns;
   int m_mbuf_cache_size;
 
 private:

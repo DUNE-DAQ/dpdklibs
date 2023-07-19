@@ -62,8 +62,9 @@ local nicreader = {
         s.field("rx_ring_size", self.count, 1024, doc="Size of a single RX ring"),
         s.field("tx_ring_size", self.count, 1024, doc="Size of a single TX ring"),
         s.field("num_mbufs", self.count, 8191, doc="Number of total MBUFs"),
-        s.field("mbuf_cache_size", self.count, 250, doc="MBUF cache size"),
-        s.field("burst_size", self.count, 250, doc="RX burst size"),
+        s.field("mbuf_cache_size", self.count, 256, doc="MBUF cache size"),
+        s.field("burst_size", self.count, 256, doc="RX burst size"),
+        s.field("lcore_sleep_us", self.count, 10, doc="LCore loop sleep in microseconds - 0 to disable"),
         s.field("expected_sources", self.sources, doc="A list of expected sources")
     ], doc="Configuration an Ethernet interface through DPDK RTE"),
 

@@ -9,7 +9,7 @@
 #include "readoutlibs/ReadoutIssues.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/RTEIfaceSetup.hpp"
+// #include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -166,6 +166,7 @@ IfaceWrapper::conf(const iface_conf_t& args)
     m_mac_addr = m_cfg.mac_addr;
     m_mbuf_cache_size = m_cfg.mbuf_cache_size;
     m_burst_size = m_cfg.burst_size;
+    m_lcore_sleep_ns = m_cfg.lcore_sleep_us*1'000;
     m_mtu = m_cfg.mtu;
     m_num_mbufs = m_cfg.num_mbufs;
     m_rx_ring_size = m_cfg.rx_ring_size;
@@ -311,7 +312,7 @@ IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
   auto src_id = m_stream_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
 
-  m_accum.process_packet(*daq_header, size);
+  // m_accum.process_packet(*daq_header, size);
   
   if (m_sources.count(src_id) != 0) {
     auto ret = m_sources[src_id]->handle_payload(payload, size);

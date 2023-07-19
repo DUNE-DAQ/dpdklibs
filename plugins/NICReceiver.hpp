@@ -103,7 +103,7 @@ private:
 
   // Lcore processor
   //template<class T> 
-  int rx_runner(void *arg __rte_unused);
+  // int rx_runner(void *arg __rte_unused);
 
   // Interfaces (logical ID, MAC) -> IfaceWrapper
   std::map<std::string, uint16_t> m_mac_to_id_map;

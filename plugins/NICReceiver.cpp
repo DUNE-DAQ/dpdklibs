@@ -412,6 +412,6 @@ NICReceiver::set_running(bool should_run)
 } // namespace dpdklibs
 } // namespace dunedaq
 
-#include "detail/NICReceiver.hxx"
+// #include "detail/NICReceiver.hxx"
 
 DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::NICReceiver)

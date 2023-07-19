@@ -94,7 +94,7 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
 inline int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
            uint16_t rx_ring_size, uint16_t tx_ring_size,
-	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+           std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
            bool with_reset=false, bool with_mq_rss=false)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
@@ -200,6 +200,48 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   } else {
     return retval;
   }
+
+
+
+  // Get interface info
+  retval = rte_eth_dev_info_get(iface, &dev_info);
+  if (retval != 0) {
+    TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
+    return retval;
+  }
+
+
+  TLOG() << "Iface " << iface << " Rx Ring info :" 
+    << "min " << dev_info.rx_desc_lim.nb_min 
+    << "max " << dev_info.rx_desc_lim.nb_max 
+    << "align " << dev_info.rx_desc_lim.nb_align
+  ;
+
+  TLOG() << "Iface " << iface << " Tx Ring info :" 
+    << "min " << dev_info.rx_desc_lim.nb_min 
+    << "max " << dev_info.rx_desc_lim.nb_max 
+    << "align " << dev_info.rx_desc_lim.nb_align
+  ;
+
+  for (size_t j = 0; j < dev_info.nb_rx_queues; j++) {
+
+    struct rte_eth_rxq_info queue_info;
+    int count;
+
+    retval = rte_eth_rx_queue_info_get(iface, j, &queue_info);
+    if (retval != 0)
+      break;
+
+    count = rte_eth_rx_queue_count(iface, j);
+    TLOG() << "rx " << j << " descriptors  " << count << "/" << queue_info.nb_desc;
+    TLOG() << "rx " << j << " scattered  " << (queue_info.scattered_rx ? "  yes" : "no");
+    TLOG() << "rx " << j << " conf.drop_en  " << (queue_info.conf.rx_drop_en ? "  yes" : "no");
+    TLOG() << "rx " << j << " conf.rx_deferred_start  " << (queue_info.conf.rx_deferred_start ? "  yes" : "no");
+    TLOG() << "rx " << j << " rx_buf_size  " << queue_info.rx_buf_size;
+
+
+  }
+
 
   return 0;
 }
