@@ -383,6 +383,8 @@ int main(int argc, char** argv){
     std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
     std::map<int, struct rte_mbuf **> bufs;
     uint16_t n_rx_qs = 1;
+    const uint16_t rx_ring_size = 1024;
+    const uint16_t tx_ring_size = 1024;
 
     std::cout << "Allocating pools and mbufs.\n";
     for (size_t i=0; i<n_rx_qs; ++i) {
@@ -396,7 +398,7 @@ int main(int argc, char** argv){
 
     // Setting up only one iface
     fmt::print("Initialize only iface {}!\n", iface);
-    ealutils::iface_init(iface, n_rx_qs, 0, mbuf_pools); // just init iface, no TX queues
+    ealutils::iface_init(iface, n_rx_qs, 0, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
 
     lcore_main(mbuf_pools[0].get(), iface, time_per_report);
 

@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
   // Expected step in sequence ID and timestamp is zero, expected size
   // is bufs[0]->data_len
 
-  PacketInfoAccumulator processor2(0, 0, bufs[0]->data_len);
+  PacketInfoAccumulator processor2(0, bufs[0]->data_len);
   TLOG() << "Dump after processing two identical packets while expecting no change in the sequence ID and timestamp, and setting a (correct) expectation about the packet sizes: ";
   processor2.process_packet(*daq_hdr, bufs[0]->data_len);
   processor2.process_packet(*daq_hdr, bufs[0]->data_len);
@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
 
   TLOG() << "Dump after processing two identical packets while incorrectly expecting the sequence ID and timestamp to increment by 1, and incorrectly expecting the packet size to be 999 bytes: ";
   
-  PacketInfoAccumulator processor3(1, 1, 999);
+  PacketInfoAccumulator processor3(1, 999);
   processor3.process_packet(*daq_hdr, bufs[0]->data_len);
   processor3.process_packet(*daq_hdr, bufs[0]->data_len);
   processor3.dump();  

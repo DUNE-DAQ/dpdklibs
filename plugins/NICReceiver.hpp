@@ -96,14 +96,13 @@ private:
   // DPDK
   unsigned m_num_ifaces;
   uint16_t m_iface_id;
-  volatile uint8_t m_dpdk_quit_signal;
   const int m_burst_size = 256;
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;
 
   // Lcore processor
   //template<class T> 
-  int rx_runner(void *arg __rte_unused);
+  // int rx_runner(void *arg __rte_unused);
 
   // Interfaces (logical ID, MAC) -> IfaceWrapper
   std::map<std::string, uint16_t> m_mac_to_id_map;
@@ -126,6 +125,6 @@ private:
 
 } // namespace dunedaq::dpdklibs
 
-#include "detail/NICReceiver.hxx"
+// #include "detail/NICReceiver.hxx"
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

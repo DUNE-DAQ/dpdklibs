@@ -132,9 +132,10 @@ main(int argc, char* argv[])
 
   // Iface ID and its queue numbers
   int iface_id = 0;
-  int rx_qs = 1;
-  int tx_qs = 1;
-
+  const uint16_t rx_qs = 1;
+  const uint16_t tx_qs = 1;
+  const uint16_t rx_ring_size = 1024;
+  const uint16_t tx_ring_size = 1024;
   // Get pool
   std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
   TLOG() << "Allocating pool";
@@ -148,7 +149,7 @@ main(int argc, char* argv[])
   auto nb_ifaces = rte_eth_dev_count_avail();
   TLOG() << "# of available interfaces: " << nb_ifaces;
   TLOG() << "Initialize interface " << iface_id;
-  ealutils::iface_init(iface_id, rx_qs, tx_qs, mbuf_pools);
+  ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
   ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
 
   // Launch lcores
