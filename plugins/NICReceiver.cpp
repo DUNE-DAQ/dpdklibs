@@ -311,9 +311,6 @@ NICReceiver::do_start(const data_t&)
 
   if (!m_run_marker.load()) {
     set_running(true);
-    m_dpdk_quit_signal = 0;
-    ealutils::dpdk_quit_signal = 0;
-
     TLOG() << "Starting iface wrappers.";
     for (auto& [iface_id, iface] : m_ifaces) {
       iface->start();
@@ -330,16 +327,11 @@ NICReceiver::do_stop(const data_t&)
   if (m_run_marker.load()) {
     TLOG() << "Raising stop through variables!";
     set_running(false);
-    m_dpdk_quit_signal = 1;
-
-    ealutils::dpdk_quit_signal = 1;
-    ealutils::wait_for_lcores();
-   
     TLOG() << "Stopping iface wrappers.";
     for (auto& [iface_id, iface] : m_ifaces) {
       iface->stop();
     }
-  
+    ealutils::wait_for_lcores();
     TLOG() << "Stoppped DPDK lcore processors and internal threads...";
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
@@ -352,7 +344,6 @@ NICReceiver::do_stop(const data_t&)
     TLOG() << "Stats thread is not joinable!";
   }
 
-  
   return;
 }
 

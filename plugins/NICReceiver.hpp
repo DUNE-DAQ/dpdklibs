@@ -96,7 +96,6 @@ private:
   // DPDK
   unsigned m_num_ifaces;
   uint16_t m_iface_id;
-  volatile uint8_t m_dpdk_quit_signal;
   const int m_burst_size = 256;
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;

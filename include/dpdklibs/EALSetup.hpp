@@ -302,12 +302,12 @@ get_available_ifaces() {
 int 
 wait_for_lcores() {
   int lcore_id;
+  int ret = 0;
   RTE_LCORE_FOREACH_WORKER(lcore_id) {
-    if (rte_eal_wait_lcore(lcore_id) < 0) {
-      return -1;
-    }
+    //TLOG() << "Waiting for lcore[" << lcore_id << "] to finish packet processing.";
+    ret = rte_eal_wait_lcore(lcore_id);
   }
-  return 0;
+  return ret;
 }
 
 void finish_eal() {

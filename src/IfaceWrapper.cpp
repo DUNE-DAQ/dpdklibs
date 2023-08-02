@@ -234,6 +234,8 @@ IfaceWrapper::conf(const iface_conf_t& args)
 void
 IfaceWrapper::start()
 {
+  m_lcore_quit_signal.store(false);
+
   m_stat_thread = std::thread([&]() {
     TLOG() << "Launching stat thread of iface=" << m_iface_id;
 
@@ -275,6 +277,8 @@ IfaceWrapper::start()
 void
 IfaceWrapper::stop()
 {
+  m_lcore_quit_signal.store(true);
+
   if (m_stat_thread.joinable()) {
     m_stat_thread.join();
   } else {

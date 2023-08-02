@@ -86,6 +86,9 @@ private:
   std::set<int> m_lcores;
   std::map<int, std::map<int, std::string>> m_rx_core_map;
 
+  // Lcore stop signal
+  std::atomic<bool> m_lcore_quit_signal{ false };
+
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs;
