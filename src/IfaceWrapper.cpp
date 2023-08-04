@@ -322,7 +322,7 @@ IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
   auto src_id = m_stream_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
 
-  m_accum_ptr->process_packet(*daq_header, size);
+  //m_accum_ptr->process_packet(*daq_header, size);
   
   if (m_sources.count(src_id) != 0) {
     auto ret = m_sources[src_id]->handle_payload(payload, size);
