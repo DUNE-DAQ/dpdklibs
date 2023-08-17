@@ -92,13 +92,16 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
 
 
 inline int
-iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
-	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
+           uint16_t rx_ring_size, uint16_t tx_ring_size,
+           std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
            bool with_reset=false, bool with_mq_rss=false)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
-  uint16_t nb_rxd = RX_RING_SIZE;
-  uint16_t nb_txd = TX_RING_SIZE;
+  // uint16_t nb_rxd = RX_RING_SIZE;
+  // uint16_t nb_txd = TX_RING_SIZE;
+  uint16_t nb_rxd = rx_ring_size;
+  uint16_t nb_txd = tx_ring_size;
   int retval = -1;
   uint16_t q;
   struct rte_eth_dev_info dev_info;
@@ -116,6 +119,12 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
     return retval;
   }
+
+  TLOG() << "Iface " << iface << " RX Ring info :" 
+    << " min " << dev_info.rx_desc_lim.nb_min 
+    << " max " << dev_info.rx_desc_lim.nb_max 
+    << " align " << dev_info.rx_desc_lim.nb_align 
+  ;
 
   // Carry out a reset of the interface
   if (with_reset) {
@@ -192,6 +201,48 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
   }
 
+
+
+  // Get interface info
+  retval = rte_eth_dev_info_get(iface, &dev_info);
+  if (retval != 0) {
+    TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
+    return retval;
+  }
+
+
+  TLOG() << "Iface " << iface << " Rx Ring info :" 
+    << "min " << dev_info.rx_desc_lim.nb_min 
+    << "max " << dev_info.rx_desc_lim.nb_max 
+    << "align " << dev_info.rx_desc_lim.nb_align
+  ;
+
+  TLOG() << "Iface " << iface << " Tx Ring info :" 
+    << "min " << dev_info.rx_desc_lim.nb_min 
+    << "max " << dev_info.rx_desc_lim.nb_max 
+    << "align " << dev_info.rx_desc_lim.nb_align
+  ;
+
+  for (size_t j = 0; j < dev_info.nb_rx_queues; j++) {
+
+    struct rte_eth_rxq_info queue_info;
+    int count;
+
+    retval = rte_eth_rx_queue_info_get(iface, j, &queue_info);
+    if (retval != 0)
+      break;
+
+    count = rte_eth_rx_queue_count(iface, j);
+    TLOG() << "rx " << j << " descriptors  " << count << "/" << queue_info.nb_desc;
+    TLOG() << "rx " << j << " scattered  " << (queue_info.scattered_rx ? "  yes" : "no");
+    TLOG() << "rx " << j << " conf.drop_en  " << (queue_info.conf.rx_drop_en ? "  yes" : "no");
+    TLOG() << "rx " << j << " conf.rx_deferred_start  " << (queue_info.conf.rx_deferred_start ? "  yes" : "no");
+    TLOG() << "rx " << j << " rx_buf_size  " << queue_info.rx_buf_size;
+
+
+  }
+
+
   return 0;
 }
 
@@ -251,12 +302,12 @@ get_available_ifaces() {
 int 
 wait_for_lcores() {
   int lcore_id;
+  int ret = 0;
   RTE_LCORE_FOREACH_WORKER(lcore_id) {
-    if (rte_eal_wait_lcore(lcore_id) < 0) {
-      return -1;
-    }
+    //TLOG() << "Waiting for lcore[" << lcore_id << "] to finish packet processing.";
+    ret = rte_eal_wait_lcore(lcore_id);
   }
-  return 0;
+  return ret;
 }
 
 void finish_eal() {

@@ -249,6 +249,8 @@ int main(int argc, char** argv) {
   uint16_t portid = std::numeric_limits<uint16_t>::max();
   int n_rx_qs = 0;
   int n_tx_qs = 0;
+  uint16_t rx_ring_size = 1024;
+  uint16_t tx_ring_size = 1024;
   int port_cntr = -1;
   std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
   std::vector<lcore_thread_arg> lcore_thread_args;
@@ -278,7 +280,7 @@ int main(int argc, char** argv) {
       is_receiver = false;
     }
     
-    retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, mbuf_pools);
+    retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
     
     if (retval != 0) {
       rte_eal_cleanup();

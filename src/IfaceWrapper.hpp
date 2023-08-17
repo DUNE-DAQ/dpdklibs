@@ -70,10 +70,11 @@ protected:
   std::string m_mac_addr;
   int m_socket_id;
   int m_mtu;
-  int m_rx_ring_size;
-  int m_tx_ring_size;
+  uint16_t m_rx_ring_size;
+  uint16_t m_tx_ring_size;
   int m_num_mbufs;
   int m_burst_size;
+  uint32_t m_lcore_sleep_ns;
   int m_mbuf_cache_size;
 
 private:
@@ -84,6 +85,9 @@ private:
   std::set<int> m_tx_qs;
   std::set<int> m_lcores;
   std::map<int, std::map<int, std::string>> m_rx_core_map;
+
+  // Lcore stop signal
+  std::atomic<bool> m_lcore_quit_signal{ false };
 
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
@@ -123,6 +127,6 @@ private:
 } // namespace dpdklibs
 } // namespace dunedaq
 
-#include "detail/IfaceWrapper.hxx"
+// #include "detail/IfaceWrapper.hxx"
 
 #endif // DPDKLIBS_SRC_IFACEWRAPPER_HPP_

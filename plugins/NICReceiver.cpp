@@ -153,103 +153,103 @@ NICReceiver::do_configure(const data_t& args)
   
   return;
 
-#warning RS FIXME -> Removed for conf overhaul
-    auto ip_sources = nullptr;
-    auto rx_cores = nullptr;
-//  m_iface_id = (uint16_t)m_cfg.card_id;
-//  m_dest_ip = m_cfg.dest_ip;
-//  auto ip_sources = m_cfg.ip_sources;
-//  auto rx_cores = m_cfg.rx_cores; 
-//  m_num_ip_sources = ip_sources.size();
-//  m_num_rx_cores = rx_cores.size();
-/*
-  // Initialize RX core map
-  for (auto rxc : rx_cores) {
-    for (auto qid : rxc.rx_qs) {
-      m_rx_core_map[rxc.lcore_id][qid] = "";
-    }
-  }
+// #warning RS FIXME -> Removed for conf overhaul
+//     auto ip_sources = nullptr;
+//     auto rx_cores = nullptr;
+// //  m_iface_id = (uint16_t)m_cfg.card_id;
+// //  m_dest_ip = m_cfg.dest_ip;
+// //  auto ip_sources = m_cfg.ip_sources;
+// //  auto rx_cores = m_cfg.rx_cores; 
+// //  m_num_ip_sources = ip_sources.size();
+// //  m_num_rx_cores = rx_cores.size();
+// /*
+//   // Initialize RX core map
+//   for (auto rxc : rx_cores) {
+//     for (auto qid : rxc.rx_qs) {
+//       m_rx_core_map[rxc.lcore_id][qid] = "";
+//     }
+//   }
 
-  // Setup expected IP sources
-  for (auto src : ip_sources) {
-    TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
-    // Extend mapping
-    m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
-    m_rx_qs.insert(src.rx_q);
-    // Create frame counter metric
-    m_num_frames[src.id] = { 0 };
-    m_num_bytes[src.id] = { 0 };
-  }
-*/
+//   // Setup expected IP sources
+//   for (auto src : ip_sources) {
+//     TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
+//     // Extend mapping
+//     m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
+//     m_rx_qs.insert(src.rx_q);
+//     // Create frame counter metric
+//     m_num_frames[src.id] = { 0 };
+//     m_num_bytes[src.id] = { 0 };
+//   }
+// */
 
-  // Setup SourceConcepts
-  // m_sources[]->configure if needed!?
+//   // Setup SourceConcepts
+//   // m_sources[]->configure if needed!?
 
-  // Allocate pools and mbufs per queue
-  TLOG() << "Allocating pools and mbufs.";
-  for (size_t i=0; i<m_rx_qs.size(); ++i) {
-    std::stringstream ss;
-    ss << "MBP-" << i;
-    TLOG() << "Pool acquire: " << ss.str(); 
-    m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
-    m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-    rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
-  }
+//   // Allocate pools and mbufs per queue
+//   TLOG() << "Allocating pools and mbufs.";
+//   for (size_t i=0; i<m_rx_qs.size(); ++i) {
+//     std::stringstream ss;
+//     ss << "MBP-" << i;
+//     TLOG() << "Pool acquire: " << ss.str(); 
+//     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
+//     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+//     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
+//   }
 
-  // Setting up interface
-  TLOG() << "Initialize interface " << m_iface_id;
-  bool with_reset = true, with_mq_mode = true; // go to config
-  ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools, with_reset, with_mq_mode); // 0 = no tx queues
-  // Promiscuous mode
-  ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
+//   // Setting up interface
+//   TLOG() << "Initialize interface " << m_iface_id;
+//   bool with_reset = true, with_mq_mode = true; // go to config
+//   ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools, with_reset, with_mq_mode); // 0 = no tx queues
+//   // Promiscuous mode
+//   ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
 
-  // Flow steering setup
-  TLOG() << "Configuring Flow steering rules.";
-  struct rte_flow_error error;
-  struct rte_flow *flow;
-  TLOG() << "Attempt to flush previous flow rules...";
-  rte_flow_flush(m_iface_id, &error);
-#warning RS: FIXME -> Check for flow flush return!
-  for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
-    for (auto const& [rxqid, srcip] : rxqs) {
+//   // Flow steering setup
+//   TLOG() << "Configuring Flow steering rules.";
+//   struct rte_flow_error error;
+//   struct rte_flow *flow;
+//   TLOG() << "Attempt to flush previous flow rules...";
+//   rte_flow_flush(m_iface_id, &error);
+// #warning RS: FIXME -> Check for flow flush return!
+//   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
+//     for (auto const& [rxqid, srcip] : rxqs) {
 
-      // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
-      TLOG() << "Current ip is " << srcip;
-      size_t ind = 0, current_ind = 0;
-      std::vector<uint8_t> v;
-      for (int i = 0; i < 4; ++i) {
-        v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
-        current_ind += ind + 1;
-      }
+//       // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
+//       TLOG() << "Current ip is " << srcip;
+//       size_t ind = 0, current_ind = 0;
+//       std::vector<uint8_t> v;
+//       for (int i = 0; i < 4; ++i) {
+//         v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
+//         current_ind += ind + 1;
+//       }
 
-      flow = generate_ipv4_flow(m_iface_id, rxqid, 
-		    RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
+//       flow = generate_ipv4_flow(m_iface_id, rxqid, 
+// 		    RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
 
-      if (not flow) { // ers::fatal
-        TLOG() << "Flow can't be created for " << rxqid
-	       << " Error type: " << (unsigned)error.type
-	       << " Message: " << error.message;
-        ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "Couldn't create Flow API rules!"));
-    	  rte_exit(EXIT_FAILURE, "error in creating flow");
-      }
-    }
-  }
+//       if (not flow) { // ers::fatal
+//         TLOG() << "Flow can't be created for " << rxqid
+// 	       << " Error type: " << (unsigned)error.type
+// 	       << " Message: " << error.message;
+//         ers::fatal(dunedaq::readoutlibs::InitializationError(
+//           ERS_HERE, "Couldn't create Flow API rules!"));
+//     	  rte_exit(EXIT_FAILURE, "error in creating flow");
+//       }
+//     }
+//   }
 
-#warning RS FIXME -> Removed for conf overhaul
-//  if (m_cfg.with_drop_flow) {
-    // Adding drop flow
-    TLOG() << "Adding Drop Flow.";
-    flow = generate_drop_flow(m_iface_id, &error);
-    if (not flow) { // ers::fatal
-      TLOG() << "Drop flow can't be created for interface!"
-             << " Error type: " << (unsigned)error.type
-             << " Message: " << error.message;
-      rte_exit(EXIT_FAILURE, "error in creating flow");
-    }
-//  }
+// #warning RS FIXME -> Removed for conf overhaul
+// //  if (m_cfg.with_drop_flow) {
+//     // Adding drop flow
+//     TLOG() << "Adding Drop Flow.";
+//     flow = generate_drop_flow(m_iface_id, &error);
+//     if (not flow) { // ers::fatal
+//       TLOG() << "Drop flow can't be created for interface!"
+//              << " Error type: " << (unsigned)error.type
+//              << " Message: " << error.message;
+//       rte_exit(EXIT_FAILURE, "error in creating flow");
+//     }
+// //  }
   
-  TLOG() << "DPDK EAL & RTE configured.";
+//   TLOG() << "DPDK EAL & RTE configured.";
 
 }
 
@@ -259,64 +259,58 @@ NICReceiver::do_start(const data_t&)
   TLOG() << get_name() << ": Entering do_start() method";
 
   m_stat_thread = std::thread([&]() {
+    uint64_t time_per_report = 10; // In seconds
+    std::atomic<bool> last_run_marker_value = m_run_marker.load();
+    std::atomic<bool> current_run_marker = false;
 
-        uint64_t time_per_report = 10; // In seconds
-	std::atomic<bool> last_run_marker_value = m_run_marker.load();
-	std::atomic<bool> current_run_marker = false;
-	
-        while (true) {
+    while (true) {
 
-	  std::chrono::steady_clock::time_point loop_start_time = std::chrono::steady_clock::now();
-	  
-	  current_run_marker = m_run_marker.load();
-	  if (current_run_marker == false && last_run_marker_value == true) {
-	    break;
-	  } else {
-	    last_run_marker_value = current_run_marker.load();
-	  }
+      std::chrono::steady_clock::time_point loop_start_time = std::chrono::steady_clock::now();
 
-	  std::map<udp::StreamUID, udp::ReceiverStats> receiver_stats_across_ifaces;
-  
-	  for (auto& [iface_id, iface] : m_ifaces) {
-	    auto receiver_stats_by_stream = iface->get_and_reset_stream_stats();
+      current_run_marker = m_run_marker.load();
+      if (current_run_marker == false && last_run_marker_value == true) {
+        break;
+      } else {
+        last_run_marker_value = current_run_marker.load();
+      }
 
-	    
-	    for (auto& [suid, stats] : receiver_stats_by_stream) {
+      std::map<udp::StreamUID, udp::ReceiverStats> receiver_stats_across_ifaces;
 
-	      // std::map::contains is available in C++20...
-	      if (receiver_stats_across_ifaces.find(suid) == receiver_stats_across_ifaces.end()) {
-		receiver_stats_across_ifaces[suid];
-	      }
-      
-	      receiver_stats_across_ifaces[suid].merge( { receiver_stats_by_stream[suid]} );
-	    }
-	  }
+      for (auto& [iface_id, iface] : m_ifaces) {
+        auto receiver_stats_by_stream = iface->get_and_reset_stream_stats();
 
-  	  opmonlib::InfoCollector ic;
-	  
-	  for (auto& [suid, stats] : receiver_stats_across_ifaces) {
-	  
-	    receiverinfo::Info derived_stats = DeriveFromReceiverStats( receiver_stats_across_ifaces[suid], time_per_report);
-	    opmonlib::InfoCollector tmp_ic;
-	    tmp_ic.add(derived_stats);
-	    ic.add(udp::get_opmon_string(suid), tmp_ic);
-	  }
+        for (auto& [suid, stats] : receiver_stats_by_stream) {
 
-	  {
-	    std::lock_guard<std::mutex> l(m_ic_mutex);
-	    m_ic = ic;
-	  }
+          // std::map::contains is available in C++20...
+          if (receiver_stats_across_ifaces.find(suid) == receiver_stats_across_ifaces.end()) {
+            receiver_stats_across_ifaces[suid];
+          }
 
-	  std::this_thread::sleep_until(loop_start_time + std::chrono::milliseconds(1000*time_per_report));
+          receiver_stats_across_ifaces[suid].merge({ receiver_stats_by_stream[suid] });
         }
-			      });
+      }
 
-  
+      opmonlib::InfoCollector ic;
+
+      for (auto& [suid, stats] : receiver_stats_across_ifaces) {
+
+        receiverinfo::Info derived_stats = DeriveFromReceiverStats(receiver_stats_across_ifaces[suid], time_per_report);
+        opmonlib::InfoCollector tmp_ic;
+        tmp_ic.add(derived_stats);
+        ic.add(udp::get_opmon_string(suid), tmp_ic);
+      }
+
+      {
+        std::lock_guard<std::mutex> l(m_ic_mutex);
+        m_ic = ic;
+      }
+
+      std::this_thread::sleep_until(loop_start_time + std::chrono::milliseconds(1000 * time_per_report));
+    }
+  });
+
   if (!m_run_marker.load()) {
     set_running(true);
-    m_dpdk_quit_signal = 0;
-    ealutils::dpdk_quit_signal = 0;
-
     TLOG() << "Starting iface wrappers.";
     for (auto& [iface_id, iface] : m_ifaces) {
       iface->start();
@@ -333,16 +327,11 @@ NICReceiver::do_stop(const data_t&)
   if (m_run_marker.load()) {
     TLOG() << "Raising stop through variables!";
     set_running(false);
-    m_dpdk_quit_signal = 1;
-
-    ealutils::dpdk_quit_signal = 1;
-    ealutils::wait_for_lcores();
-   
     TLOG() << "Stopping iface wrappers.";
     for (auto& [iface_id, iface] : m_ifaces) {
       iface->stop();
     }
-  
+    ealutils::wait_for_lcores();
     TLOG() << "Stoppped DPDK lcore processors and internal threads...";
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
@@ -355,7 +344,6 @@ NICReceiver::do_stop(const data_t&)
     TLOG() << "Stats thread is not joinable!";
   }
 
-  
   return;
 }
 
@@ -414,5 +402,7 @@ NICReceiver::set_running(bool should_run)
 
 } // namespace dpdklibs
 } // namespace dunedaq
+
+// #include "detail/NICReceiver.hxx"
 
 DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::NICReceiver)

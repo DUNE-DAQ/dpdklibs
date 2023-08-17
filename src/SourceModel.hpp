@@ -131,19 +131,21 @@ public:
 
   bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
   {
-    TargetPayloadType target_payload;
+    // TargetPayloadType target_payload;
     //TLOG() << "Type of target_payload: " << typeid(target_payload).name();
     //TLOG() << "Size of target_payload: " << (unsigned)sizeof(target_payload);
     //TLOG() << "Bytes to be copied: " << size;
-    uint32_t bytes_copied = 0;
-    readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
+    // uint32_t bytes_copied = 0;
+    // readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     //TLOG() << "PAYLOAD READY WITH SIZE: " << bytes_copied;
     
     //m_sink_queue->send(std::move(target_payload), std::chrono::milliseconds(100));
+
+    TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
     if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-      if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-        TLOG() << "Dropped data " << m_dropped_packets;
-      }
+      //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+      //  TLOG() << "Dropped data " << m_dropped_packets;
+      //}
       ++m_dropped_packets;
     }
 

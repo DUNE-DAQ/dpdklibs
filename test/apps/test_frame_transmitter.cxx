@@ -143,10 +143,12 @@ int main(int argc, char* argv[]) {
     
     const uint16_t n_tx_qs = 1;
     const uint16_t n_rx_qs = 0;
+    const uint16_t rx_ring_size = 1024;
+    const uint16_t tx_ring_size = 1024;
 
     uint16_t portid = 0;
     std::map<int, std::unique_ptr<rte_mempool>> dummyarg;
-    retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, dummyarg);
+    retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, dummyarg);
 
     if (retval != 0) {
       TLOG(TLVL_ERROR) << "A failure occurred initializing ethernet interface #" << portid << "; exiting...";
