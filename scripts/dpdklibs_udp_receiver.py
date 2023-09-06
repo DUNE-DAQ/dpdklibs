@@ -20,17 +20,15 @@ def print_header(wib_frame,prefix="\t"):
     print(f'{prefix}Block length: 0x{header.block_length:x}')
 
 def dump_data(data):
-    print(f'Size of the message received: {len(data)}')
-    data2=data
-
-
     # if len(data)%2 ==1:
         # data2=data[0:-1]
     # print("\n".join(str(binascii.hexlify(data2,' ', bytes_per_sep=8)).split(' ')))
     n_word = (len(data) // 8) +len(data) % 8
     for i in range(n_word):
         w = int.from_bytes(data[i*8:(i+1)*8], byteorder='little', signed=False)
-        print(f"0x{w:016x}")
+        print(f"{i:04d} 0x{w:016x}")
+    print(f'Printed {len(data)} bytes\n')
+
 
 @click.command()
 @click.option('-d', '--dump', is_flag=True, default=False)
@@ -59,7 +57,9 @@ def main(dump, count):
         stream_ts = header.timestamp
         # print(hdr_id, header.seq_id, hex(stream_ts))
         if dump:
-            dump_data(data[0:32])
+            print(hdr_id)
+            # dump_data(data[0:128])
+            dump_data(data)
 
         if hdr_id not in prev_stream:
             pass
