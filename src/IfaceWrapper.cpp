@@ -145,6 +145,13 @@ IfaceWrapper::setup_flow_steering()
 }
 
 void
+IfaceWrapper::setup_xstats() 
+{
+  // Stats setup
+  m_iface_xstats.setup(m_iface_id);
+}
+
+void
 IfaceWrapper::conf(const iface_conf_t& args)
 {
   if (m_configured) {

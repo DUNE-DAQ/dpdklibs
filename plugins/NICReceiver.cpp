@@ -144,6 +144,7 @@ NICReceiver::do_configure(const data_t& args)
        m_ifaces[iface_id]->allocate_mbufs();
        m_ifaces[iface_id]->setup_interface();
        m_ifaces[iface_id]->setup_flow_steering();
+       m_ifaces[iface_id]->setup_xstats();
      } else {
        TLOG() << "No available interface with MAC=" << iface_mac_addr;
        ers::fatal(dunedaq::readoutlibs::InitializationError(

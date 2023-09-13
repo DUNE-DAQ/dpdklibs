@@ -76,6 +76,7 @@ daq_add_application(dpdklibs_test_frame_transmitter test_frame_transmitter.cxx T
 daq_add_application(dpdklibs_test_arp_response test_arp_response.cxx TEST LINK_LIBRARIES dpdklibs ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_transmit_and_receive test_transmit_and_receive.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_stats_reporting test_stats_reporting.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
+daq_add_application(dpdklibs_test_dpdk_stats test_dpdk_stats.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 
 target_compile_options(dpdklibs PUBLIC ${DPDK_CFLAGS})
 target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})

@@ -16,6 +16,7 @@
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
+#include "dpdklibs/XstatsHelper.hpp"
 #include "SourceConcept.hpp"
 
 #include <nlohmann/json.hpp>
@@ -52,6 +53,7 @@ public:
   void allocate_mbufs();
   void setup_interface();
   void setup_flow_steering();
+  void setup_xstats();
 
   std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
     return m_accum_ptr->get_and_reset_stream_stats();
@@ -98,6 +100,9 @@ private:
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
   std::thread m_stat_thread;
+
+  // DPDK HW stats
+  dpdklibs::IfaceXstats m_iface_xstats;
 
   // Source to sink map
   std::map<int, std::map<int, int>> m_stream_to_source_id;
