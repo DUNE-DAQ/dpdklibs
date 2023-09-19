@@ -259,56 +259,57 @@ NICReceiver::do_start(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_start() method";
 
-  m_stat_thread = std::thread([&]() {
-    uint64_t time_per_report = 10; // In seconds
-    std::atomic<bool> last_run_marker_value = m_run_marker.load();
-    std::atomic<bool> current_run_marker = false;
-
-    while (true) {
-
-      std::chrono::steady_clock::time_point loop_start_time = std::chrono::steady_clock::now();
-
-      current_run_marker = m_run_marker.load();
-      if (current_run_marker == false && last_run_marker_value == true) {
-        break;
-      } else {
-        last_run_marker_value = current_run_marker.load();
-      }
-
-      std::map<udp::StreamUID, udp::ReceiverStats> receiver_stats_across_ifaces;
-
-      for (auto& [iface_id, iface] : m_ifaces) {
-        auto receiver_stats_by_stream = iface->get_and_reset_stream_stats();
-
-        for (auto& [suid, stats] : receiver_stats_by_stream) {
-
-          // std::map::contains is available in C++20...
-          if (receiver_stats_across_ifaces.find(suid) == receiver_stats_across_ifaces.end()) {
-            receiver_stats_across_ifaces[suid];
-          }
-
-          receiver_stats_across_ifaces[suid].merge({ receiver_stats_by_stream[suid] });
-        }
-      }
-
-      opmonlib::InfoCollector ic;
-
-      for (auto& [suid, stats] : receiver_stats_across_ifaces) {
-
-        receiverinfo::Info derived_stats = DeriveFromReceiverStats(receiver_stats_across_ifaces[suid], time_per_report);
-        opmonlib::InfoCollector tmp_ic;
-        tmp_ic.add(derived_stats);
-        ic.add(udp::get_opmon_string(suid), tmp_ic);
-      }
-
-      {
-        std::lock_guard<std::mutex> l(m_ic_mutex);
-        m_ic = ic;
-      }
-
-      std::this_thread::sleep_until(loop_start_time + std::chrono::milliseconds(1000 * time_per_report));
-    }
-  });
+// RS fixme: Removed for HW based XStats
+//  m_stat_thread = std::thread([&]() {
+//    uint64_t time_per_report = 10; // In seconds
+//    std::atomic<bool> last_run_marker_value = m_run_marker.load();
+//    std::atomic<bool> current_run_marker = false;
+//
+//    while (true) {
+//
+//      std::chrono::steady_clock::time_point loop_start_time = std::chrono::steady_clock::now();
+//
+//      current_run_marker = m_run_marker.load();
+//      if (current_run_marker == false && last_run_marker_value == true) {
+//        break;
+//      } else {
+//        last_run_marker_value = current_run_marker.load();
+//      }
+//
+//      std::map<udp::StreamUID, udp::ReceiverStats> receiver_stats_across_ifaces;
+//
+//      for (auto& [iface_id, iface] : m_ifaces) {
+//        auto receiver_stats_by_stream = iface->get_and_reset_stream_stats();
+//
+//        for (auto& [suid, stats] : receiver_stats_by_stream) {
+//
+//          // std::map::contains is available in C++20...
+//          if (receiver_stats_across_ifaces.find(suid) == receiver_stats_across_ifaces.end()) {
+//            receiver_stats_across_ifaces[suid];
+//          }
+//
+//          receiver_stats_across_ifaces[suid].merge({ receiver_stats_by_stream[suid] });
+//        }
+//      }
+//
+//      opmonlib::InfoCollector ic;
+//
+//      for (auto& [suid, stats] : receiver_stats_across_ifaces) {
+//
+//        receiverinfo::Info derived_stats = DeriveFromReceiverStats(receiver_stats_across_ifaces[suid], time_per_report);
+//        opmonlib::InfoCollector tmp_ic;
+//        tmp_ic.add(derived_stats);
+//        ic.add(udp::get_opmon_string(suid), tmp_ic);
+//      }
+//
+//      {
+//        std::lock_guard<std::mutex> l(m_ic_mutex);
+//        m_ic = ic;
+//      }
+//
+//      std::this_thread::sleep_until(loop_start_time + std::chrono::milliseconds(1000 * time_per_report));
+//    }
+//  });
 
   if (!m_run_marker.load()) {
     set_running(true);
@@ -338,12 +339,14 @@ NICReceiver::do_stop(const data_t&)
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
 
+/*
   if (m_stat_thread.joinable()) {
     m_stat_thread.join();
     TLOG() << "Stat collecting thread has been join()'d";
   } else {
     TLOG() << "Stats thread is not joinable!";
   }
+*/
 
   return;
 }
@@ -360,19 +363,9 @@ NICReceiver::do_scrap(const data_t&)
 void
 NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 {
-  
-  {
-    std::lock_guard<std::mutex> l(m_ic_mutex);
-    ci = m_ic;
-  }
-
-  TLOG() << "opmonlib::InfoCollector object passed by reference to NICReceiver::get_info looks like the following:\n" << ci.get_collected_infos();
-  
-  nicreaderinfo::Info nri;
-  nri.groups_sent = m_groups_sent.exchange(0);
-  nri.total_groups_sent = m_total_groups_sent.load();
-
-  
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->get_info(ci, level);
+  } 
 }
 
 void

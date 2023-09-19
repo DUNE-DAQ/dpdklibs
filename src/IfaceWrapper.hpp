@@ -10,6 +10,7 @@
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
 #include "dpdklibs/nicreader/Structs.hpp"
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -49,6 +50,7 @@ public:
   void start();
   void stop();
   void scrap();
+  void get_info(opmonlib::InfoCollector& ci, int level);
 
   void allocate_mbufs();
   void setup_interface();
@@ -99,9 +101,10 @@ private:
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
-  std::thread m_stat_thread;
+  //std::thread m_stat_thread;
 
   // DPDK HW stats
+  //std::map<std::string, std::atomic<std::size_t>> m_xstats_counters;
   dpdklibs::IfaceXstats m_iface_xstats;
 
   // Source to sink map

@@ -123,6 +123,8 @@ lcore_main(struct rte_mempool *mbuf_pool)
           TLOG() << "Name: " << xstats_names[i].name << " value: " << values[i];
         }
       }
+      int reset_res = rte_eth_xstats_reset(iface);
+      TLOG() << "Reset notification result: " << reset_res; 
 ////////////// RS FIXME: HW counter based loop ends.
 
       std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change

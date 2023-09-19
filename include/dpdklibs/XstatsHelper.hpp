@@ -62,6 +62,15 @@ namespace dunedaq::dpdklibs {
       m_allocated = true;
     };
 
+    void reset_counters() {
+      if (m_allocated) {
+        rte_eth_xstats_reset(m_iface_id); //{
+        //  TLOG() << "Cannot reset xstat values!";
+        //} else { 
+        //}
+      }
+    }
+
     void poll() {
       if (m_allocated) {
         if (m_len != rte_eth_xstats_get_by_id(m_iface_id, nullptr, m_xstats_values, m_len)) {
