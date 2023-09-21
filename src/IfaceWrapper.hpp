@@ -104,7 +104,6 @@ private:
   //std::thread m_stat_thread;
 
   // DPDK HW stats
-  //std::map<std::string, std::atomic<std::size_t>> m_xstats_counters;
   dpdklibs::IfaceXstats m_iface_xstats;
 
   // Source to sink map
