@@ -112,10 +112,6 @@ private:
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
   source_to_sink_map_t m_sources;
 
-  // Opmon
-  std::atomic<int> m_total_groups_sent {0};
-  std::atomic<int> m_groups_sent {0};
-
   std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   bool m_per_stream_reports = true;
 
