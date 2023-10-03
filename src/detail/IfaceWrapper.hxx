@@ -96,12 +96,13 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       } // per burst
 
       // Full burst counter
-      if (nb_rx == m_burst_size) {
+      bool full_burst = (nb_rx == m_burst_size);
+      if (full_burst) {
         ++fb_count;
       }
 
       // If no packets in burst...
-      if (!fb_count) {
+      if (!full_burst) {
         // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
         /*int response =*/ nanosleep(&sleep_request, nullptr);
       }

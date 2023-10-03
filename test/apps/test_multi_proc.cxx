@@ -13,6 +13,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <tuple>
 
 #include <csignal>
@@ -374,13 +375,15 @@ int main(int argc, char** argv){
     app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
 
+    std::string file_prefix = fmt::format("if{}_rte",iface);
+
     //    define function to be called when ctrl+c is called.
     std::signal(SIGINT, signal_callback_handler);
     
     std::vector<std::string> eal_args;
     eal_args.push_back("dpdklibds_test_frame_receiver");
     eal_args.push_back("--proc-type=primary");
-    // eal_args.push_back(fmt::format("--file-prexix={}"));
+    eal_args.push_back(fmt::format("--file-prefix={}", file_prefix));
     if (!allow_dev.empty()) {
         eal_args.push_back(fmt::format("--allow={}",allow_dev));
     }
@@ -415,7 +418,9 @@ int main(int argc, char** argv){
 
     //std::this_thread::sleep_for(std::chrono::seconds(10));
 
-    //return 0;  
+    //return 0;
+    // Hack, force interface id = 0  
+    iface = 0;
 
     // Allocate pools and mbufs per queue
     std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
