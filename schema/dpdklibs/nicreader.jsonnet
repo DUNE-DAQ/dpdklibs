@@ -33,6 +33,8 @@ local nicreader = {
 
     mac:    s.string("mac", pattern="^[a-fA-F0-9]{2}(:[a-fA-F0-9]{2}){5}$", doc="mac string"),
 
+    pcie: s.string("pcie", pattern="^(0{0,4}:[0-9]{2}:[0-9]{2}.[0-9])$", doc="pcie id string"),
+
     float : s.number("Float", "f4", doc="A float number"),
 
     stream_map : s.record("StreamMap", [
@@ -69,6 +71,7 @@ local nicreader = {
     iface : s.record("Interface", [
         s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
         s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
+        s.field("pci_dev_id", self.pcie, "0000:00:00.0", doc="PCIe device id"),
         s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
         s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
         s.field("mtu", self.count, 9000, doc="MTU of interface"),
