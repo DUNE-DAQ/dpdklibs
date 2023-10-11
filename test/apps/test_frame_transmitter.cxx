@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
       std::exit(4);
     }
     
-    TLOG() << "Name of the interface is " << dev_info.device->name;
+    TLOG() << "Name of the interface is " << rte_dev_name(dev_info.device);
 
     auto stats = std::thread([&]() {
     			       long sleep_time = 1;

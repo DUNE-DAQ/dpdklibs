@@ -35,13 +35,6 @@ namespace {
 
 } // namespace ""
 
-static const struct rte_eth_conf port_conf_default = {
-    .rxmode = {
-        .mtu = 9000,
-        .offloads = (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
-        }
-};
-
 static int
 lcore_main(struct rte_mempool *mbuf_pool)
 {

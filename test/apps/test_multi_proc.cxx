@@ -134,14 +134,6 @@ namespace {
 
 } // namespace
 
-
-static const struct rte_eth_conf iface_conf_default = { 
-    .rxmode = {
-        .mtu = 9000,
-        .offloads = (DEV_RX_OFFLOAD_IPV4_CKSUM | DEV_RX_OFFLOAD_UDP_CKSUM),
-    } 
-};
-
 std::vector<char*> construct_argv(std::vector<std::string> &std_argv){
     std::vector<char*> vec_argv;
     for (int i=0; i < std_argv.size() ; i++){
