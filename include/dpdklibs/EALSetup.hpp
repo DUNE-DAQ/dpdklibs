@@ -36,7 +36,7 @@ static const struct rte_eth_conf iface_conf_default = {
   .rxmode = {
     .mtu = 9000,
     .max_lro_pkt_size = 9000,
-    .split_hdr_size = 0,
+    //.split_hdr_size = 0, // deprecated in dpdk@22.10
     .offloads = (RTE_ETH_RX_OFFLOAD_TIMESTAMP 
                | RTE_ETH_RX_OFFLOAD_IPV4_CKSUM
                | RTE_ETH_RX_OFFLOAD_UDP_CKSUM),
