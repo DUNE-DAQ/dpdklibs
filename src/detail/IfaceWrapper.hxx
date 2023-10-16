@@ -28,6 +28,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
     uint8_t fb_count(0);
 
     // Loop over assigned queues to process
+    uint8_t fb_count(0);
     for (auto q : queues) {
       auto src_rx_q = q.first;
       auto* q_bufs = m_bufs[src_rx_q];
@@ -100,15 +101,13 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       if (full_burst) {
         ++fb_count;
       }
-
     } // per queue
 
-    // If no packets in burst...
+    // If no full buffers in burst...
     if (!fb_count) {
       // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
       /*int response =*/ nanosleep(&sleep_request, nullptr);
     }
-    
   } // main while(quit) loop
  
   TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
