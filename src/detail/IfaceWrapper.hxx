@@ -103,8 +103,10 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
     // If no full buffers in burst...
     if (!fb_count) {
-      // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
-      /*int response =*/ nanosleep(&sleep_request, nullptr);
+      if (m_lcore_sleep_ns) {
+        // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
+        /*int response =*/ nanosleep(&sleep_request, nullptr);
+      }
     }
 
   } // main while(quit) loop
