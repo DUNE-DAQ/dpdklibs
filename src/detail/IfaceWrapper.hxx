@@ -56,7 +56,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
           // Check if packet is segmented. Implement support for it if needed.
-          if (m_bufs[src_rx_q][i_b]->nb_segs > 1) {
+          if (q_bufs[i_b]->nb_segs > 1) {
 	          //TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
             //               << " there's currently no logic in this program to handle this";
 	        }
@@ -80,10 +80,10 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           // Check for UDP frames
           //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
             // Check for JUMBO frames
-          if (m_bufs[src_rx_q][i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
+          if (q_bufs[i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
             // Handle them!
             std::size_t data_len = q_bufs[i_b]->data_len;
-            char* message = udp::get_udp_payload(m_bufs[src_rx_q][i_b]);
+            char* message = udp::get_udp_payload(q_bufs[i_b]);
             handle_eth_payload(src_rx_q, message, data_len);
             m_num_frames_rxq[src_rx_q]++;
             m_num_bytes_rxq[src_rx_q] += data_len;
@@ -91,7 +91,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         }
 
         // Bulk free of mbufs
-        rte_pktmbuf_free_bulk(m_bufs[src_rx_q], nb_rx);
+        rte_pktmbuf_free_bulk(q_bufs, nb_rx);
 
       } // per burst
 
