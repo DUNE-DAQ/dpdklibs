@@ -60,7 +60,7 @@ public:
   void pop(value_t& val, const duration_t& dur) override
   {
 
-    if (!this->pop(val, dur)) {
+    if (!this->try_pop(val, dur)) {
       throw dunedaq::iomanager::QueueTimeoutExpired(
         ERS_HERE, this->get_name(), "pop", std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
     }
@@ -87,7 +87,7 @@ public:
   {
 
     // if (!m_queue.write(std::move(t))) {
-    if (!this->try_push(std::move(t))) {
+    if (!this->try_push(std::move(t), dur)) {
       throw dunedaq::iomanager::QueueTimeoutExpired(ERS_HERE, this->get_name(), "push", std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
     }
   }
