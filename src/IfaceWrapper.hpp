@@ -27,6 +27,9 @@
 #include <string>
 #include <set>
 
+#include "utilities/ReusableThread.hpp"
+#include <folly/ProducerConsumerQueue.h>
+
 namespace dunedaq {
 namespace dpdklibs {
 
@@ -101,7 +104,6 @@ private:
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
-  //std::thread m_stat_thread;
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
@@ -128,6 +130,14 @@ private:
 
   // What to do with every payload
   void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
+
+
+
+  struct RxBurstInfo {
+    int src_rx_q;
+    uint16_t nb_rx;
+    struct rte_mbuf ** q_bufs;
+  };
 
 };
 

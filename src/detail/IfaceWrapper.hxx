@@ -22,13 +22,90 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
   }
 
   TLOG() << "LCore RX runner on CPU[" << lid << "]: Main loop starts for iface " << iface << " !";
+  /*
+  utilities::ReusableThread payload_handler(0);
+  payload_handler.set_name("mbuf_hdlr",lid);
+  auto m_rxburst_queue = std::make_unique<folly::ProducerConsumerQueue<RxBurstInfo>>(1000); //NOLINT
+  payload_handler.set_work([&]() {
+    while (!this->m_lcore_quit_signal.load()) {
+      RxBurstInfo info;
+      if (m_rxburst_queue->read(info)) {
+
+        auto src_rx_q = info.src_rx_q;
+        auto nb_rx = info.nb_rx;
+        auto& q_bufs = info.q_bufs;
+
+        // Iterate on burst packets
+        for (int i_b = 0; i_b < nb_rx; ++i_b) {
+
+          // Check if packet is segmented. Implement support for it if needed.
+          if (q_bufs[i_b]->nb_segs > 1) {
+            // TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;"
+            //               << " there's currently no logic in this program to handle this";
+          }
+
+          // Check packet type, ommit/drop unexpected ones.
+          auto pkt_type = q_bufs[i_b]->packet_type;
+          //// Handle non IPV4 packets
+          if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
+            // TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+            if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
+              // TLOG_DEBUG(10) << "TODO: Handle ARP request!";
+            } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
+              // TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
+            } else {
+              // TLOG_DEBUG(10) << "Unidentified! Dumping...";
+              // rte_pktmbuf_dump(stdout, q_bufs[i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+            }
+            continue;
+          }
+
+          // Check for UDP frames
+          // if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
+          // Check for JUMBO frames
+          if (q_bufs[i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
+            // Handle them!
+            std::size_t data_len = q_bufs[i_b]->data_len;
+            char* message = udp::get_udp_payload(q_bufs[i_b]);
+            handle_eth_payload(src_rx_q, message, data_len);
+            m_num_frames_rxq[src_rx_q]++;
+            m_num_bytes_rxq[src_rx_q] += data_len;
+          }
+        }
+
+        rte_pktmbuf_free_bulk(q_bufs, nb_rx);
+
+      } else {
+        if (m_lcore_sleep_ns) {
+          // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
+          nanosleep(&sleep_request, nullptr);
+        }
+      }
+    }
+
+    TLOG() << "MBuf handler RX runner on CPU[" << lid << "] shutting down. Is Empty " << m_rxburst_queue->isEmpty();
+
+
+    if (!m_rxburst_queue->isEmpty()) {
+      RxBurstInfo info;
+      while(m_rxburst_queue->read(info)) {
+        rte_pktmbuf_free_bulk(info.q_bufs, info.nb_rx);
+      }
+    }
+    TLOG() << "MBuf handler RX runner on CPU[" << lid << "] returned.";
+
+  });
+  */
+
+
+
 
   // While loop of quit atomic member in IfaceWrapper
   while(!this->m_lcore_quit_signal.load()) {
 
     // Loop over assigned queues to process
     uint8_t fb_count(0);
-    for (auto q : queues) {
+    for (const auto& q : queues) {
       auto src_rx_q = q.first;
       auto* q_bufs = m_bufs[src_rx_q];
 
@@ -37,21 +114,8 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
       // We got packets from burst on this queue
       if (nb_rx != 0) {
-        // Print first packet for FYI for debugging
-        /*
-        if (once && q_bufs[0]->pkt_len > 7000) {
-          TLOG() << "lid = " << lid;
-          TLOG() << "src_rx_q = " << src_rx_q;
-          TLOG() << "nb_rx = " << nb_rx;
-          TLOG() << "bufs.dta_len = " << q_bufs[0]->data_len;
-      	  TLOG() << "bufs.pkt_len = " << q_bufs[0]->pkt_len;
-          rte_pktmbuf_dump(stdout, q_bufs[0], q_bufs[0]->pkt_len);
-          std::string udp_hdr_str = udp::get_udp_header_str(m_bufs[src_rx_q][0]);
-          TLOG() << "UDP Header: " << udp_hdr_str;
-    	    once = false;
-        }
-        */
 
+        /**/
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
@@ -79,7 +143,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
           // Check for UDP frames
           //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
-            // Check for JUMBO frames
+          // Check for JUMBO frames
           if (q_bufs[i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
             // Handle them!
             std::size_t data_len = q_bufs[i_b]->data_len;
@@ -92,7 +156,18 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
         // Bulk free of mbufs
         rte_pktmbuf_free_bulk(q_bufs, nb_rx);
+        /**/
+      
 
+       /*
+        RxBurstInfo info = {src_rx_q, nb_rx, q_bufs};
+        bool pushed = m_rxburst_queue->write(info);
+        // Queue full? Release the mbufs
+        if (!pushed) {
+          rte_pktmbuf_free_bulk(q_bufs, nb_rx);
+        }
+        */
+        
       } // per burst
 
       // Full burst counter

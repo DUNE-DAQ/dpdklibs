@@ -26,162 +26,55 @@
 #include "utilities/ReusableThread.hpp"
 
 // The Payload
-const constexpr std::size_t PAYLOAD_SIZE = 8192; // for 12: 5568
+// const constexpr std::size_t PAYLOAD_SIZE = 8192; // for 12: 5568
+const constexpr std::size_t PAYLOAD_SIZE = 7200; // for 12: 5568
 struct PayloadFrame
 {
   char data[PAYLOAD_SIZE];
 };
 
 
-// #include <chrono>
-// #include "iomanager/queue/Queue.hpp"
-
-// // 
-// template<class T>
-// class SPSCFollyQueue : public dunedaq::iomanager::Queue<T>
-// {
-// public:
-//   using value_t = T;
-//   using duration_t = typename dunedaq::iomanager::Queue<T>::duration_t;
-
-//   explicit SPSCFollyQueue(const std::string& name, size_t capacity)
-//     : dunedaq::iomanager::Queue<T>(name)
-//     , m_queue(capacity)
-//     , m_capacity(capacity)
-//   {}
-
-//   size_t get_capacity() const noexcept override { return m_capacity; }
-
-//   size_t get_num_elements() const noexcept override { return m_queue.sizeGuess(); }
-
-//   bool can_pop() const noexcept override { return !m_queue.isEmpty(); }
-
-//   void pop(value_t& val, const duration_t& timeout) override
-//   {
-
-//     if (!this->try_pop(val, timeout)) {
-//       throw dunedaq::iomanager::QueueTimeoutExpired(
-//         ERS_HERE, this->get_name(), "pop", std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
-//     }
-//   }
-//   bool try_pop(value_t& val, const duration_t& timeout) override
-//   {
-  
-//     // if (timeout > std::chrono::milliseconds::zero()) {
-//     //   auto start_time = std::chrono::steady_clock::now();
-//     //   auto time_wait_for_data_timeout = (start_time + timeout);
-//     //   // auto time_to_wait_for_data = (start_time + timeout) - std::chrono::steady_clock::now();
-//     //   // m_no_longer_empty.wait_for(lk, time_to_wait_for_data, [&]() { return this->can_pop(); });
-//     //   // Spin lock, baby
-//     //   while( std::chrono::steady_clock::now() < time_wait_for_data_timeout) {
-//     //     if (this->can_pop()) {
-//     //       break;
-//     //     }
-//     //     asm volatile("pause");
-//     //   }
-//     // }
-//     if ( timeout > std::chrono::milliseconds::zero() ) {
-//       if ( !this->wait_for(timeout))
-//         return false;
-//     }
-//     // if (!m_queue.read(val)) {
-//     //   return false;
-//     // }
-//     // return true;
-
-//     return m_queue.read(val);
-//   }
-
-//   bool can_push() const noexcept override { return !m_queue.isFull(); }
-
-//   void push(value_t&& t, const duration_t& timeout) override
-//   {
-
-//     // if (!m_queue.write(std::move(t))) {
-//     if (!this->try_push(std::move(t), timeout)) {
-//       throw dunedaq::iomanager::QueueTimeoutExpired(ERS_HERE, this->get_name(), "push", std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
-//     }
-//   }
-
-//   bool try_push(value_t&& t, const duration_t& timeout) override
-//   {
-
-//     // if (timeout > std::chrono::milliseconds::zero()) {
-//     //   auto start_time = std::chrono::steady_clock::now();
-//     //   auto time_wait_for_space_timeout = (start_time + timeout);
-      
-//     //   // auto time_to_wait_for_space = (start_time + timeout) - std::chrono::steady_clock::now();
-//     //   // m_no_longer_full.wait_for(lk, time_to_wait_for_space, [&]() { return this->can_push(); });
-//     //   // Spin lock, baby
-//     //   while( std::chrono::steady_clock::now() < time_wait_for_space_timeout) {
-//     //     if (this->can_push()) {
-//     //       break;
-//     //     }
-//     //     asm volatile("pause");
-//     //   }
-//     // }
-//     if ( timeout > std::chrono::milliseconds::zero() ) {
-//       if ( !this->wait_for(timeout))
-//         return false;
-//     }
-
-//     if (!m_queue.write(std::move(t))) {
-//       ers::error(dunedaq::iomanager::QueueTimeoutExpired(ERS_HERE, this->get_name(), "push", std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count()));
-//       return false;
-//     }
-
-//     return true;
-
-//   }
-
-//   inline bool wait_for(const duration_t& timeout) const {
-//     auto timeout_time = (std::chrono::steady_clock::now() + timeout);
-//     while( std::chrono::steady_clock::now() < timeout_time) {
-//       if (this->can_push()) {
-//         return true;
-//       }
-//       asm volatile("pause");
-//     }
-//     return false;
-//   }
-
-//   // Delete the copy and move operations
-//   SPSCFollyQueue(const SPSCFollyQueue&) = delete;
-//   SPSCFollyQueue& operator=(const SPSCFollyQueue&) = delete;
-//   SPSCFollyQueue(SPSCFollyQueue&&) = delete;
-//   SPSCFollyQueue& operator=(SPSCFollyQueue&&) = delete;
-
-// private:
-//   // The boolean argument is `MayBlock`, where "block" appears to mean
-//   // "make a system call". With `MayBlock` set to false, the queue
-//   // just spin-waits, so we want true
-//   folly::ProducerConsumerQueue<T> m_queue;
-//   size_t m_capacity;
-
-//   std::condition_variable m_no_longer_full;
-//   std::condition_variable m_no_longer_empty;
-// };
-
-
 using namespace dunedaq::readoutlibs;
 using namespace dunedaq::utilities;
+
+
+enum class SPSCQueueType : int { DynamicUnbound, ProducerConsumer };
+
 
 int
 main(int argc, char** argv)
 {
 
+  std::map<std::string, SPSCQueueType> map{{"dub", SPSCQueueType::DynamicUnbound}, {"pc", SPSCQueueType::ProducerConsumer}};
+
+
   int runsecs = 120;
+  int queue_size = 1000;
+  SPSCQueueType qtype{SPSCQueueType::ProducerConsumer};
 
   CLI::App app{"test frame receiver"};
-  // app.add_option("-s", expected_packet_size, "Expected frame size");
-  // app.add_option("-i", iface, "Interface to init");
+  app.add_option("-s", queue_size, "Queue frame size");
   app.add_option("-t", runsecs, "Run Time");
-  // app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
-  // app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
+    app.add_option("-q,--queue-type", qtype, "Queue Type")
+        ->transform(CLI::CheckedTransformer(map, CLI::ignore_case));
   CLI11_PARSE(app, argc, argv);
 
-  // dunedaq::iomanager::FollySPSCQueue<PayloadFrame> queue("spsc", 10000);
-  dunedaq::iomanager::SPSCFollyQueue<PayloadFrame> queue("spsc", 1000);
+
+  std::unique_ptr<dunedaq::iomanager::Queue<PayloadFrame>> queue;
+  switch (qtype)
+  {
+    case SPSCQueueType::ProducerConsumer:
+    queue.reset(new dunedaq::iomanager::SPSCFollyQueue<PayloadFrame>("spsc", queue_size));
+    break;
+  case SPSCQueueType::DynamicUnbound:
+    queue.reset(new dunedaq::iomanager::FollySPSCQueue<PayloadFrame>("spsc", queue_size));
+    break;
+  
+  default:
+    break;
+  }
+  // dunedaq::iomanager::FollySPSCQueue<PayloadFrame> queue("spsc", queue_size);
+  // dunedaq::iomanager::SPSCFollyQueue<PayloadFrame> queue("spsc", queue_size);
 
   // PayloadFrame frame;
   // // std::cout << "Pop, timeout 10s" << std::endl;
@@ -235,7 +128,7 @@ main(int argc, char** argv)
   auto popper_func = [&]() {
     PayloadFrame frame;
     while (marker) {
-      pops += queue.try_pop(frame, timeout);
+      pops += queue->try_pop(frame, timeout);
     }
     TLOG() << "Popper done";
   };
@@ -245,7 +138,7 @@ main(int argc, char** argv)
   auto pusher_func = [&]() {
     PayloadFrame frame;
     while (marker) {
-      pushes += queue.try_push(std::move(frame), timeout);
+      pushes += queue->try_push(std::move(frame), timeout);
     }
     TLOG() << "Pusher done";
 
