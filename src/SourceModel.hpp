@@ -15,17 +15,19 @@
 #include "appfwk/DAQModuleHelper.hpp"
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
-//#include "dpdklibs/felixcardreaderinfo/InfoNljs.hpp"
 #include "logging/Logging.hpp"
-#include "readoutlibs/utils/ReusableThread.hpp"
+// #include "readoutlibs/utils/ReusableThread.hpp"
 
-#include <folly/ProducerConsumerQueue.h>
-#include <nlohmann/json.hpp>
+// #include <folly/ProducerConsumerQueue.h>
+// #include <nlohmann/json.hpp>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
+
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
+
 
 namespace dunedaq::dpdklibs {
 
@@ -64,7 +66,6 @@ public:
 
   void init(const data_t& /*args*/)
   {
-    //m_block_addr_queue = std::make_unique<folly::ProducerConsumerQueue<uint64_t>>(block_queue_capacity); // NOLINT
   }
 
   void conf(const data_t& /*args*/)
@@ -72,17 +73,14 @@ public:
     if (m_configured) {
       TLOG_DEBUG(5) << "SourceModel is already configured!";
     } else {
-      //m_parser_thread.set_name(inherited::m_elink_source_tid, inherited::m_link_tag);
-      // if (inconsistency)
-      // ers::fatal(ElinkConfigurationInconsistency(ERS_HERE, m_num_links));
-
-      //m_parser->configure(block_size, is_32b_trailers); // unsigned bsize, bool trailer_is_32bit
       m_configured = true;
     }
   }
 
   void start(const data_t& /*args*/)
   {
+    m_dropped_packets = { 0 };
+
     m_t0 = std::chrono::high_resolution_clock::now();
     if (!m_run_marker.load()) {
       set_running(true);
@@ -112,30 +110,33 @@ public:
 
   bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
   {
-    /*
-    TargetPayloadType target_payload;
-    uint32_t bytes_copied = 0;
-    readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-    */
-    TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
-    if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-      //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-      //  TLOG() << "Dropped data " << m_dropped_packets;
-      //}
-      ++m_dropped_packets;
+    bool push_out = true;
+    if (push_out) {
+
+      TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
+      if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
+        //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+        //  TLOG() << "Dropped data " << m_dropped_packets;
+        //}
+        ++m_dropped_packets;
+      }
+    } else {
+      TargetPayloadType target_payload;
+      uint32_t bytes_copied = 0;
+      readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     }
+
 
     return true;
   }
 
-  void get_info(opmonlib::InfoCollector& ci, int /*level*/)
-  {
+  void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
+    nicreaderinfo::SourceStats ss;
+    ss.dropped_frames = m_dropped_packets.load();
+    ci.add(ss);
   }
 
 private:
-  // Types
-  //using UniqueBlockAddrQueue = std::unique_ptr<folly::ProducerConsumerQueue<uint64_t>>; // NOLINT(build/unsigned)
-
   // Internals
   std::atomic<bool> m_run_marker;
   bool m_configured{ false };

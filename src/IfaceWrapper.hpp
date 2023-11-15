@@ -9,9 +9,6 @@
 #ifndef DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
-#include "dpdklibs/nicreader/Structs.hpp"
-#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
-
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -60,9 +57,9 @@ public:
   void setup_flow_steering();
   void setup_xstats();
 
-  std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
-    return m_accum_ptr->get_and_reset_stream_stats();
-  }
+  // std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
+  //   return m_accum_ptr->get_and_reset_stream_stats();
+  // }
   
 protected:
   iface_conf_t m_cfg;
@@ -98,12 +95,14 @@ private:
 
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
-  std::map<int, struct rte_mbuf **> m_bufs;
+  std::map<int, struct rte_mbuf **> m_bufs; // by queue
 
-  // Stats
+  // Stats by queues
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
+  std::map<int, std::atomic<std::size_t>> m_num_full_bursts;
+  std::map<int, std::atomic<uint16_t>> m_max_burst_size;
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
@@ -122,7 +121,7 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
-  std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
+  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   
   // Lcore processor
   //template<class T> 
@@ -130,14 +129,6 @@ private:
 
   // What to do with every payload
   void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
-
-
-
-  struct RxBurstInfo {
-    int src_rx_q;
-    uint16_t nb_rx;
-    struct rte_mbuf ** q_bufs;
-  };
 
 };
 
