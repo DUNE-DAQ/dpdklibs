@@ -130,8 +130,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   if (with_reset) {
     retval = rte_eth_dev_reset(iface);
     if (retval != 0) {
-      TLOG() << "Error during resetting device (iface " << iface << ") retval: " << retval;
-      return retval;
+      TLOG() << "Resetting device (iface " << iface << ") failed. Retval: " << retval;
     }
   }
 
