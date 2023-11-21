@@ -22,7 +22,7 @@
 #include <fmt/core.h>
 
 #include "iomanager/queue/FollyQueue.hpp"
-#include "iomanager/queue/SPSCFollyQueue.hpp"
+#include "iomanager/queue/FollyHPSPSCQueue.hpp"
 #include "utilities/ReusableThread.hpp"
 
 // The Payload
@@ -64,7 +64,7 @@ main(int argc, char** argv)
   switch (qtype)
   {
     case SPSCQueueType::ProducerConsumer:
-    queue.reset(new dunedaq::iomanager::SPSCFollyQueue<PayloadFrame>("spsc", queue_size));
+    queue.reset(new dunedaq::iomanager::FollyHPSPSCQueue<PayloadFrame>("spsc", queue_size));
     break;
   case SPSCQueueType::DynamicUnbound:
     queue.reset(new dunedaq::iomanager::FollySPSCQueue<PayloadFrame>("spsc", queue_size));
@@ -74,7 +74,7 @@ main(int argc, char** argv)
     break;
   }
   // dunedaq::iomanager::FollySPSCQueue<PayloadFrame> queue("spsc", queue_size);
-  // dunedaq::iomanager::SPSCFollyQueue<PayloadFrame> queue("spsc", queue_size);
+  // dunedaq::iomanager::FollyHPSPSCQueue<PayloadFrame> queue("spsc", queue_size);
 
   // PayloadFrame frame;
   // // std::cout << "Pop, timeout 10s" << std::endl;
