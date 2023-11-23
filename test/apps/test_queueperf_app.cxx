@@ -52,10 +52,10 @@ main(int argc, char** argv)
   int queue_size = 1000;
   SPSCQueueType qtype{SPSCQueueType::ProducerConsumer};
 
-  CLI::App app{"test frame receiver"};
-  app.add_option("-s", queue_size, "Queue frame size");
+  CLI::App app{"Queue performance app"};
+  app.add_option("-s", queue_size, "Queue size");
   app.add_option("-t", runsecs, "Run Time");
-    app.add_option("-q,--queue-type", qtype, "Queue Type")
+    app.add_option("-q,--queue-type", qtype, "Queue Type, DynamiUnbound (dub) or ProducerConsumer (pc)")
         ->transform(CLI::CheckedTransformer(map, CLI::ignore_case));
   CLI11_PARSE(app, argc, argv);
 
