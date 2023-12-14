@@ -25,6 +25,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
   // While loop of quit atomic member in IfaceWrapper
   while(!this->m_lcore_quit_signal.load()) {
+    uint8_t fb_count(0);
 
     // Loop over assigned queues to process
     uint8_t fb_count(0);
@@ -96,7 +97,8 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       } // per burst
 
       // Full burst counter
-      if (nb_rx == m_burst_size) {
+      bool full_burst = (nb_rx == m_burst_size);
+      if (full_burst) {
         ++fb_count;
       }
     } // per queue
@@ -108,7 +110,6 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         /*int response =*/ nanosleep(&sleep_request, nullptr);
       }
     }
-
   } // main while(quit) loop
  
   TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
