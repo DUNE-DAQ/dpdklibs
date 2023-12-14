@@ -97,25 +97,25 @@ NICReceiver::init()
  auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
-        ers::fatal(err);
-	throw err;"
+  ers::fatal(err);
+	throw err;
  }
 
  for (auto con : mdal->get_outputs()) {
-    auto queue = con->cast<QueueWithGeoId>();
-    if(queue == nullptr) {
-	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
-	ers::fatal(err);
-	throw err;
-    }
-    utils::StreamUID s;
-    s.det_id = queue->get_geo_id().get_detector_id();
-    s.crate_id = queue->get_geo_id().get_crate_id();
-    s.slot_id = queue->get_geo_id().get_slot_id();
-    s.stream_id = queue->get_geo_id().get_stream_id();
+  auto queue = con->cast<QueueWithGeoId>();
+  if(queue == nullptr) {
+	  auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
+	  ers::fatal(err);
+	  throw err;
+  }
+  utils::StreamUID s;
+  s.det_id = queue->get_geo_id().get_detector_id();
+  s.crate_id = queue->get_geo_id().get_crate_id();
+  s.slot_id = queue->get_geo_id().get_slot_id();
+  s.stream_id = queue->get_geo_id().get_stream_id();
 
-    m_sources[s] = createSourceModel(queue->UID());
-    m_sources[s]->init(); 
+  m_sources[s] = createSourceModel(queue->UID());
+  m_sources[s]->init(); 
  }
 }
 

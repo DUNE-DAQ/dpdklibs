@@ -70,6 +70,8 @@ IfaceWrapper::IfaceWrapper(const std::string iface_name, source_to_sink_map_t& s
 
   //m_iface_id_str = "iface-" + std::to_string(m_iface_id);
   m_iface_id_str = iface_cfg->UID();
+
+  // iterate through active streams
   auto session = appfwk::ConfigurationManager()->session();
   auto res_set = iface_cfg->get_contains();
   for (const auto res : res_set) {
@@ -78,31 +80,38 @@ IfaceWrapper::IfaceWrapper(const std::string iface_name, source_to_sink_map_t& s
     }
     auto stream = res->cast<coredal::DROStreamConf>;
     if (stream == nullptr) {
-	ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "NICInterface contains resources other than DROStreamConf!"));
-        continue;
+      dunedaq::readoutlibs::ConfigurationError err(
+        ERS_HERE, "NICInterface contains resources other than DROStreamConf!"));
+      throw err;
     }
 
     auto stream_params = stream->get_stream_params()->cast<EthStreamParameters>;
+    if (m_ips.count(exp_src.ip_addr) != 0) {
+      TLOG() << "Duplicate IP address as expected source under id=" << exp_src.id << "! Omitting source!";
+      continue;
+    } else {
+      auto src_ip = stream_params->get_tx_ip();
+      auto rx_q = stream_params->get_rx_queue();
+      auto lcore = stream_params->lcore();
+      m_ips.insert(src_ip);
+      m_rx_qs.insert(rx_q);
+      m_lcores.insert(lcore);
 
-      if (m_ips.count(exp_src.ip_addr) != 0) {
-        TLOG() << "Duplicate IP address as expected source under id=" << exp_src.id << "! Omitting source!";
-        continue;
-      } else {
-        auto src_ip = exp_src.ip_addr;
-        auto rx_q = exp_src.rx_q;
-        auto lcore = exp_src.lcore;
-        m_ips.insert(src_ip);
-        m_rx_qs.insert(rx_q);
-        m_lcores.insert(lcore);
+      m_num_frames_rxq[rx_q] = { 0 };
+      m_num_bytes_rxq[rx_q] = { 0 };
 
-        m_num_frames_rxq[rx_q] = { 0 };
-        m_num_bytes_rxq[rx_q] = { 0 };
+      // No sanity check on config?
+      m_rx_core_map[lcore][rx_q] = src_ip;
 
-        // No sanity check on config?
-        m_rx_core_map[lcore][rx_q] = src_ip;
+      utils::StreamUID s;
+      s.det_id = stream->get_geo_id().get_detector_id();
+      s.crate_id = stream->get_geo_id().get_crate_id();
+      s.slot_id = stream->get_geo_id().get_slot_id();
+      s.stream_id = stream->get_geo_id().get_stream_id();
 
-        // Check streams mapping and available source_ids
+      m_stream_to_source_id[rx_q][s] = stream->get_src_id();
+
+        /* Check streams mapping and available source_ids
         auto& src_streams_map = exp_src.src_streams_mapping;
         for (const auto& src_stream_cfg : src_streams_map) {
           m_stream_to_source_id[rx_q][src_stream_cfg.stream_id] = src_stream_cfg.source_id;
@@ -114,7 +123,7 @@ IfaceWrapper::IfaceWrapper(const std::string iface_name, source_to_sink_map_t& s
                    << " stream_id=" << src_stream_cfg.stream_id
                    << " source_id=" << src_stream_cfg.source_id;
           }
-        }
+        }*/
       }
     }
 
