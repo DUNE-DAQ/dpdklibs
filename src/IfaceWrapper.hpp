@@ -9,7 +9,7 @@
 #ifndef DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
-#include "dpdklibs/nicreader/Structs.hpp"
+//#include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
@@ -19,6 +19,9 @@
 #include "dpdklibs/ipv4_addr.hpp"
 #include "dpdklibs/XstatsHelper.hpp"
 #include "SourceConcept.hpp"
+
+#include <coredal/Session.hpp>
+#include <appdal/NICInterface.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -33,8 +36,8 @@ namespace dpdklibs {
 class IfaceWrapper
 {
 public:
-  using iface_conf_t = dunedaq::dpdklibs::nicreader::Interface;
-  using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
+  //using iface_conf_t = dunedaq::dpdklibs::nicreader::Interface;
+  //using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
   IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
@@ -45,8 +48,8 @@ public:
   IfaceWrapper(IfaceWrapper&&) = delete;                 ///< IfaceWrapper is not move-constructible
   IfaceWrapper& operator=(IfaceWrapper&&) = delete;      ///< IfaceWrapper is not move-assignable
 
-  void init(const iface_conf_t& args);
-  void conf(const iface_conf_t& args);
+  void init();
+  void conf(const appdal::NICInterface* iface_cfg);
   void start();
   void stop();
   void scrap();
@@ -62,7 +65,7 @@ public:
   }
   
 protected:
-  iface_conf_t m_cfg;
+  //iface_conf_t m_cfg;
   int m_iface_id;
   std::string m_iface_id_str;
   bool m_configured;

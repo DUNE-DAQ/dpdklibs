@@ -5,7 +5,17 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#include "dpdklibs/nicreader/Nljs.hpp"
+//#include "dpdklibs/nicreader/Nljs.hpp"
+
+#include <appfwk/ConfigurationManager.hpp>
+#include <appfwk/ModuleConfiguration.hpp>
+
+#include "appdal/NICReceiver.hpp"
+#include "appdal/NICReceiverConf.hpp"
+#include "appdal/NICInterface.hpp"
+#include "appdal/NICStatsConf.hpp"
+#include "appdal/EthStreamParameters.hpp"
+#include "coredal/QueueWithGeoId.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -82,45 +92,45 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-NICReceiver::init(const data_t& args)
+NICReceiver::init()
 {
- auto ini = args.get<appfwk::app::ModInit>();
- for (const auto& qi : ini.conn_refs) {
-    if (qi.uid == "errored_chunks_q") {
-      continue;
-    } else {
-      TLOG_DEBUG(TLVL_WORK_STEPS) << ": NICCardReader output queue is " << qi.uid;
-      const char delim = '_';
-      std::string target = qi.uid;
-      std::vector<std::string> words;
-      tokenize(target, delim, words);
-      int sourceid = -1;
-      try {
-        sourceid = std::stoi(words.back());
-      } catch (const std::exception& ex) {
-        ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "Output link ID could not be parsed on queue instance name! "));
-      }
-      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid;
-      m_sources[sourceid] = createSourceModel(qi.uid);
-      if (m_sources[sourceid] == nullptr) {
-        ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "CreateSource failed to provide an appropriate model for queue!"));
-      }
-      m_sources[sourceid]->init(args);
+ auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+ if (mdal->get_outputs().empty()) {
+	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
+        ers::fatal(err);
+	throw err;"
+ }
+
+ for (auto con : mdal->get_outputs()) {
+    auto queue = con->cast<QueueWithGeoId>();
+    if(queue == nullptr) {
+	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
+	ers::fatal(err);
+	throw err;
     }
-  }
+    utils::StreamUID s;
+    s.det_id = queue->get_geo_id().get_detector_id();
+    s.crate_id = queue->get_geo_id().get_crate_id();
+    s.slot_id = queue->get_geo_id().get_slot_id();
+    s.stream_id = queue->get_geo_id().get_stream_id();
+
+    m_sources[s] = createSourceModel(queue->UID());
+    m_sources[s]->init(); 
+ }
 }
 
 void
-NICReceiver::do_configure(const data_t& args)
+NICReceiver::do_configure()
 {
   TLOG() << get_name() << ": Entering do_conf() method";
-  m_cfg = args.get<module_conf_t>();
+  auto session = appfwk::ModuleManager::get()->session();
+  auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+  auto module_conf = mdal->get_configuration();
+  auto ro_group = mdal->get_readout_group().cast<coredal::ReadoutGroup>;
 
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
-  std::vector<char*> eal_params = ealutils::string_to_eal_args(m_cfg.eal_arg_list);
+  std::vector<char*> eal_params = ealutils::string_to_eal_args(module_conf->get_eal_args());
   ealutils::init_eal(eal_params.size(), eal_params.data());
 
   // Get available Interfaces from EAL
@@ -132,125 +142,35 @@ NICReceiver::do_configure(const data_t& args)
     TLOG() << "Available iface with MAC=" << mac_addr_str << " logical ID=" << ifc_id;
   }
 
-  // Configure expected (and available!) interfaces
-  auto ifaces_cfg = m_cfg.ifaces;
-  for (const auto& iface_cfg : ifaces_cfg) {
-     auto iface_mac_addr = iface_cfg.mac_addr;
-     if (m_mac_to_id_map.count(iface_mac_addr) != 0) {
-       auto iface_id = m_mac_to_id_map[iface_mac_addr];
-       TLOG() << "Configuring expected interface with MAC=" << iface_mac_addr << " Logical ID=" << iface_id;
-       m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(iface_id, m_sources, m_run_marker);
-       m_ifaces[iface_id]->conf(iface_cfg);
-       m_ifaces[iface_id]->allocate_mbufs();
-       m_ifaces[iface_id]->setup_interface();
-       m_ifaces[iface_id]->setup_flow_steering();
-       m_ifaces[iface_id]->setup_xstats();
-     } else {
+  auto res_set = ro_group->get_contains();
+ 
+  for (auto res : res_set) {
+    auto interface = res->cast<NICInterface>;
+    if (interface == nullptr) {
+      dunedaq::readoutlibs::ConfigurationError err(
+          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
+      ers::fatal(err);
+      throw err;      
+    }
+    if (interface->disabled(*session)) {
+	    continue;
+    }
+
+    if (m_mac_to_id_map.find(interface->get_rx_mac()) != m_mac_to_id_map.end()) {
+       m_mac_to_ip[interface->get_rx_mac()] = interface->get_rx_ip(); 
+       m_ifaces[interface->get_rx_iface()] = std::make_unique<IfaceWrapper>(interface->UID(), m_sources, m_run_marker); 
+       //m_ifaces[interface->get_rx_iface()] = conf(iface_cfg);
+       m_ifaces[interface->get_rx_iface()] = allocate_mbufs();;
+       m_ifaces[interface->get_rx_iface()] = setup_flow_steering();
+       m_ifaces[interface->get_rx_iface()] = setup_xstats();
+    } else {
        TLOG() << "No available interface with MAC=" << iface_mac_addr;
        ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
-     }
+    }
   }
   
   return;
-
-// #warning RS FIXME -> Removed for conf overhaul
-//     auto ip_sources = nullptr;
-//     auto rx_cores = nullptr;
-// //  m_iface_id = (uint16_t)m_cfg.card_id;
-// //  m_dest_ip = m_cfg.dest_ip;
-// //  auto ip_sources = m_cfg.ip_sources;
-// //  auto rx_cores = m_cfg.rx_cores; 
-// //  m_num_ip_sources = ip_sources.size();
-// //  m_num_rx_cores = rx_cores.size();
-// /*
-//   // Initialize RX core map
-//   for (auto rxc : rx_cores) {
-//     for (auto qid : rxc.rx_qs) {
-//       m_rx_core_map[rxc.lcore_id][qid] = "";
-//     }
-//   }
-
-//   // Setup expected IP sources
-//   for (auto src : ip_sources) {
-//     TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
-//     // Extend mapping
-//     m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
-//     m_rx_qs.insert(src.rx_q);
-//     // Create frame counter metric
-//     m_num_frames[src.id] = { 0 };
-//     m_num_bytes[src.id] = { 0 };
-//   }
-// */
-
-//   // Setup SourceConcepts
-//   // m_sources[]->configure if needed!?
-
-//   // Allocate pools and mbufs per queue
-//   TLOG() << "Allocating pools and mbufs.";
-//   for (size_t i=0; i<m_rx_qs.size(); ++i) {
-//     std::stringstream ss;
-//     ss << "MBP-" << i;
-//     TLOG() << "Pool acquire: " << ss.str(); 
-//     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
-//     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-//     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
-//   }
-
-//   // Setting up interface
-//   TLOG() << "Initialize interface " << m_iface_id;
-//   bool with_reset = true, with_mq_mode = true; // go to config
-//   ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools, with_reset, with_mq_mode); // 0 = no tx queues
-//   // Promiscuous mode
-//   ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
-
-//   // Flow steering setup
-//   TLOG() << "Configuring Flow steering rules.";
-//   struct rte_flow_error error;
-//   struct rte_flow *flow;
-//   TLOG() << "Attempt to flush previous flow rules...";
-//   rte_flow_flush(m_iface_id, &error);
-// #warning RS: FIXME -> Check for flow flush return!
-//   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
-//     for (auto const& [rxqid, srcip] : rxqs) {
-
-//       // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
-//       TLOG() << "Current ip is " << srcip;
-//       size_t ind = 0, current_ind = 0;
-//       std::vector<uint8_t> v;
-//       for (int i = 0; i < 4; ++i) {
-//         v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
-//         current_ind += ind + 1;
-//       }
-
-//       flow = generate_ipv4_flow(m_iface_id, rxqid, 
-// 		    RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
-
-//       if (not flow) { // ers::fatal
-//         TLOG() << "Flow can't be created for " << rxqid
-// 	       << " Error type: " << (unsigned)error.type
-// 	       << " Message: " << error.message;
-//         ers::fatal(dunedaq::readoutlibs::InitializationError(
-//           ERS_HERE, "Couldn't create Flow API rules!"));
-//     	  rte_exit(EXIT_FAILURE, "error in creating flow");
-//       }
-//     }
-//   }
-
-// #warning RS FIXME -> Removed for conf overhaul
-// //  if (m_cfg.with_drop_flow) {
-//     // Adding drop flow
-//     TLOG() << "Adding Drop Flow.";
-//     flow = generate_drop_flow(m_iface_id, &error);
-//     if (not flow) { // ers::fatal
-//       TLOG() << "Drop flow can't be created for interface!"
-//              << " Error type: " << (unsigned)error.type
-//              << " Message: " << error.message;
-//       rte_exit(EXIT_FAILURE, "error in creating flow");
-//     }
-// //  }
-  
-//   TLOG() << "DPDK EAL & RTE configured.";
 
 }
 
