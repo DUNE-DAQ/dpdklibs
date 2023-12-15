@@ -7,15 +7,15 @@
  */
 //#include "dpdklibs/nicreader/Nljs.hpp"
 
-#include <appfwk/ConfigurationManager.hpp>
-#include <appfwk/ModuleConfiguration.hpp>
+#include "appfwk/ConfigurationManager.hpp"
+#include "appfwk/ModuleConfiguration.hpp"
 
 #include "appdal/NICReceiver.hpp"
 #include "appdal/NICReceiverConf.hpp"
 #include "appdal/NICInterface.hpp"
 #include "appdal/NICStatsConf.hpp"
 #include "appdal/EthStreamParameters.hpp"
-#include "coredal/QueueWithGeoId.hpp"
+#include "coredal/QueueWithId.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -102,20 +102,15 @@ NICReceiver::init()
  }
 
  for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<QueueWithGeoId>();
+  auto queue = con->cast<QueueWithId>();
   if(queue == nullptr) {
 	  auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
 	  ers::fatal(err);
 	  throw err;
   }
-  utils::StreamUID s;
-  s.det_id = queue->get_geo_id().get_detector_id();
-  s.crate_id = queue->get_geo_id().get_crate_id();
-  s.slot_id = queue->get_geo_id().get_slot_id();
-  s.stream_id = queue->get_geo_id().get_stream_id();
-
-  m_sources[s] = createSourceModel(queue->UID());
-  m_sources[s]->init(); 
+  
+  m_sources[queue->get_id()] = createSourceModel(queue->UID());
+  m_sources[queue->get_id()]->init(); 
  }
 }
 
@@ -211,10 +206,7 @@ NICReceiver::do_stop(const data_t&)
 void
 NICReceiver::do_scrap(const data_t&)
 {
-  TLOG() << get_name() << ": Entering do_scrap() method";
-  for (auto& [iface_id, iface] : m_ifaces) {
-    iface->scrap();
-  }
+ 
 }
 
 void
@@ -224,7 +216,7 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
     iface->get_info(ci, level);
   } 
 }
-
+/*
 void
 NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
   // Get DAQ Header and its StreamID
@@ -243,6 +235,7 @@ NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
     m_num_unexid_frames[strid]++;
   }
 }
+*/
 
 void 
 NICReceiver::set_running(bool should_run)

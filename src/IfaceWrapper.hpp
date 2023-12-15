@@ -49,10 +49,9 @@ public:
   IfaceWrapper& operator=(IfaceWrapper&&) = delete;      ///< IfaceWrapper is not move-assignable
 
   void init();
-  void conf(const appdal::NICInterface* iface_cfg);
   void start();
   void stop();
-  void scrap();
+  
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   void allocate_mbufs();

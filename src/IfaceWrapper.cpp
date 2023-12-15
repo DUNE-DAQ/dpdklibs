@@ -86,71 +86,57 @@ IfaceWrapper::IfaceWrapper(const std::string iface_name, source_to_sink_map_t& s
     }
 
     auto stream_params = stream->get_stream_params()->cast<EthStreamParameters>;
-    if (m_ips.count(exp_src.ip_addr) != 0) {
-      TLOG() << "Duplicate IP address as expected source under id=" << exp_src.id << "! Omitting source!";
-      continue;
-    } else {
-      auto src_ip = stream_params->get_tx_ip();
-      auto rx_q = stream_params->get_rx_queue();
-      auto lcore = stream_params->lcore();
-      m_ips.insert(src_ip);
-      m_rx_qs.insert(rx_q);
-      m_lcores.insert(lcore);
 
-      m_num_frames_rxq[rx_q] = { 0 };
-      m_num_bytes_rxq[rx_q] = { 0 };
+    auto src_ip = stream_params->get_tx_ip();
+    auto rx_q = stream_params->get_rx_queue();
+    auto lcore = stream_params->lcore();
+    m_ips.insert(src_ip);
+    m_rx_qs.insert(rx_q);
+    m_lcores.insert(lcore);
 
-      // No sanity check on config?
-      m_rx_core_map[lcore][rx_q] = src_ip;
+    m_num_frames_rxq[rx_q] = { 0 };
+    m_num_bytes_rxq[rx_q] = { 0 };
 
-      utils::StreamUID s;
-      s.det_id = stream->get_geo_id().get_detector_id();
-      s.crate_id = stream->get_geo_id().get_crate_id();
-      s.slot_id = stream->get_geo_id().get_slot_id();
-      s.stream_id = stream->get_geo_id().get_stream_id();
+    m_rx_core_map[lcore][rx_q] = src_ip;
 
-      m_stream_to_source_id[rx_q][s] = stream->get_src_id();
+    auto stream_id = stream->get_geo_id().get_stream_id();
 
-        /* Check streams mapping and available source_ids
-        auto& src_streams_map = exp_src.src_streams_mapping;
-        for (const auto& src_stream_cfg : src_streams_map) {
-          m_stream_to_source_id[rx_q][src_stream_cfg.stream_id] = src_stream_cfg.source_id;
-          if (m_sources.count(src_stream_cfg.source_id) == 0) {
-            //ers::fatal
-            TLOG() << "Sink for source_id not initialized! source_id=" << src_stream_cfg.source_id;
-          } else {
-            TLOG() << "Sink identified for rx_q=" << rx_q
-                   << " stream_id=" << src_stream_cfg.stream_id
-                   << " source_id=" << src_stream_cfg.source_id;
-          }
-        }*/
-      }
+    m_stream_to_source_id[rx_q][stream_id] = stream->get_src_id();
+
+    if (sources.find(stream->get_src_id()) == sources.end()) {
+      TLOG() << "Sink for source_id "<< stream->get_src_id() << " not initialized!";
     }
 
-    // Log mapping
-    for (auto const& [lcore, rx_qs] : m_rx_core_map) {
-      TLOG() << "Lcore=" << lcore << " handles: ";
-      for (auto const& [rx_q, src_ip] : rx_qs) {
-        TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
-      }
+  }
+
+  // Log mapping
+  for (auto const& [lcore, rx_qs] : m_rx_core_map) {
+    TLOG() << "Lcore=" << lcore << " handles: ";
+    for (auto const& [rx_q, src_ip] : rx_qs) {
+      TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
     }
+  }
 
-    // Adding single TX queue for ARP responses
-    TLOG() << "Append TX_Q=0 for ARP responses.";
-    m_tx_qs.insert(0);
+  // Adding single TX queue for ARP responses
+  TLOG() << "Append TX_Q=0 for ARP responses.";
+  m_tx_qs.insert(0);
 
-    auto& sr = m_cfg.stats_reporting_cfg;
-    m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr.expected_seq_id_step > 0 ? sr.expected_seq_id_step : udp::PacketInfoAccumulator::s_ignorable_value,
+  auto& sr = m_cfg.stats_reporting_cfg;
+  m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr.expected_seq_id_step > 0 ? sr.expected_seq_id_step : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr.expected_timestamp_step > 0 ? sr.expected_timestamp_step : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr.expected_packet_size > 0 ? sr.expected_packet_size : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr.analyze_nth_packet));
-  }
+  
 
 }
 
 IfaceWrapper::~IfaceWrapper()
 {
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destructor called. First stop check, then closing iface.";
+    
+  struct rte_flow_error error;
+  rte_flow_flush(m_iface_id, &error);
+  m_accum_ptr.reset(nullptr);
   //graceful_stop();
   //close_iface();
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
@@ -258,14 +244,6 @@ IfaceWrapper::stop()
     TLOG() << "GARP thrad is not joinable!";
   }
   m_accum_ptr->erase_stream_stats();
-}
-
-void
-IfaceWrapper::scrap()
-{
-  struct rte_flow_error error;
-  rte_flow_flush(m_iface_id, &error);
-  m_accum_ptr.reset(nullptr);
 }
 
 void 
