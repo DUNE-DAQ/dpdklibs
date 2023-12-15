@@ -112,8 +112,6 @@ private:
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
   source_to_sink_map_t m_sources;
 
-  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
-  // bool m_per_stream_reports = true;
 
   opmonlib::InfoCollector m_ic;
   std::mutex m_ic_mutex;
