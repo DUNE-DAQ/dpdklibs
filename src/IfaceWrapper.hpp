@@ -10,6 +10,8 @@
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
 //#include "dpdklibs/nicreader/Structs.hpp"
+#include "appdal/NICInterface.hpp"
+
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
@@ -40,7 +42,7 @@ public:
   //using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(const appdal::NICInterface interface, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible

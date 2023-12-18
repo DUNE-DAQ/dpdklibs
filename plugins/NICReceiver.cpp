@@ -92,9 +92,9 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-NICReceiver::init()
+NICReceiver::init(const appdal::NICReceiver* mdal )
 {
- auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+ //auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
   ers::fatal(err);
@@ -115,11 +115,11 @@ NICReceiver::init()
 }
 
 void
-NICReceiver::do_configure()
+NICReceiver::do_configure(const appdal::NICReceiver* mdal)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
-  auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+  //auto session = appfwk::ModuleManager::get()->session();
+  //auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
   auto module_conf = mdal->get_configuration();
   auto ro_group = mdal->get_readout_group().cast<coredal::ReadoutGroup>;
 
@@ -147,9 +147,9 @@ NICReceiver::do_configure()
       ers::fatal(err);
       throw err;      
     }
-    if (interface->disabled(*session)) {
-	    continue;
-    }
+    //if (interface->disabled(*session)) {
+	  //  continue;
+    //}
 
     if (m_mac_to_id_map.find(interface->get_rx_mac()) != m_mac_to_id_map.end()) {
        m_mac_to_ip[interface->get_rx_mac()] = interface->get_rx_ip(); 
