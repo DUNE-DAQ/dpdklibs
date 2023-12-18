@@ -91,7 +91,7 @@ local nicreader = {
         s.field("ifaces", self.ifaces,
                 doc="List of interfaces to configure"),
 
-        s.field("eal_arg_list", self.string, "",
+        s.field("eal_arg_list", self.string, "daq_application",
                 doc="A string with EAL arguments"),
     ], doc="Generic UIO reader DAQ Module Configuration"),
 

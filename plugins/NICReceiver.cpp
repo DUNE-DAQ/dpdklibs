@@ -121,7 +121,6 @@ NICReceiver::do_configure(const data_t& args)
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
   std::vector<std::string> eal_args;
-  eal_args.push_back("daq_application");
   std::istringstream iss(m_cfg.eal_arg_list);
   std::string arg_from_str;
   while (iss >> arg_from_str) {
