@@ -266,16 +266,15 @@ get_mempool(const std::string& pool_name,
   return std::unique_ptr<rte_mempool>(mbuf_pool);
 }
 
-std::vector<char*>
-string_to_eal_args(const std::string& params)
-{
-  auto parts = boost::program_options::split_unix(params);
-  std::vector<char*> cstrings;
-  for(auto& str : parts){
-    cstrings.push_back(const_cast<char*> (str.c_str()));
+std::vector<char*> 
+construct_eal_argv(std::vector<std::string> &std_argv){
+  std::vector<char*> vec_argv;
+  for (int i=0; i < std_argv.size() ; i++){
+      vec_argv.insert(vec_argv.end(), std_argv[i].data());
   }
-  return cstrings;
+  return vec_argv;
 }
+
 
 void
 init_eal(int argc, char* argv[]) {
