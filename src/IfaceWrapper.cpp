@@ -8,6 +8,10 @@
 #include "logging/Logging.hpp"
 #include "readoutlibs/ReadoutIssues.hpp"
 
+
+#include "dpdklibs/nicreader/Structs.hpp"
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
+
 #include "dpdklibs/EALSetup.hpp"
 // #include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
@@ -70,9 +74,10 @@ IfaceWrapper::allocate_mbufs()
     std::stringstream ss;
     ss << "MBP-" << m_iface_id << '-' << i;
     TLOG() << "Acquire pool with name=" << ss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
-    m_mbuf_pools[i] = ealutils::get_mempool(ss.str(), m_num_mbufs, m_mbuf_cache_size, 9800, m_socket_id);
+    m_mbuf_pools[i] = ealutils::get_mempool(ss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-    rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
+    // No need to alloc?
+    // rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
 
   std::stringstream ss;
@@ -197,6 +202,8 @@ IfaceWrapper::conf(const iface_conf_t& args)
     
         m_num_frames_rxq[rx_q] = { 0 };
         m_num_bytes_rxq[rx_q] = { 0 };
+        m_num_full_bursts[rx_q] = { 0 };
+        m_max_burst_size[rx_q] = { 0 };
 
         // No sanity check on config?    
         m_rx_core_map[lcore][rx_q] = src_ip;
@@ -225,26 +232,39 @@ IfaceWrapper::conf(const iface_conf_t& args)
       }
     }
 
+    for( auto lcore : m_lcores) {
+      TLOG() << "Registered LCore" << lcore;
+    }
+
+    for( auto q : m_rx_qs) {
+      TLOG() << "Registered Queues" << q;
+    }
+
+
+
     // Adding single TX queue for ARP responses
     TLOG() << "Append TX_Q=0 for ARP responses.";
     m_tx_qs.insert(0);
 
-    auto& sr = m_cfg.stats_reporting_cfg;
-    m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr.expected_seq_id_step > 0 ? sr.expected_seq_id_step : udp::PacketInfoAccumulator::s_ignorable_value,
-						      sr.expected_timestamp_step > 0 ? sr.expected_timestamp_step : udp::PacketInfoAccumulator::s_ignorable_value,
-						      sr.expected_packet_size > 0 ? sr.expected_packet_size : udp::PacketInfoAccumulator::s_ignorable_value,
-						      sr.analyze_nth_packet));
+
   }
-
-
 }
 
 void
 IfaceWrapper::start()
 {
+  for (auto const& [rx_q, _] : m_num_frames_rxq ) {
+    m_num_frames_rxq[rx_q] = { 0 };
+    m_num_bytes_rxq[rx_q] = { 0 };
+    m_num_full_bursts[rx_q] = { 0 };
+    m_max_burst_size[rx_q] = { 0 };
+  }
+  
+  
   m_lcore_quit_signal.store(false);
   TLOG() << "Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
+  
 
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
@@ -263,7 +283,6 @@ IfaceWrapper::stop()
   } else {
     TLOG() << "GARP thrad is not joinable!";
   }
-  m_accum_ptr->erase_stream_stats();
 }
 
 void
@@ -271,7 +290,6 @@ IfaceWrapper::scrap()
 {
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
-  m_accum_ptr.reset(nullptr);
 }
 
 void 
@@ -299,6 +317,25 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   ci.add(nri);
   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
     << " -> Result looks like the following:\n" << ci.get_collected_infos();
+
+  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+    nicreaderinfo::QueueStats qs;
+    qs.packets_received = m_num_frames_rxq[src_rx_q].load();
+    qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
+    qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
+    qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
+
+    opmonlib::InfoCollector queue_ci;
+    queue_ci.add(qs);
+
+    ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
+  }
+
+  for( const auto& [src_id, src_obj] :  m_sources) {
+    opmonlib::InfoCollector src_ci;
+    src_obj->get_info(src_ci, level);
+    ci.add(fmt::format("src_{}", src_id), src_ci);
+  }
 }
 
 void
@@ -320,10 +357,8 @@ IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
   auto src_id = m_stream_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
 
-  //m_accum_ptr->process_packet(*daq_header, size);
-  
-  if (m_sources.count(src_id) != 0) {
-    auto ret = m_sources[src_id]->handle_payload(payload, size);
+  if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
+    src_it->second->handle_payload(payload, size);
   } else {
     // Really bad -> unexpeced StreamID in UDP Payload.
     // This check is needed in order to avoid dynamically add thousands
