@@ -153,7 +153,7 @@ NICReceiver::do_configure(const data_t& args)
          (m_pci_to_id_map.count(iface_pci_addr) != 0)) {
        auto iface_id = m_mac_to_id_map[iface_mac_addr];
        TLOG() << "Configuring expected interface with MAC=" << iface_mac_addr 
-              << "PCIe=" << iface_pci_addr << " Logical ID=" << iface_id;
+              << " PCIe=" << iface_pci_addr << " Logical ID=" << iface_id;
        m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(iface_id, m_sources, m_run_marker);
        m_ifaces[iface_id]->conf(iface_cfg);
        m_ifaces[iface_id]->allocate_mbufs();
