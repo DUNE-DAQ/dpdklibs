@@ -148,16 +148,7 @@ NICReceiver::do_configure(const data_t& args)
     }
   }
 
-  std::stringstream ss;
-  for( const auto& arg : eal_args) {
-    ss << arg << " ";
-  }
-  TLOG() << "EAL Init arguments: " << ss.str();
-
-  std::vector<char*> eal_argv = ealutils::construct_eal_argv(eal_args);
-  char** constructed_eal_argv = eal_argv.data();
-  int constructed_eal_argc = eal_args.size();
-  ealutils::init_eal(constructed_eal_argc, constructed_eal_argv);
+  ealutils::init_eal(eal_args);
 
   // Get available Interfaces from EAL
   auto available_ifaces = ifaceutils::get_num_available_ifaces();
