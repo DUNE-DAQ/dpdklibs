@@ -117,10 +117,29 @@ NICReceiver::do_configure(const data_t& args)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   m_cfg = args.get<module_conf_t>();
+  auto ifaces_cfg = m_cfg.ifaces;
 
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
   std::vector<std::string> eal_args;
+
+  eal_args.push_back("eal_cmdline");
+
+  // Enforce the process type to primary  
+  eal_args.push_back("--proc-type=primary");
+
+  // Construct the pcie devices allowed mask
+  for (const auto& iface_cfg : ifaces_cfg) {
+     eal_args.push_back("-a");
+     eal_args.push_back(iface_cfg.pci_addr);
+  }
+  
+  // Use the first pcie device id as file prefix
+  // FIXME: Review this strategy - should work in most of cases, but it could be 
+  // confusing in configs with multiple interfaces
+  eal_args.push_back(fmt::format("--file-prefix={}", ifaces_cfg.front().pci_addr));
+
+  // Append the remaining dpdk parameters
   std::istringstream iss(m_cfg.eal_arg_list);
   std::string arg_from_str;
   while (iss >> arg_from_str) {
@@ -128,6 +147,13 @@ NICReceiver::do_configure(const data_t& args)
       eal_args.push_back(arg_from_str);
     }
   }
+
+  std::stringstream ss;
+  for( const auto& arg : eal_args) {
+    ss << arg << " ";
+  }
+  TLOG() << "EAL Init arguments: " << ss.str();
+
   std::vector<char*> eal_argv = ealutils::construct_eal_argv(eal_args);
   char** constructed_eal_argv = eal_argv.data();
   int constructed_eal_argc = eal_args.size();
@@ -145,7 +171,6 @@ NICReceiver::do_configure(const data_t& args)
   }
 
   // Configure expected (and available!) interfaces
-  auto ifaces_cfg = m_cfg.ifaces;
   for (const auto& iface_cfg : ifaces_cfg) {
      auto iface_mac_addr = iface_cfg.mac_addr;
      auto iface_pci_addr = iface_cfg.pci_addr;
@@ -168,105 +193,6 @@ NICReceiver::do_configure(const data_t& args)
   }
   
   return;
-
-// #warning RS FIXME -> Removed for conf overhaul
-//     auto ip_sources = nullptr;
-//     auto rx_cores = nullptr;
-// //  m_iface_id = (uint16_t)m_cfg.card_id;
-// //  m_dest_ip = m_cfg.dest_ip;
-// //  auto ip_sources = m_cfg.ip_sources;
-// //  auto rx_cores = m_cfg.rx_cores; 
-// //  m_num_ip_sources = ip_sources.size();
-// //  m_num_rx_cores = rx_cores.size();
-// /*
-//   // Initialize RX core map
-//   for (auto rxc : rx_cores) {
-//     for (auto qid : rxc.rx_qs) {
-//       m_rx_core_map[rxc.lcore_id][qid] = "";
-//     }
-//   }
-
-//   // Setup expected IP sources
-//   for (auto src : ip_sources) {
-//     TLOG() << "IP source to register: ID=" << src.id << " IP=" << src.ip << " RX_Q=" << src.rx_q << " LC=" << src.lcore;
-//     // Extend mapping
-//     m_rx_core_map[src.lcore][src.rx_q] = src.ip;    
-//     m_rx_qs.insert(src.rx_q);
-//     // Create frame counter metric
-//     m_num_frames[src.id] = { 0 };
-//     m_num_bytes[src.id] = { 0 };
-//   }
-// */
-
-//   // Setup SourceConcepts
-//   // m_sources[]->configure if needed!?
-
-//   // Allocate pools and mbufs per queue
-//   TLOG() << "Allocating pools and mbufs.";
-//   for (size_t i=0; i<m_rx_qs.size(); ++i) {
-//     std::stringstream ss;
-//     ss << "MBP-" << i;
-//     TLOG() << "Pool acquire: " << ss.str(); 
-//     m_mbuf_pools[i] = ealutils::get_mempool(ss.str());
-//     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-//     rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
-//   }
-
-//   // Setting up interface
-//   TLOG() << "Initialize interface " << m_iface_id;
-//   bool with_reset = true, with_mq_mode = true; // go to config
-//   ealutils::iface_init(m_iface_id, m_rx_qs.size(), 0, m_mbuf_pools, with_reset, with_mq_mode); // 0 = no tx queues
-//   // Promiscuous mode
-//   ealutils::iface_promiscuous_mode(m_iface_id, false); // should come from config
-
-//   // Flow steering setup
-//   TLOG() << "Configuring Flow steering rules.";
-//   struct rte_flow_error error;
-//   struct rte_flow *flow;
-//   TLOG() << "Attempt to flush previous flow rules...";
-//   rte_flow_flush(m_iface_id, &error);
-// #warning RS: FIXME -> Check for flow flush return!
-//   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
-//     for (auto const& [rxqid, srcip] : rxqs) {
-
-//       // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
-//       TLOG() << "Current ip is " << srcip;
-//       size_t ind = 0, current_ind = 0;
-//       std::vector<uint8_t> v;
-//       for (int i = 0; i < 4; ++i) {
-//         v.push_back(std::stoi(srcip.substr(current_ind, srcip.size() - current_ind), &ind));
-//         current_ind += ind + 1;
-//       }
-
-//       flow = generate_ipv4_flow(m_iface_id, rxqid, 
-// 		    RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
-
-//       if (not flow) { // ers::fatal
-//         TLOG() << "Flow can't be created for " << rxqid
-// 	       << " Error type: " << (unsigned)error.type
-// 	       << " Message: " << error.message;
-//         ers::fatal(dunedaq::readoutlibs::InitializationError(
-//           ERS_HERE, "Couldn't create Flow API rules!"));
-//     	  rte_exit(EXIT_FAILURE, "error in creating flow");
-//       }
-//     }
-//   }
-
-// #warning RS FIXME -> Removed for conf overhaul
-// //  if (m_cfg.with_drop_flow) {
-//     // Adding drop flow
-//     TLOG() << "Adding Drop Flow.";
-//     flow = generate_drop_flow(m_iface_id, &error);
-//     if (not flow) { // ers::fatal
-//       TLOG() << "Drop flow can't be created for interface!"
-//              << " Error type: " << (unsigned)error.type
-//              << " Message: " << error.message;
-//       rte_exit(EXIT_FAILURE, "error in creating flow");
-//     }
-// //  }
-  
-//   TLOG() << "DPDK EAL & RTE configured.";
-
 }
 
 void
@@ -348,7 +274,5 @@ NICReceiver::set_running(bool should_run)
 
 } // namespace dpdklibs
 } // namespace dunedaq
-
-// #include "detail/NICReceiver.hxx"
 
 DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::NICReceiver)
