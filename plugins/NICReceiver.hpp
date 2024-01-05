@@ -15,6 +15,7 @@
 #include "appfwk/cmd/Structs.hpp"
 
 #include "appfwk/DAQModule.hpp"
+
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 
@@ -49,20 +50,22 @@ public:
   NICReceiver(NICReceiver&&) = delete;                 ///< NICReceiver is not move-constructible
   NICReceiver& operator=(NICReceiver&&) = delete;      ///< NICReceiver is not move-assignable
 
-  void init(const data_t& args) override;
+  void init(const std::shared_ptr<appfwk::ModuleConfiguration> mfcg) override;
 
 private:
   // Types
-  using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
+  //using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
 
   // Commands
-  void do_configure();
+  void do_configure(const data_t&);
   void do_start(const data_t&);
   void do_stop(const data_t&);
   void do_scrap();
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   // Internals
+  std::shared_ptr<appfwk::ModuleConfiguration> m_cfg;
+  
   int m_running = 0;
   std::atomic<bool> m_run_marker;
   void set_running(bool /*should_run*/);

@@ -92,9 +92,10 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-NICReceiver::init(const appdal::NICReceiver* mdal )
+NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
- //auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+ auto mdal = mfcg->module<appdal::NICReceiver>(get_name());
+ m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
   ers::fatal(err);
@@ -115,11 +116,11 @@ NICReceiver::init(const appdal::NICReceiver* mdal )
 }
 
 void
-NICReceiver::do_configure(const appdal::NICReceiver* mdal)
+NICReceiver::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  //auto mdal = appfwk::ModuleConfiguration::get()->module<appdal::NICReceiver>(get_name());
+  auto mdal = m_cfg->module<appdal::NICReceiver>(get_name());
   auto module_conf = mdal->get_configuration();
   auto ro_group = mdal->get_readout_group().cast<coredal::ReadoutGroup>;
 
