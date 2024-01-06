@@ -42,7 +42,7 @@ public:
   //using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(const appdal::NICInterface interface, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(const appdal::NICInterface* interface, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
@@ -50,7 +50,7 @@ public:
   IfaceWrapper(IfaceWrapper&&) = delete;                 ///< IfaceWrapper is not move-constructible
   IfaceWrapper& operator=(IfaceWrapper&&) = delete;      ///< IfaceWrapper is not move-assignable
 
-  void init();
+  //void init();
   void start();
   void stop();
   

@@ -10,9 +10,11 @@
 #include "appfwk/ConfigurationManager.hpp"
 #include "appfwk/ModuleConfiguration.hpp"
 
-#include "appdal/NICReceiver.hpp"
+#include "appdal/DataReader.hpp"
+#include "coredal/ReadoutInterface.hpp"
 #include "appdal/NICReceiverConf.hpp"
 #include "appdal/NICInterface.hpp"
+#include "appdal/NICInterfaceConfiguration.hpp"
 #include "appdal/NICStatsConf.hpp"
 #include "appdal/EthStreamParameters.hpp"
 #include "coredal/QueueWithId.hpp"
@@ -63,10 +65,7 @@ namespace dpdklibs {
 
 NICReceiver::NICReceiver(const std::string& name)
   : DAQModule(name),
-    m_run_marker{ false },
-    m_routing_policy{ "incremental" },
-    m_prev_sink(0),
-    m_next_sink(0)
+    m_run_marker{ false }
 {
   register_command("conf", &NICReceiver::do_configure);
   register_command("start", &NICReceiver::do_start);
@@ -94,7 +93,7 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 void
 NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
- auto mdal = mfcg->module<appdal::NICReceiver>(get_name());
+ auto mdal = mcfg->module<appdal::DataReader>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
@@ -103,7 +102,7 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  }
 
  for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<QueueWithId>();
+  auto queue = con->cast<coredal::QueueWithId>();
   if(queue == nullptr) {
 	  auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
 	  ers::fatal(err);
@@ -111,7 +110,7 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
   }
   
   m_sources[queue->get_id()] = createSourceModel(queue->UID());
-  m_sources[queue->get_id()]->init(); 
+  //m_sources[queue->get_id()]->init(); 
  }
 }
 
@@ -120,9 +119,8 @@ NICReceiver::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = m_cfg->module<appdal::NICReceiver>(get_name());
-  auto module_conf = mdal->get_configuration();
-  auto ro_group = mdal->get_readout_group().cast<coredal::ReadoutGroup>;
+  auto mdal = m_cfg->module<appdal::DataReader>(get_name());
+  auto module_conf = mdal->get_configuration()->cast<appdal::NICReceiverConf>();
 
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
@@ -138,12 +136,12 @@ NICReceiver::do_configure(const data_t& /*args*/)
     TLOG() << "Available iface with MAC=" << mac_addr_str << " logical ID=" << ifc_id;
   }
 
-  auto res_set = ro_group->get_contains();
+  auto res_set = mdal->get_interfaces();;
  
   for (auto res : res_set) {
-    auto interface = res->cast<NICInterface>;
+    auto interface = res->cast<appdal::NICInterface>();
     if (interface == nullptr) {
-      dunedaq::readoutlibs::ConfigurationError err(
+      dunedaq::readoutlibs::GenericConfigurationError err(
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
       ers::fatal(err);
       throw err;      
@@ -153,14 +151,14 @@ NICReceiver::do_configure(const data_t& /*args*/)
     //}
 
     if (m_mac_to_id_map.find(interface->get_rx_mac()) != m_mac_to_id_map.end()) {
-       m_mac_to_ip[interface->get_rx_mac()] = interface->get_rx_ip(); 
-       m_ifaces[interface->get_rx_iface()] = std::make_unique<IfaceWrapper>(interface->UID(), m_sources, m_run_marker); 
+       m_mac_to_id_map[interface->get_rx_mac()] = interface->get_rx_iface(); 
+       m_ifaces[interface->get_rx_iface()] = std::make_unique<IfaceWrapper>(interface, m_sources, m_run_marker); 
        //m_ifaces[interface->get_rx_iface()] = conf(iface_cfg);
-       m_ifaces[interface->get_rx_iface()] = allocate_mbufs();;
-       m_ifaces[interface->get_rx_iface()] = setup_flow_steering();
-       m_ifaces[interface->get_rx_iface()] = setup_xstats();
+       m_ifaces[interface->get_rx_iface()]->allocate_mbufs();;
+       m_ifaces[interface->get_rx_iface()]->setup_flow_steering();
+       m_ifaces[interface->get_rx_iface()]->setup_xstats();
     } else {
-       TLOG() << "No available interface with MAC=" << iface_mac_addr;
+       TLOG() << "No available interface with MAC=" << interface->get_rx_mac();
        ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
     }
@@ -217,26 +215,6 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
     iface->get_info(ci, level);
   } 
 }
-/*
-void
-NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
-  // Get DAQ Header and its StreamID
-  auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  //auto strid = (unsigned)daq_header->stream_id;
-  auto strid = (unsigned)daq_header->stream_id+(daq_header->slot_id<<8)+(daq_header->crate_id<<(8+4))+(daq_header->det_id<<(8+4+10));
-  if (m_sources.count(strid) != 0) {
-    auto ret = m_sources[strid]->handle_payload(payload, size);
-  } else {
-    // Really bad -> unexpeced StreamID in UDP Payload.
-    // This check is needed in order to avoid dynamically add thousands
-    // of Sources on the fly, in case the data corruption is extremely severe.
-    if (m_num_unexid_frames.count(strid) == 0) {
-      m_num_unexid_frames[strid] = 0;
-    }
-    m_num_unexid_frames[strid]++;
-  }
-}
-*/
 
 void 
 NICReceiver::set_running(bool should_run)

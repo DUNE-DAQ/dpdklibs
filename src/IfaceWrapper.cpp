@@ -18,6 +18,9 @@
 #include "IfaceWrapper.hpp"
 
 #include "appfwk/ConfigurationManager.hpp"
+#include "coredal/DROStreamConf.hpp"
+#include "coredal/StreamParameters.hpp"
+#include "coredal/GeoId.hpp"
 #include "appdal/NICInterface.hpp"
 #include "appdal/NICInterfaceConfiguration.hpp"
 #include "appdal/NICStatsConf.hpp"
@@ -40,7 +43,7 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-IfaceWrapper::IfaceWrapper(const appdal::NICInterface *inface_cfg, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
+IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
@@ -61,9 +64,9 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *inface_cfg, source_to_sin
   m_mtu = iface_cfg->get_configuration()->get_mtu();
   m_rx_ring_size = iface_cfg->get_configuration()->get_rx_ring_size();
   m_tx_ring_size = iface_cfg->get_configuration()->get_tx_ring_size();
-  m_num_bufs = iface_cfg->get_configuration()->get_num_bufs();
+  m_num_mbufs = iface_cfg->get_configuration()->get_num_bufs();
   m_burst_size = iface_cfg->get_configuration()->get_burst_size();
-  m_buf_cache_size = iface_cfg->get_configuration()->get_buf_cache_size();
+  m_mbuf_cache_size = iface_cfg->get_configuration()->get_mbuf_cache_size();
 
   m_lcore_sleep_ns = iface_cfg->get_configuration()->get_lcore_sleep_us() * 1000;
   m_socket_id = rte_eth_dev_socket_id(m_iface_id);
@@ -76,21 +79,21 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *inface_cfg, source_to_sin
   auto res_set = iface_cfg->get_contains();
   for (const auto res : res_set) {
     
-    auto stream = res->cast<coredal::DROStreamConf>;
+    auto stream = res->cast<coredal::DROStreamConf>();
     if (stream == nullptr) {
-      dunedaq::readoutlibs::ConfigurationError err(
-        ERS_HERE, "NICInterface contains resources other than DROStreamConf!"));
+      dunedaq::readoutlibs::GenericConfigurationError err(
+        ERS_HERE, std::string("NICInterface contains resources other than DROStreamConf!"));
       throw err;
     }
-    if(stream->get_src_id() == sources.end()) {
+    if(sources.find(stream->get_src_id()) == sources.end()) {
       TLOG() << "Sink for source_id "<< stream->get_src_id() << " not initialized!";
 	    continue;
     }
-    auto stream_params = stream->get_stream_params()->cast<EthStreamParameters>;
+    auto stream_params = stream->get_stream_params()->cast<appdal::EthStreamParameters>();
 
     auto src_ip = stream_params->get_tx_ip();
     auto rx_q = stream_params->get_rx_queue();
-    auto lcore = stream_params->lcore();
+    auto lcore = stream_params->get_lcore();
     m_ips.insert(src_ip);
     m_rx_qs.insert(rx_q);
     m_lcores.insert(lcore);
@@ -100,7 +103,7 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *inface_cfg, source_to_sin
 
     m_rx_core_map[lcore][rx_q] = src_ip;
 
-    auto stream_id = stream->get_geo_id().get_stream_id();
+    auto stream_id = stream->get_geo_id()->get_stream_id();
 
     m_stream_to_source_id[rx_q][stream_id] = stream->get_src_id();
   }
@@ -118,7 +121,7 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *inface_cfg, source_to_sin
   m_tx_qs.insert(0);
 
   auto sr = iface_cfg->get_configuration()->get_stats_conf();
-  m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr->expected_seq_id_step() > 0 ? sr->get_expected_seq_id_step() : udp::PacketInfoAccumulator::s_ignorable_value,
+  m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr->get_expected_seq_id_step() > 0 ? sr->get_expected_seq_id_step() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_expected_timestamp_step() > 0 ? sr->get_expected_timestamp_step() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_expected_packet_size() > 0 ? sr->get_expected_packet_size() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_analyze_nth_packet()));
