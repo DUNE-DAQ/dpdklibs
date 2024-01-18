@@ -200,8 +200,6 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
   }
 
-
-
   // Get interface info
   retval = rte_eth_dev_info_get(iface, &dev_info);
   if (retval != 0) {
@@ -209,18 +207,14 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     return retval;
   }
 
-
-  TLOG() << "Iface " << iface << " Rx Ring info :" 
-    << "min " << dev_info.rx_desc_lim.nb_min 
-    << "max " << dev_info.rx_desc_lim.nb_max 
-    << "align " << dev_info.rx_desc_lim.nb_align
-  ;
-
-  TLOG() << "Iface " << iface << " Tx Ring info :" 
-    << "min " << dev_info.rx_desc_lim.nb_min 
-    << "max " << dev_info.rx_desc_lim.nb_max 
-    << "align " << dev_info.rx_desc_lim.nb_align
-  ;
+  TLOG() << "Iface[" << iface << "] Rx Ring info:"
+    << " min=" << dev_info.rx_desc_lim.nb_min 
+    << " max=" << dev_info.rx_desc_lim.nb_max 
+    << " align=" << dev_info.rx_desc_lim.nb_align;
+  TLOG() << "Iface[" << iface << "] Tx Ring info:" 
+    << " min=" << dev_info.rx_desc_lim.nb_min 
+    << " max=" << dev_info.rx_desc_lim.nb_max 
+    << " align=" << dev_info.rx_desc_lim.nb_align;
 
   for (size_t j = 0; j < dev_info.nb_rx_queues; j++) {
 
@@ -232,15 +226,12 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
       break;
 
     count = rte_eth_rx_queue_count(iface, j);
-    TLOG() << "rx " << j << " descriptors  " << count << "/" << queue_info.nb_desc;
-    TLOG() << "rx " << j << " scattered  " << (queue_info.scattered_rx ? "  yes" : "no");
-    TLOG() << "rx " << j << " conf.drop_en  " << (queue_info.conf.rx_drop_en ? "  yes" : "no");
-    TLOG() << "rx " << j << " conf.rx_deferred_start  " << (queue_info.conf.rx_deferred_start ? "  yes" : "no");
-    TLOG() << "rx " << j << " rx_buf_size  " << queue_info.rx_buf_size;
-
-
+    TLOG() << "rx[" << j << "] descriptors=" << count << "/" << queue_info.nb_desc
+           << " scattered=" << (queue_info.scattered_rx ? "yes" : "no")
+           << " conf.drop_en=" << (queue_info.conf.rx_drop_en ? "yes" : "no")
+           << " conf.rx_deferred_start=" << (queue_info.conf.rx_deferred_start ? "yes" : "no")
+           << " rx_buf_size=" << queue_info.rx_buf_size;
   }
-
 
   return 0;
 }
@@ -266,16 +257,15 @@ get_mempool(const std::string& pool_name,
   return std::unique_ptr<rte_mempool>(mbuf_pool);
 }
 
-std::vector<char*>
-string_to_eal_args(const std::string& params)
-{
-  auto parts = boost::program_options::split_unix(params);
-  std::vector<char*> cstrings;
-  for(auto& str : parts){
-    cstrings.push_back(const_cast<char*> (str.c_str()));
+std::vector<char*> 
+construct_eal_argv(std::vector<std::string> &std_argv){
+  std::vector<char*> vec_argv;
+  for (int i=0; i < std_argv.size() ; i++){
+      vec_argv.insert(vec_argv.end(), std_argv[i].data());
   }
-  return cstrings;
+  return vec_argv;
 }
+
 
 void
 init_eal(int argc, char* argv[]) {

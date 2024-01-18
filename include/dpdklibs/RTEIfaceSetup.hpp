@@ -126,6 +126,27 @@ get_iface_mac_str(uint16_t iface)
   }
 }
 
+inline std::string
+get_iface_pci_str(uint16_t iface)
+{
+  std::string iface_pci_addr_str;
+  int retval = -1;
+  struct rte_eth_dev_info dev_info;
+  // Get interface info
+  retval = rte_eth_dev_info_get(iface, &dev_info);
+  if (retval != 0) {
+    TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
+  } else if (dev_info.device) {
+    auto dev_name = rte_dev_name(dev_info.device);
+    iface_pci_addr_str = dev_name;
+    //TLOG() << "Dev name: " << dev_name;
+    //const auto bus = rte_dev_bus(dev_info.device);
+    //const auto bus_info = rte_dev_bus_info(dev_info.device);
+    //const auto dev_driver = rte_dev_driver(dev_info.device);
+  }
+  return iface_pci_addr_str;
+}
+
 inline int
 iface_reset(uint16_t iface)
 {

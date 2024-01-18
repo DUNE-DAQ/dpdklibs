@@ -1,6 +1,7 @@
 /* Application will run until quit or killed. */
 
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/RTEIfaceSetup.hpp"
 #include "logging/Logging.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -198,6 +199,9 @@ main(int argc, char* argv[])
   auto nb_ifaces = rte_eth_dev_count_avail();
   TLOG() << "# of available interfaces: " << nb_ifaces;
   TLOG() << "Initialize interface " << iface_id;
+  TLOG() << "  -> Iface MAC: " << ifaceutils::get_iface_mac_str(iface_id);
+  TLOG() << "  -> Iface PCI: " << ifaceutils::get_iface_pci_str(iface_id);
+
   ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools, false, false);
   ealutils::iface_promiscuous_mode(iface_id, false); // should come from config
 
