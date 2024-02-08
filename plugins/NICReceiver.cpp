@@ -109,8 +109,8 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 	  throw err;
   }
   
-  m_sources[queue->get_id()] = createSourceModel(queue->UID());
-  //m_sources[queue->get_id()]->init(); 
+  m_sources[queue->get_source_id()] = createSourceModel(queue->UID());
+  //m_sources[queue->get_source_id()]->init(); 
  }
 }
 

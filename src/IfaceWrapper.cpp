@@ -85,8 +85,8 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
         ERS_HERE, std::string("NICInterface contains resources other than DROStreamConf!"));
       throw err;
     }
-    if(sources.find(stream->get_src_id()) == sources.end()) {
-      TLOG() << "Sink for source_id "<< stream->get_src_id() << " not initialized!";
+    if(sources.find(stream->get_source_id()) == sources.end()) {
+      TLOG() << "Sink for source_id "<< stream->get_source_id() << " not initialized!";
 	    continue;
     }
     auto stream_params = stream->get_stream_params()->cast<appdal::EthStreamParameters>();
@@ -105,7 +105,7 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
 
     auto stream_id = stream->get_geo_id()->get_stream_id();
 
-    m_stream_to_source_id[rx_q][stream_id] = stream->get_src_id();
+    m_stream_to_source_id[rx_q][stream_id] = stream->get_source_id();
   }
 
   // Log mapping
