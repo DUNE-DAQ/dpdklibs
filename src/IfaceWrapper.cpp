@@ -8,6 +8,7 @@
 #include "logging/Logging.hpp"
 #include "readoutlibs/ReadoutIssues.hpp"
 
+#include "dpdklibs/Issues.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
@@ -93,7 +94,11 @@ IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
   bool with_reset = true, with_mq_mode = true; // go to config
-  ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode);
+
+  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode);
+  if (retval != 0 ) {
+    throw FailedToSetupInterface(m_iface_id, retval);
+  }
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
 }
