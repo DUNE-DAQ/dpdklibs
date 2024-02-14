@@ -1,4 +1,4 @@
-**
+/**
  * @file DPDKIssues.hpp DPDK system related ERS issues
  *
  * This is part of the DUNE DAQ , copyright 2020.
@@ -17,7 +17,7 @@ ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToSetupInterface,
                   "Interface [" << ifaceid << "] setup failed: " << error,
                   ((int)ifaceid)((int)error)
-                )
+                );
 }
 
 #endif /* DPDKLIBS_INCLUDE_DPDKLIBS_DPDKISSUES_HPP_ */

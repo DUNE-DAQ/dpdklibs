@@ -14,7 +14,6 @@
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
-// #include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -97,7 +96,7 @@ IfaceWrapper::setup_interface()
 
   int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode);
   if (retval != 0 ) {
-    throw FailedToSetupInterface(m_iface_id, retval);
+    throw FailedToSetupInterface(ERS_HERE, m_iface_id, retval);
   }
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
