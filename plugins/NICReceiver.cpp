@@ -60,7 +60,7 @@ NICReceiver::NICReceiver(const std::string& name)
 {
   register_command("conf", &NICReceiver::do_configure);
   register_command("start", &NICReceiver::do_start);
-  register_command("stop", &NICReceiver::do_stop);
+  register_command("stop_trigger_sources", &NICReceiver::do_stop);
   register_command("scrap", &NICReceiver::do_scrap);
 }
 
