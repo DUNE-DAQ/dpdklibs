@@ -104,19 +104,18 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   uint16_t q;
   struct rte_eth_dev_info dev_info;
   struct rte_eth_txconf txconf;
+  struct rte_eth_link link;
 
   // Get interface validity
   if (!rte_eth_dev_is_valid_port(iface)) {
     TLOG() << "Specified interface " << iface << " is not valid in EAL!";
     throw InvalidEALPort(ERS_HERE, iface);
-    return retval;
   }
   
   // Get interface info
   if ((retval = rte_eth_dev_info_get(iface, &dev_info)) != 0) {
     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
     throw FailedToRetrieveInterfaceInfo(ERS_HERE, iface, retval);
-    return retval;
   }
 
   TLOG() << "Iface " << iface << " RX Ring info :" 
@@ -128,9 +127,16 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   // Carry out a reset of the interface
   if (with_reset) {
     if ((retval = rte_eth_dev_reset(iface)) != 0) {
-      TLOG() << "Resetting device (iface " << iface << ") failed. Retval: " << retval;
       throw FailedToResetInterface(ERS_HERE, iface, retval);
     }
+  }
+
+  if ((retval = rte_eth_link_get_nowait(iface, &link)) < 0) {
+    throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
+  }
+
+  if (link.link_status == 0 ) {
+    throw LinkOffline(ERS_HERE, iface);
   }
 
   // Should we configure MQ RSS and offload?

@@ -25,9 +25,22 @@ ERS_DECLARE_ISSUE(dpdklibs,
                   ((int)ifaceid)
                 );
 
+
+ERS_DECLARE_ISSUE(dpdklibs,
+                  LinkOffline,
+                  "Link offline for interface [" << ifaceid << "]",
+                  ((int)ifaceid)
+                );
+
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToRetrieveInterfaceInfo,
                   "Failed to retrieve device info for interfce [" << ifaceid << "]: " << error,
+                  ((int)ifaceid)((int)error)
+                );
+
+ERS_DECLARE_ISSUE(dpdklibs,
+                  FailedToRetrieveLinkStatus,
+                  "Failed to retrieve link status for interfce [" << ifaceid << "]: " << error,
                   ((int)ifaceid)((int)error)
                 );
 
