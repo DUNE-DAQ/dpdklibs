@@ -131,14 +131,6 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     }
   }
 
-  if ((retval = rte_eth_link_get_nowait(iface, &link)) < 0) {
-    throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
-  }
-
-  // if (link.link_status == 0 ) {
-  //   throw LinkOffline(ERS_HERE, iface);
-  // }
-
   // Should we configure MQ RSS and offload?
   if (with_mq_rss) {
     iface_conf_rss_mode(iface_conf, true, true); // with_rss, with_offload
@@ -198,10 +190,18 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   }
 
   // Start the Ethernet interface.
-  retval = rte_eth_dev_start(iface);
-  if (retval < 0)
-    return retval;
+  if ((retval = rte_eth_dev_start(iface)) < 0) {
+      throw FailedToConfigureInterface(ERS_HERE, iface, "MAC address retrival", retval);
+  }
 
+  if ((retval = rte_eth_link_get(iface, &link)) < 0) {
+    throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
+  }
+
+  if (link.link_status == 0 ) {
+    throw LinkOffline(ERS_HERE, iface);
+  }
+  
   // Display the interface MAC address.
   struct rte_ether_addr addr;
   if ((retval = rte_eth_macaddr_get(iface, &addr)) == 0) {
