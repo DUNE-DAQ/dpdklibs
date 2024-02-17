@@ -135,9 +135,9 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
   }
 
-  if (link.link_status == 0 ) {
-    throw LinkOffline(ERS_HERE, iface);
-  }
+  // if (link.link_status == 0 ) {
+  //   throw LinkOffline(ERS_HERE, iface);
+  // }
 
   // Should we configure MQ RSS and offload?
   if (with_mq_rss) {

@@ -81,8 +81,11 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           if (q_bufs[i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
             // Handle them!
             std::size_t data_len = q_bufs[i_b]->data_len;
-            char* message = udp::get_udp_payload(q_bufs[i_b]);
-            handle_eth_payload(src_rx_q, message, data_len);
+
+            if ( m_lcore_enable_flow.load() ) {
+              char* message = udp::get_udp_payload(q_bufs[i_b]);
+              handle_eth_payload(src_rx_q, message, data_len);
+            }
             ++m_num_frames_rxq[src_rx_q];
             m_num_bytes_rxq[src_rx_q] += data_len;
           }

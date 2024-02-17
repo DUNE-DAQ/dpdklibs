@@ -265,6 +265,7 @@ IfaceWrapper::start()
   }
   
   
+  m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(false);
   TLOG() << "Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
@@ -280,6 +281,7 @@ IfaceWrapper::start()
 void
 IfaceWrapper::stop()
 {
+  m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(true);
   // Stop GARP sender thread  
   if (m_garp_thread.joinable()) {
