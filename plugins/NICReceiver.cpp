@@ -182,8 +182,7 @@ NICReceiver::do_configure(const data_t& args)
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
      }
   }
-  
-  TLOG() << get_name() << ": Entering do_start() method";
+
   if (!m_run_marker.load()) {
     set_running(true);
     TLOG() << "Starting iface wrappers.";
