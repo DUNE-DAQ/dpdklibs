@@ -95,7 +95,7 @@ int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
            uint16_t rx_ring_size, uint16_t tx_ring_size,
            std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
-           bool with_reset, bool with_mq_rss)
+           bool with_reset, bool with_mq_rss, bool check_link_status)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
   uint16_t nb_rxd = rx_ring_size;
@@ -198,7 +198,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
   }
 
-  if (link.link_status == 0 ) {
+  if ( check_link_status && link.link_status == 0 ) {
     throw LinkOffline(ERS_HERE, iface);
   }
   
