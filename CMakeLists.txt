@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(dpdklibs VERSION 1.2.1)
+project(dpdklibs VERSION 1.2.2)
 
 find_package(daq-cmake REQUIRED)
 
@@ -79,6 +79,7 @@ daq_add_application(dpdklibs_test_transmit_and_receive test_transmit_and_receive
 daq_add_application(dpdklibs_test_stats_reporting test_stats_reporting.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_dpdk_stats test_dpdk_stats.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_multi_process test_multi_proc.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
+#daq_add_application(dpdklibs_test_unique_caps test_unique_caps.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 fmt::fmt ${DPDK_LIBRARIES})
 
 target_compile_options(dpdklibs PUBLIC ${DPDK_CFLAGS})
 target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})

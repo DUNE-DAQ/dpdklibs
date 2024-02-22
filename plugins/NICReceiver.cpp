@@ -178,8 +178,7 @@ NICReceiver::do_configure(const data_t& args)
        m_ifaces[iface_id]->setup_xstats();
      } else {
        TLOG() << "No available interface with MAC=" << iface_mac_addr << " PCI=" << iface_pci_addr;
-       ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
+       throw dunedaq::readoutlibs::InitializationError(ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
      }
   }
   

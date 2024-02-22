@@ -36,7 +36,7 @@ int iface_promiscuous_mode(std::uint16_t iface, bool mode = false);
 int iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
            uint16_t rx_ring_size, uint16_t tx_ring_size,
            std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
-           bool with_reset=false, bool with_mq_rss=false);
+           bool with_reset=false, bool with_mq_rss=false, bool check_link_status=false);
 
 std::unique_ptr<rte_mempool> get_mempool(const std::string& pool_name, 
             int num_mbufs=NUM_MBUFS, int mbuf_cache_size=MBUF_CACHE_SIZE,
