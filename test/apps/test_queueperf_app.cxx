@@ -51,12 +51,16 @@ main(int argc, char** argv)
   int runsecs = 120;
   int queue_size = 1000;
   SPSCQueueType qtype{SPSCQueueType::ProducerConsumer};
+  int pushCPU = -1;
+  int popCPU = -1;
 
   CLI::App app{"Queue performance app"};
   app.add_option("-s", queue_size, "Queue size");
   app.add_option("-t", runsecs, "Run Time");
-    app.add_option("-q,--queue-type", qtype, "Queue Type, DynamiUnbound (dub) or ProducerConsumer (pc)")
-        ->transform(CLI::CheckedTransformer(map, CLI::ignore_case));
+  app.add_option("-q,--queue-type", qtype, "Queue Type, DynamiUnbound (dub) or ProducerConsumer (pc)")
+                ->transform(CLI::CheckedTransformer(map, CLI::ignore_case));
+  app.add_option("--pushCPU", pushCPU, "CPU ID for pusher thread");
+  app.add_option("--popCPU", popCPU, "CPU ID for popper thread");
   CLI11_PARSE(app, argc, argv);
 
 
@@ -125,6 +129,7 @@ main(int argc, char** argv)
  
   auto popper = ReusableThread(0);
   popper.set_name("popper", 0);
+  if ( popCPU >= 0 ) popper.set_pin( popCPU );
   auto popper_func = [&]() {
     PayloadFrame frame;
     while (marker) {
@@ -135,6 +140,7 @@ main(int argc, char** argv)
 
   auto pusher = ReusableThread(0);
   pusher.set_name("pusher", 0);
+  if ( pushCPU >= 0 ) pusher.set_pin( pushCPU );
   auto pusher_func = [&]() {
     PayloadFrame frame;
     while (marker) {
