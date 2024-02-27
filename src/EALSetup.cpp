@@ -194,9 +194,11 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
       throw FailedToConfigureInterface(ERS_HERE, iface, "MAC address retrival", retval);
   }
 
-  if ((retval = rte_eth_link_get(iface, &link)) < 0) {
+  if ((retval = rte_eth_link_get(iface, &link)) != 0) {
     throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
   }
+
+  TLOG() << "Link: speed=" << link.link_speed << " duplex=" << link.link_duplex << " autoneg=" << link.link_autoneg << " status=" << link.link_status;
 
   if ( check_link_status && link.link_status == 0 ) {
     throw LinkOffline(ERS_HERE, iface);
