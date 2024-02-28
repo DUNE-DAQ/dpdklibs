@@ -93,8 +93,9 @@ IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
   bool with_reset = true, with_mq_mode = true; // go to config
+  bool check_link_status = false;
 
-  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode);
+  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
   if (retval != 0 ) {
     throw FailedToSetupInterface(ERS_HERE, m_iface_id, retval);
   }
@@ -265,6 +266,7 @@ IfaceWrapper::start()
   }
   
   
+  m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(false);
   TLOG() << "Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
@@ -280,6 +282,7 @@ IfaceWrapper::start()
 void
 IfaceWrapper::stop()
 {
+  m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(true);
   // Stop GARP sender thread  
   if (m_garp_thread.joinable()) {

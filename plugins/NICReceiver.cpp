@@ -178,17 +178,10 @@ NICReceiver::do_configure(const data_t& args)
        m_ifaces[iface_id]->setup_xstats();
      } else {
        TLOG() << "No available interface with MAC=" << iface_mac_addr << " PCI=" << iface_pci_addr;
-       ers::fatal(dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"));
+       throw dunedaq::readoutlibs::InitializationError(ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
      }
   }
   
-  return;
-}
-
-void
-NICReceiver::do_start(const data_t&)
-{
   TLOG() << get_name() << ": Entering do_start() method";
   if (!m_run_marker.load()) {
     set_running(true);
@@ -199,11 +192,54 @@ NICReceiver::do_start(const data_t&)
   } else {
     TLOG_DEBUG(5) << "NICReader is already running!";
   }
+
+  return;
+}
+
+void
+NICReceiver::do_start(const data_t&)
+{
+  // TLOG() << get_name() << ": Entering do_start() method";
+  // if (!m_run_marker.load()) {
+  //   set_running(true);
+  //   TLOG() << "Starting iface wrappers.";
+  //   for (auto& [iface_id, iface] : m_ifaces) {
+  //     iface->start();
+  //   }
+  // } else {
+  //   TLOG_DEBUG(5) << "NICReader is already running!";
+  // }
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->enable_flow();
+  }
 }
 
 void
 NICReceiver::do_stop(const data_t&)
 {
+  // TLOG() << get_name() << ": Entering do_stop() method";
+  // if (m_run_marker.load()) {
+  //   TLOG() << "Raising stop through variables!";
+  //   set_running(false);
+  //   TLOG() << "Stopping iface wrappers.";
+  //   for (auto& [iface_id, iface] : m_ifaces) {
+  //     iface->stop();
+  //   }
+  //   ealutils::wait_for_lcores();
+  //   TLOG() << "Stoppped DPDK lcore processors and internal threads...";
+  // } else {
+  //   TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
+  // }
+  // return;
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->disable_flow();
+  }
+}
+
+void
+NICReceiver::do_scrap(const data_t&)
+{
+
   TLOG() << get_name() << ": Entering do_stop() method";
   if (m_run_marker.load()) {
     TLOG() << "Raising stop through variables!";
@@ -217,12 +253,7 @@ NICReceiver::do_stop(const data_t&)
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
-  return;
-}
 
-void
-NICReceiver::do_scrap(const data_t&)
-{
   TLOG() << get_name() << ": Entering do_scrap() method";
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->scrap();

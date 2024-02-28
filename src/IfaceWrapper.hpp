@@ -57,9 +57,8 @@ public:
   void setup_flow_steering();
   void setup_xstats();
 
-  // std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
-  //   return m_accum_ptr->get_and_reset_stream_stats();
-  // }
+  void enable_flow() { m_lcore_enable_flow.store(true);}
+  void disable_flow() { m_lcore_enable_flow.store(false);}
   
 protected:
   iface_conf_t m_cfg;
@@ -92,6 +91,8 @@ private:
 
   // Lcore stop signal
   std::atomic<bool> m_lcore_quit_signal{ false };
+
+  std::atomic<bool> m_lcore_enable_flow{ false };
 
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
