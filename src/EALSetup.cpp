@@ -13,6 +13,8 @@
 #include <boost/program_options/parsers.hpp>
 
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/Issues.hpp"
+
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 
@@ -93,7 +95,7 @@ int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
            uint16_t rx_ring_size, uint16_t tx_ring_size,
            std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
-           bool with_reset, bool with_mq_rss)
+           bool with_reset, bool with_mq_rss, bool check_link_status)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
   uint16_t nb_rxd = rx_ring_size;
@@ -102,18 +104,18 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   uint16_t q;
   struct rte_eth_dev_info dev_info;
   struct rte_eth_txconf txconf;
+  struct rte_eth_link link;
 
   // Get interface validity
   if (!rte_eth_dev_is_valid_port(iface)) {
     TLOG() << "Specified interface " << iface << " is not valid in EAL!";
-    return retval;
+    throw InvalidEALPort(ERS_HERE, iface);
   }
   
   // Get interface info
-  retval = rte_eth_dev_info_get(iface, &dev_info);
-  if (retval != 0) {
+  if ((retval = rte_eth_dev_info_get(iface, &dev_info)) != 0) {
     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
-    return retval;
+    throw FailedToRetrieveInterfaceInfo(ERS_HERE, iface, retval);
   }
 
   TLOG() << "Iface " << iface << " RX Ring info :" 
@@ -124,9 +126,8 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
 
   // Carry out a reset of the interface
   if (with_reset) {
-    retval = rte_eth_dev_reset(iface);
-    if (retval != 0) {
-      TLOG() << "Resetting device (iface " << iface << ") failed. Retval: " << retval;
+    if ((retval = rte_eth_dev_reset(iface)) != 0) {
+      throw FailedToResetInterface(ERS_HERE, iface, retval);
     }
   }
 
@@ -143,9 +144,9 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   }
 
   // Configure the Ethernet interface
-  retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf);
-  if (retval != 0)
-    return retval;
+  if ((retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf)) != 0) {
+    throw FailedToConfigureInterface(ERS_HERE, iface, "Device Configuration", retval);
+  }
 
   // Set MTU of interface
   rte_eth_dev_set_mtu(iface, RTE_JUMBO_ETHER_MTU);
@@ -155,16 +156,22 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     TLOG() << "Interface: " << iface << " MTU: " << mtu;
   }
 
-  // Adjust RX/TX ring sizes
-  retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
-  if (retval != 0)
-    return retval;
+  // // Adjust RX/TX ring sizes
+  // retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
+  // if (retval != 0)
+  //   return retval;
+
+  if ((retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd)) != 0) {
+    throw FailedToConfigureInterface(ERS_HERE, iface, "Adjust tx/rx descriptors", retval);
+  }
 
   // Allocate and set up RX queues for interface.
   for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
-    if (retval < 0)
-      return retval;
+    // retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
+    if ((retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get())) < 0) {
+      // return retval;
+      throw FailedToConfigureInterface(ERS_HERE, iface, "Rx queues setup", retval);
+    }
   }
 
   txconf = dev_info.default_txconf;
@@ -177,30 +184,38 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
   
   // Allocate and set up TX queues for interface.
   for (q = 0; q < tx_rings; q++) {
-    retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf);
-    if (retval < 0)
-      return retval;
+    if ((retval = rte_eth_tx_queue_setup(iface, q, nb_txd, rte_eth_dev_socket_id(iface), &txconf)) < 0) {
+      throw FailedToConfigureInterface(ERS_HERE, iface, "Tx queues setup", retval);
+    }
   }
 
   // Start the Ethernet interface.
-  retval = rte_eth_dev_start(iface);
-  if (retval < 0)
-    return retval;
+  if ((retval = rte_eth_dev_start(iface)) < 0) {
+      throw FailedToConfigureInterface(ERS_HERE, iface, "MAC address retrival", retval);
+  }
 
+  if ((retval = rte_eth_link_get(iface, &link)) != 0) {
+    throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
+  }
+
+  TLOG() << "Link: speed=" << link.link_speed << " duplex=" << link.link_duplex << " autoneg=" << link.link_autoneg << " status=" << link.link_status;
+
+  if ( check_link_status && link.link_status == 0 ) {
+    throw LinkOffline(ERS_HERE, iface);
+  }
+  
   // Display the interface MAC address.
   struct rte_ether_addr addr;
-  retval = rte_eth_macaddr_get(iface, &addr);
-  if (retval == 0) {
+  if ((retval = rte_eth_macaddr_get(iface, &addr)) == 0) {
     TLOG() << "MAC address: " << get_mac_addr_str(addr);
   } else {
-    return retval;
+      throw FailedToConfigureInterface(ERS_HERE, iface, "MAC address retrival", retval);
   }
 
   // Get interface info
-  retval = rte_eth_dev_info_get(iface, &dev_info);
-  if (retval != 0) {
+  if ((retval = rte_eth_dev_info_get(iface, &dev_info)) != 0) {
     TLOG() << "Error during getting device (iface " << iface << ") retval: " << retval;
-    return retval;
+    throw FailedToConfigureInterface(ERS_HERE, iface, "Device information retrival", retval);
   }
 
   TLOG() << "Iface[" << iface << "] Rx Ring info:"
@@ -219,7 +234,7 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
 
     retval = rte_eth_rx_queue_info_get(iface, j, &queue_info);
     if (retval != 0)
-      break;
+      continue;
 
     count = rte_eth_rx_queue_count(iface, j);
     TLOG() << "rx[" << j << "] descriptors=" << count << "/" << queue_info.nb_desc
