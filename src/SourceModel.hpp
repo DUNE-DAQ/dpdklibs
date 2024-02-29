@@ -14,15 +14,18 @@
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 #include "logging/Logging.hpp"
-#include "readoutlibs/utils/ReusableThread.hpp"
+// #include "readoutlibs/utils/ReusableThread.hpp"
 
-#include <folly/ProducerConsumerQueue.h>
-#include <nlohmann/json.hpp>
+// #include <folly/ProducerConsumerQueue.h>
+// #include <nlohmann/json.hpp>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
+
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
+
 
 namespace dunedaq::dpdklibs {
 
@@ -57,12 +60,30 @@ public:
 
   bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
   {
+    bool push_out = true;
+    if (push_out) {
 
-    TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
-    if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-      ++m_dropped_packets;
+      TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
+      if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
+        //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+        //  TLOG() << "Dropped data " << m_dropped_packets;
+        //}
+        ++m_dropped_packets;
+      }
+    } else {
+      TargetPayloadType target_payload;
+      uint32_t bytes_copied = 0;
+      readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     }
+
+
     return true;
+  }
+
+  void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
+    nicreaderinfo::SourceStats ss;
+    ss.dropped_frames = m_dropped_packets.load();
+    ci.add(ss);
   }
 
 private:
@@ -72,6 +93,7 @@ private:
   std::shared_ptr<sink_t> m_sink_queue;
 
   std::atomic<uint64_t> m_dropped_packets{0};
+
 };
 
 } // namespace dunedaq::dpdklibs

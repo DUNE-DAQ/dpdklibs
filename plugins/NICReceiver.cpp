@@ -69,7 +69,7 @@ NICReceiver::NICReceiver(const std::string& name)
 {
   register_command("conf", &NICReceiver::do_configure);
   register_command("start", &NICReceiver::do_start);
-  register_command("stop", &NICReceiver::do_stop);
+  register_command("stop_trigger_sources", &NICReceiver::do_stop);
   register_command("scrap", &NICReceiver::do_scrap);
 }
 
@@ -121,19 +121,52 @@ NICReceiver::do_configure(const data_t& /*args*/)
   //auto session = appfwk::ModuleManager::get()->session();
   auto mdal = m_cfg->module<appdal::DataReader>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appdal::NICReceiverConf>();
-
+  auto res_set = mdal->get_interfaces();
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
-  std::vector<char*> eal_params = ealutils::string_to_eal_args(module_conf->get_eal_args());
-  ealutils::init_eal(eal_params.size(), eal_params.data());
+  std::vector<std::string> eal_params ;
+  eal_params.push_back("eal_cmdline");
+  eal_params.push_back("--proc-type=primary");
+  // Construct the pcie devices allowed mask
+  std::string first_pcie_addr;
+  bool is_first_pcie_addr = true;
+  for (auto res : res_set) {
+    auto interface = res->cast<appdal::NICInterface>();
+    if (interface == nullptr) {
+      dunedaq::readoutlibs::GenericConfigurationError err(
+          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
+      ers::fatal(err);
+      throw err;      
+    }
+    if (interface->disabled(m_cfg->configuration_manager()->session)) {
+	    continue;
+    }
+    if (is_first_pcie_addr) {
+      first_pcie_addr = interface->get_rx_pcie_addr();
+      is_first_pcie_addr = false;
+    }
+    eal_params.push_back("-a");
+    eal_params.push_back(interface->get_rx_pcie_addr());
+  }
+  
+  // Use the first pcie device id as file prefix
+  // FIXME: Review this strategy - should work in most of cases, but it could be 
+  // confusing in configs with multiple interfaces
+  eal_params.push_back(fmt::format("--file-prefix={}", first_pcie_addr));
+
+  eal_params.push_back(module_conf()->get_eal_args());
+
+  ealutils::init_eal(eal_params);
 
   // Get available Interfaces from EAL
   auto available_ifaces = ifaceutils::get_num_available_ifaces();
   TLOG() << "Number of available interfaces: " << available_ifaces;
   for (unsigned int ifc_id=0; ifc_id<available_ifaces; ++ifc_id) {
     std::string mac_addr_str = ifaceutils::get_iface_mac_str(ifc_id);
+    std::string pci_addr_str = ifaceutils::get_iface_pci_str(ifc_id);
     m_mac_to_id_map[mac_addr_str] = ifc_id;
-    TLOG() << "Available iface with MAC=" << mac_addr_str << " logical ID=" << ifc_id;
+    m_pci_to_id_map[pci_addr_str] = ifc_id;
+    TLOG() << "Available iface with MAC=" << mac_addr_str << " PCIe=" <<  pci_addr_str << " logical ID=" << ifc_id;
   }
 
   auto res_set = mdal->get_interfaces();;
@@ -150,7 +183,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
 	  //  continue;
     //}
 
-    if (m_mac_to_id_map.find(interface->get_rx_mac()) != m_mac_to_id_map.end()) {
+    if ((m_mac_to_id_map.count(interface->get_rx_mac()) != 0) && (m_pci_to_id_map.count(interface->get_rx_pcie_addr()) != 0)) {
        m_mac_to_id_map[interface->get_rx_mac()] = interface->get_rx_iface(); 
        m_ifaces[interface->get_rx_iface()] = std::make_unique<IfaceWrapper>(interface, m_sources, m_run_marker); 
        //m_ifaces[interface->get_rx_iface()] = conf(iface_cfg);
@@ -181,11 +214,38 @@ NICReceiver::do_start(const data_t&)
   } else {
     TLOG_DEBUG(5) << "NICReader is already running!";
   }
+
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->enable_flow();
+  }
 }
 
 void
 NICReceiver::do_stop(const data_t&)
 {
+  // TLOG() << get_name() << ": Entering do_stop() method";
+  // if (m_run_marker.load()) {
+  //   TLOG() << "Raising stop through variables!";
+  //   set_running(false);
+  //   TLOG() << "Stopping iface wrappers.";
+  //   for (auto& [iface_id, iface] : m_ifaces) {
+  //     iface->stop();
+  //   }
+  //   ealutils::wait_for_lcores();
+  //   TLOG() << "Stoppped DPDK lcore processors and internal threads...";
+  // } else {
+  //   TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
+  // }
+  // return;
+  for (auto& [iface_id, iface] : m_ifaces) {
+    iface->disable_flow();
+  }
+}
+
+void
+NICReceiver::do_scrap(const data_t&)
+{
+
   TLOG() << get_name() << ": Entering do_stop() method";
   if (m_run_marker.load()) {
     TLOG() << "Raising stop through variables!";
@@ -199,8 +259,6 @@ NICReceiver::do_stop(const data_t&)
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
-  return;
-}
 
 void
 NICReceiver::do_scrap(const data_t&)
@@ -225,7 +283,5 @@ NICReceiver::set_running(bool should_run)
 
 } // namespace dpdklibs
 } // namespace dunedaq
-
-// #include "detail/NICReceiver.hxx"
 
 DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::NICReceiver)

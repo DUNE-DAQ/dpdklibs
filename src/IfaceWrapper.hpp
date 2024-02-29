@@ -32,6 +32,9 @@
 #include <string>
 #include <set>
 
+#include "utilities/ReusableThread.hpp"
+#include <folly/ProducerConsumerQueue.h>
+
 namespace dunedaq {
 namespace dpdklibs {
 
@@ -61,9 +64,8 @@ public:
   void setup_flow_steering();
   void setup_xstats();
 
-  std::map<udp::StreamUID, udp::ReceiverStats> get_and_reset_stream_stats() {
-    return m_accum_ptr->get_and_reset_stream_stats();
-  }
+  void enable_flow() { m_lcore_enable_flow.store(true);}
+  void disable_flow() { m_lcore_enable_flow.store(false);}
   
 protected:
   //iface_conf_t m_cfg;
@@ -97,15 +99,18 @@ private:
   // Lcore stop signal
   std::atomic<bool> m_lcore_quit_signal{ false };
 
+  std::atomic<bool> m_lcore_enable_flow{ false };
+
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
-  std::map<int, struct rte_mbuf **> m_bufs;
+  std::map<int, struct rte_mbuf **> m_bufs; // by queue
 
-  // Stats
+  // Stats by queues
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
-  //std::thread m_stat_thread;
+  std::map<int, std::atomic<std::size_t>> m_num_full_bursts;
+  std::map<int, std::atomic<uint16_t>> m_max_burst_size;
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
@@ -124,7 +129,7 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
-  std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
+  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   
   // Lcore processor
   //template<class T> 

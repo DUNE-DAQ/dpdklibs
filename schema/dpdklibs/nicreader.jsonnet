@@ -31,6 +31,8 @@ local nicreader = {
 
     ipv4:   s.string("ipv4", pattern=moo.re.ipv4, doc="ipv4 string"),
 
+    pci:    s.string("pci", doc="PCIe address string"),
+
     mac:    s.string("mac", pattern="^[a-fA-F0-9]{2}(:[a-fA-F0-9]{2}){5}$", doc="mac string"),
 
     float : s.number("Float", "f4", doc="A float number"),
@@ -67,7 +69,8 @@ local nicreader = {
     ], doc="Source field"),
 
     iface : s.record("Interface", [
-        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="Logical Interface ID"),
+        s.field("pci_addr", self.pci, "0000:00:00.0", doc="PCIe address of the interface"),
+        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="MAC address of the interface"),
         s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
         s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
         s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
@@ -88,7 +91,7 @@ local nicreader = {
         s.field("ifaces", self.ifaces,
                 doc="List of interfaces to configure"),
 
-        s.field("eal_arg_list", self.string, "",
+        s.field("eal_arg_list", self.string, "daq_application",
                 doc="A string with EAL arguments"),
     ], doc="Generic UIO reader DAQ Module Configuration"),
 

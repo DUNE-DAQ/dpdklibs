@@ -72,6 +72,7 @@ private:
 
   // Interfaces (logical ID, MAC) -> IfaceWrapper
   std::map<std::string, uint16_t> m_mac_to_id_map;
+  std::map<std::string, uint16_t> m_pci_to_id_map;
   std::map<uint16_t, std::unique_ptr<IfaceWrapper>> m_ifaces;
 
   // Sinks (SourceConcepts)
@@ -82,6 +83,5 @@ private:
 
 } // namespace dunedaq::dpdklibs
 
-// #include "detail/NICReceiver.hxx"
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

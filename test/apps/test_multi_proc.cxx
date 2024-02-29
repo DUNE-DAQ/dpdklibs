@@ -362,6 +362,7 @@ int main(int argc, char** argv){
     app.add_option("-i", iface, "Interface to init");
     app.add_option("-t", time_per_report, "Time Per Report");
     app.add_option("-a", allow_dev, "device to allow");
+
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
     app.add_flag("-p", per_stream_reports, "Detailed per stream reports");
     CLI11_PARSE(app, argc, argv);
@@ -372,9 +373,11 @@ int main(int argc, char** argv){
     std::vector<std::string> eal_args;
     eal_args.push_back("dpdklibds_test_frame_receiver");
     eal_args.push_back("--proc-type=primary");
-    // eal_args.push_back(fmt::format("--file-prexix={}"));
+
     if (!allow_dev.empty()) {
         eal_args.push_back(fmt::format("--allow={}",allow_dev));
+        // Use the device id as file prefix to 
+        eal_args.push_back(fmt::format("--file-prefix={}", allow_dev));
     }
     
     TLOG() << "Status of RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE=" << RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE;
