@@ -125,12 +125,13 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
   m_tx_qs.insert(0);
 
   auto sr = iface_cfg->get_configuration()->get_stats_conf();
+  /*
   m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr->get_expected_seq_id_step() > 0 ? sr->get_expected_seq_id_step() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_expected_timestamp_step() > 0 ? sr->get_expected_timestamp_step() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_expected_packet_size() > 0 ? sr->get_expected_packet_size() : udp::PacketInfoAccumulator::s_ignorable_value,
                                                       sr->get_analyze_nth_packet()));
   
-
+ */
 }
 
 IfaceWrapper::~IfaceWrapper()
@@ -139,7 +140,6 @@ IfaceWrapper::~IfaceWrapper()
     
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
-  m_accum_ptr.reset(nullptr);
   //graceful_stop();
   //close_iface();
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
@@ -264,14 +264,14 @@ IfaceWrapper::stop()
     TLOG() << "GARP thrad is not joinable!";
   }
 }
-
+/*
 void
 IfaceWrapper::scrap()
 {
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
 }
-
+*/
 void 
 IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 {
@@ -310,12 +310,13 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 
     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
   }
-
+ /* FIXME: to be reactivated
   for( const auto& [src_id, src_obj] :  m_sources) {
     opmonlib::InfoCollector src_ci;
     src_obj->get_info(src_ci, level);
     ci.add(fmt::format("src_{}", src_id), src_ci);
   }
+  */
 }
 
 void

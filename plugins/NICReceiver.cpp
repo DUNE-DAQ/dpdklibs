@@ -138,7 +138,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (interface->disabled(m_cfg->configuration_manager()->session)) {
+    if (interface->disabled(*(m_cfg->configuration_manager()->session()))) {
 	    continue;
     }
     if (is_first_pcie_addr) {
@@ -154,7 +154,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
   // confusing in configs with multiple interfaces
   eal_params.push_back(fmt::format("--file-prefix={}", first_pcie_addr));
 
-  eal_params.push_back(module_conf()->get_eal_args());
+  eal_params.push_back(module_conf->get_eal_args());
 
   ealutils::init_eal(eal_params);
 
@@ -169,8 +169,6 @@ NICReceiver::do_configure(const data_t& /*args*/)
     TLOG() << "Available iface with MAC=" << mac_addr_str << " PCIe=" <<  pci_addr_str << " logical ID=" << ifc_id;
   }
 
-  auto res_set = mdal->get_interfaces();;
- 
   for (auto res : res_set) {
     auto interface = res->cast<appdal::NICInterface>();
     if (interface == nullptr) {
@@ -179,9 +177,9 @@ NICReceiver::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    //if (interface->disabled(*session)) {
-	  //  continue;
-    //}
+        if (interface->disabled(*(m_cfg->configuration_manager()->session()))) {
+            continue;
+    }
 
     if ((m_mac_to_id_map.count(interface->get_rx_mac()) != 0) && (m_pci_to_id_map.count(interface->get_rx_pcie_addr()) != 0)) {
        m_mac_to_id_map[interface->get_rx_mac()] = interface->get_rx_iface(); 
@@ -242,23 +240,6 @@ NICReceiver::do_stop(const data_t&)
   }
 }
 
-void
-NICReceiver::do_scrap(const data_t&)
-{
-
-  TLOG() << get_name() << ": Entering do_stop() method";
-  if (m_run_marker.load()) {
-    TLOG() << "Raising stop through variables!";
-    set_running(false);
-    TLOG() << "Stopping iface wrappers.";
-    for (auto& [iface_id, iface] : m_ifaces) {
-      iface->stop();
-    }
-    ealutils::wait_for_lcores();
-    TLOG() << "Stoppped DPDK lcore processors and internal threads...";
-  } else {
-    TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
-  }
 
 void
 NICReceiver::do_scrap(const data_t&)
