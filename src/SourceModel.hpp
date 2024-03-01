@@ -10,9 +10,7 @@
 
 #include "SourceConcept.hpp"
 
-//#include "packetformat/block_format.hpp"
 
-#include "appfwk/DAQModuleHelper.hpp"
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 #include "logging/Logging.hpp"
@@ -45,8 +43,6 @@ public:
    */
   SourceModel()
     : SourceConcept()
-    , m_run_marker{ false }
-    //, m_parser_thread(0)
   {}
   ~SourceModel() {}
 
@@ -61,52 +57,6 @@ public:
   }
 
   std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
-
-  //std::shared_ptr<err_sink_t>& get_error_sink() { return m_error_sink_queue; }
-
-  void init(const data_t& /*args*/)
-  {
-  }
-
-  void conf(const data_t& /*args*/)
-  {
-    if (m_configured) {
-      TLOG_DEBUG(5) << "SourceModel is already configured!";
-    } else {
-      m_configured = true;
-    }
-  }
-
-  void start(const data_t& /*args*/)
-  {
-    m_dropped_packets = { 0 };
-
-    m_t0 = std::chrono::high_resolution_clock::now();
-    if (!m_run_marker.load()) {
-      set_running(true);
-      TLOG_DEBUG(5) << "Started SourceModel of link " << inherited::m_opmon_str << "...";
-    } else {
-      TLOG_DEBUG(5) << "SourceModel of link " << inherited::m_opmon_str << " is already running!";
-    }
-  }
-
-  void stop(const data_t& /*args*/)
-  {
-    if (m_run_marker.load()) {
-      set_running(false);
-      //}
-      TLOG_DEBUG(5) << "Stopped SourceModel of link " << m_opmon_str << "!";
-    } else {
-      TLOG_DEBUG(5) << "SourceModel of link " << m_opmon_str << " is already stopped!";
-    }
-  }
-
-  void set_running(bool should_run)
-  {
-    bool was_running = m_run_marker.exchange(should_run);
-    TLOG_DEBUG(5) << "Active state was toggled from " << was_running << " to " << should_run;
-  }
-
 
   bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
   {
@@ -137,14 +87,10 @@ public:
   }
 
 private:
-  // Internals
-  std::atomic<bool> m_run_marker;
-  bool m_configured{ false };
 
   // Sink
   bool m_sink_is_set{ false };
   std::shared_ptr<sink_t> m_sink_queue;
-  //std::shared_ptr<err_sink_t> m_error_sink_queue;
 
   std::atomic<uint64_t> m_dropped_packets{0};
 

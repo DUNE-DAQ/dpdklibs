@@ -21,6 +21,15 @@
 #include "dpdklibs/ipv4_addr.hpp"
 #include "IfaceWrapper.hpp"
 
+#include "appfwk/ConfigurationManager.hpp"
+#include "coredal/DROStreamConf.hpp"
+#include "coredal/StreamParameters.hpp"
+#include "coredal/GeoId.hpp"
+#include "appdal/NICInterface.hpp"
+#include "appdal/NICInterfaceConfiguration.hpp"
+#include "appdal/NICStatsConf.hpp"
+#include "appdal/EthStreamParameters.hpp"
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -38,29 +47,99 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-IfaceWrapper::IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
-    : m_iface_id(iface_id)
-    , m_configured(false)
-    , m_with_flow(false)
-    , m_prom_mode(false)
-    , m_ip_addr("")
-    , m_mac_addr("")
-    , m_socket_id(-1)
-    , m_mtu(0)
-    , m_rx_ring_size(0)
-    , m_tx_ring_size(0)
-    , m_num_mbufs(0)
-    , m_burst_size(0)
-    , m_mbuf_cache_size(0)
-    , m_sources(sources)
+IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
+    : m_sources(sources)
     , m_run_marker(run_marker)
 { 
-  m_iface_id_str = "iface-" + std::to_string(m_iface_id);
+  //auto iface_cfg = appfwk::ConfigurationManager::get()->get_dal<NICInterface>(iface_name);	
+  m_iface_id = iface_cfg->get_rx_iface();
+  m_mac_addr = iface_cfg->get_rx_mac();
+  m_ip_addr = iface_cfg->get_rx_ip();
+  IpAddr ip_addr_struct(m_ip_addr);
+  m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
+      ip_addr_struct.addr_bytes[3],
+      ip_addr_struct.addr_bytes[2],
+      ip_addr_struct.addr_bytes[1],
+      ip_addr_struct.addr_bytes[0]
+  );
+
+  m_with_flow = iface_cfg->get_configuration()->get_flow_control();
+  m_prom_mode = iface_cfg->get_configuration()->get_promiscuous_mode();;
+  m_mtu = iface_cfg->get_configuration()->get_mtu();
+  m_rx_ring_size = iface_cfg->get_configuration()->get_rx_ring_size();
+  m_tx_ring_size = iface_cfg->get_configuration()->get_tx_ring_size();
+  m_num_mbufs = iface_cfg->get_configuration()->get_num_bufs();
+  m_burst_size = iface_cfg->get_configuration()->get_burst_size();
+  m_mbuf_cache_size = iface_cfg->get_configuration()->get_mbuf_cache_size();
+
+  m_lcore_sleep_ns = iface_cfg->get_configuration()->get_lcore_sleep_us() * 1000;
+  m_socket_id = rte_eth_dev_socket_id(m_iface_id);
+
+  //m_iface_id_str = "iface-" + std::to_string(m_iface_id);
+  m_iface_id_str = iface_cfg->UID();
+
+  // iterate through active streams
+  //auto session = appfwk::ConfigurationManager()->session();
+  auto res_set = iface_cfg->get_contains();
+  for (const auto res : res_set) {
+    
+    auto stream = res->cast<coredal::DROStreamConf>();
+    if (stream == nullptr) {
+      dunedaq::readoutlibs::GenericConfigurationError err(
+        ERS_HERE, std::string("NICInterface contains resources other than DROStreamConf!"));
+      throw err;
+    }
+    if(sources.find(stream->get_source_id()) == sources.end()) {
+      TLOG() << "Sink for source_id "<< stream->get_source_id() << " not initialized!";
+	    continue;
+    }
+    auto stream_params = stream->get_stream_params()->cast<appdal::EthStreamParameters>();
+
+    auto src_ip = stream_params->get_tx_ip();
+    auto rx_q = stream_params->get_rx_queue();
+    auto lcore = stream_params->get_lcore();
+    m_ips.insert(src_ip);
+    m_rx_qs.insert(rx_q);
+    m_lcores.insert(lcore);
+
+    m_num_frames_rxq[rx_q] = { 0 };
+    m_num_bytes_rxq[rx_q] = { 0 };
+
+    m_rx_core_map[lcore][rx_q] = src_ip;
+
+    auto stream_id = stream->get_geo_id()->get_stream_id();
+
+    m_stream_to_source_id[rx_q][stream_id] = stream->get_source_id();
+  }
+
+  // Log mapping
+  for (auto const& [lcore, rx_qs] : m_rx_core_map) {
+    TLOG() << "Lcore=" << lcore << " handles: ";
+    for (auto const& [rx_q, src_ip] : rx_qs) {
+      TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
+    }
+  }
+
+  // Adding single TX queue for ARP responses
+  TLOG() << "Append TX_Q=0 for ARP responses.";
+  m_tx_qs.insert(0);
+
+  auto sr = iface_cfg->get_configuration()->get_stats_conf();
+  /*
+  m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr->get_expected_seq_id_step() > 0 ? sr->get_expected_seq_id_step() : udp::PacketInfoAccumulator::s_ignorable_value,
+                                                      sr->get_expected_timestamp_step() > 0 ? sr->get_expected_timestamp_step() : udp::PacketInfoAccumulator::s_ignorable_value,
+                                                      sr->get_expected_packet_size() > 0 ? sr->get_expected_packet_size() : udp::PacketInfoAccumulator::s_ignorable_value,
+                                                      sr->get_analyze_nth_packet()));
+  
+ */
 }
 
 IfaceWrapper::~IfaceWrapper()
 {
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destructor called. First stop check, then closing iface.";
+    
+  struct rte_flow_error error;
+  rte_flow_flush(m_iface_id, &error);
   //graceful_stop();
   //close_iface();
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
@@ -139,19 +218,6 @@ IfaceWrapper::setup_flow_steering()
   }
 
   return;
-
-// #warning RS FIXME -> Removed for conf overhaul
-// //  if (m_cfg.with_drop_flow) {
-//     // Adding drop flow
-//     TLOG() << "Adding Drop Flow.";
-//     flow = generate_drop_flow(m_iface_id, &error);
-//     if (not flow) { // ers::fatal
-//       TLOG() << "Drop flow can't be created for interface!"
-//              << " Error type: " << (unsigned)error.type
-//              << " Message: " << error.message;
-//       rte_exit(EXIT_FAILURE, "error in creating flow");
-//     }
-//   //}
 }
 
 void
@@ -160,99 +226,6 @@ IfaceWrapper::setup_xstats()
   // Stats setup
   m_iface_xstats.setup(m_iface_id);
   m_iface_xstats.reset_counters();
-}
-
-void
-IfaceWrapper::conf(const iface_conf_t& args)
-{
-  if (m_configured) {
-    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "Interface is already configured! Won't touch it.";
-  } else {
-    // Load config
-    m_cfg = args;
-    m_with_flow = m_cfg.with_flow_control;
-    m_prom_mode = m_cfg.promiscuous_mode;
-    m_ip_addr = m_cfg.ip_addr;
-    IpAddr ip_addr_struct(m_ip_addr);
-    m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
-      ip_addr_struct.addr_bytes[3],
-      ip_addr_struct.addr_bytes[2],
-      ip_addr_struct.addr_bytes[1],
-      ip_addr_struct.addr_bytes[0]
-    );
-    m_mac_addr = m_cfg.mac_addr;
-    m_mbuf_cache_size = m_cfg.mbuf_cache_size;
-    m_burst_size = m_cfg.burst_size;
-    m_lcore_sleep_ns = m_cfg.lcore_sleep_us*1'000;
-    m_mtu = m_cfg.mtu;
-    m_num_mbufs = m_cfg.num_mbufs;
-    m_rx_ring_size = m_cfg.rx_ring_size;
-    m_tx_ring_size = m_cfg.tx_ring_size;
-
-    // Get NUMA/Socket of interface
-    m_socket_id = rte_eth_dev_socket_id(m_iface_id);
-    TLOG() << "NUMA/Socket ID of iface[" << m_iface_id << "] is node=" << m_socket_id;
- 
-    for (const auto& exp_src : m_cfg.expected_sources) {
-      if (m_ips.count(exp_src.ip_addr) != 0) {
-        TLOG() << "Duplicate IP address as expected source under id=" << exp_src.id << "! Omitting source!";
-        continue;
-      } else {
-        auto src_ip = exp_src.ip_addr;
-        auto rx_q = exp_src.rx_q;
-        auto lcore = exp_src.lcore;
-        m_ips.insert(src_ip);
-        m_rx_qs.insert(rx_q);
-        m_lcores.insert(lcore);
-    
-        m_num_frames_rxq[rx_q] = { 0 };
-        m_num_bytes_rxq[rx_q] = { 0 };
-        m_num_full_bursts[rx_q] = { 0 };
-        m_max_burst_size[rx_q] = { 0 };
-
-        // No sanity check on config?    
-        m_rx_core_map[lcore][rx_q] = src_ip;
-
-        // Check streams mapping and available source_ids
-        auto& src_streams_map = exp_src.src_streams_mapping;
-        for (const auto& src_stream_cfg : src_streams_map) {
-          m_stream_to_source_id[rx_q][src_stream_cfg.stream_id] = src_stream_cfg.source_id;
-          if (m_sources.count(src_stream_cfg.source_id) == 0) {
-            //ers::fatal
-            TLOG() << "Sink for source_id not initialized! source_id=" << src_stream_cfg.source_id;
-          } else { 
-            TLOG() << "Sink identified for rx_q=" << rx_q
-                   << " stream_id=" << src_stream_cfg.stream_id 
-                   << " source_id=" << src_stream_cfg.source_id;
-          }
-        }  
-      }
-    }
-
-    // Log mapping
-    for (auto const& [lcore, rx_qs] : m_rx_core_map) {
-      TLOG() << "Lcore=" << lcore << " handles: ";
-      for (auto const& [rx_q, src_ip] : rx_qs) {
-        TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
-      }
-    }
-
-    for( auto lcore : m_lcores) {
-      TLOG() << "Registered LCore" << lcore;
-    }
-
-    for( auto q : m_rx_qs) {
-      TLOG() << "Registered Queues" << q;
-    }
-
-
-
-    // Adding single TX queue for ARP responses
-    TLOG() << "Append TX_Q=0 for ARP responses.";
-    m_tx_qs.insert(0);
-
-
-  }
 }
 
 void
@@ -291,14 +264,14 @@ IfaceWrapper::stop()
     TLOG() << "GARP thrad is not joinable!";
   }
 }
-
+/*
 void
 IfaceWrapper::scrap()
 {
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
 }
-
+*/
 void 
 IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 {
@@ -337,12 +310,13 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 
     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
   }
-
+ /* FIXME: to be reactivated
   for( const auto& [src_id, src_obj] :  m_sources) {
     opmonlib::InfoCollector src_ci;
     src_obj->get_info(src_ci, level);
     ci.add(fmt::format("src_{}", src_id), src_ci);
   }
+  */
 }
 
 void

@@ -9,6 +9,11 @@
 #ifndef DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
+//#include "dpdklibs/nicreader/Structs.hpp"
+#include "appdal/NICInterface.hpp"
+
+#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
+
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -16,6 +21,9 @@
 #include "dpdklibs/ipv4_addr.hpp"
 #include "dpdklibs/XstatsHelper.hpp"
 #include "SourceConcept.hpp"
+
+#include <coredal/Session.hpp>
+#include <appdal/NICInterface.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -33,11 +41,11 @@ namespace dpdklibs {
 class IfaceWrapper
 {
 public:
-  using iface_conf_t = dunedaq::dpdklibs::nicreader::Interface;
-  using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
+  //using iface_conf_t = dunedaq::dpdklibs::nicreader::Interface;
+  //using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(uint16_t iface_id, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(const appdal::NICInterface* interface, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
@@ -45,11 +53,10 @@ public:
   IfaceWrapper(IfaceWrapper&&) = delete;                 ///< IfaceWrapper is not move-constructible
   IfaceWrapper& operator=(IfaceWrapper&&) = delete;      ///< IfaceWrapper is not move-assignable
 
-  void init(const iface_conf_t& args);
-  void conf(const iface_conf_t& args);
+  //void init();
   void start();
   void stop();
-  void scrap();
+  
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   void allocate_mbufs();
@@ -61,7 +68,7 @@ public:
   void disable_flow() { m_lcore_enable_flow.store(false);}
   
 protected:
-  iface_conf_t m_cfg;
+  //iface_conf_t m_cfg;
   int m_iface_id;
   std::string m_iface_id_str;
   bool m_configured;
