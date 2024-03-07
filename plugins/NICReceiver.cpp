@@ -185,7 +185,8 @@ NICReceiver::do_configure(const data_t& /*args*/)
        m_mac_to_id_map[interface->get_rx_mac()] = interface->get_rx_iface(); 
        m_ifaces[interface->get_rx_iface()] = std::make_unique<IfaceWrapper>(interface, m_sources, m_run_marker); 
        //m_ifaces[interface->get_rx_iface()] = conf(iface_cfg);
-       m_ifaces[interface->get_rx_iface()]->allocate_mbufs();;
+       m_ifaces[interface->get_rx_iface()]->allocate_mbufs();
+       m_ifaces[interface->get_rx_iface()]->setup_interface();
        m_ifaces[interface->get_rx_iface()]->setup_flow_steering();
        m_ifaces[interface->get_rx_iface()]->setup_xstats();
     } else {
