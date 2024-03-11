@@ -95,7 +95,7 @@ int
 iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
            uint16_t rx_ring_size, uint16_t tx_ring_size,
            std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
-           bool with_reset, bool with_mq_rss)
+           bool with_reset, bool with_mq_rss, bool check_link_status)
 {
   struct rte_eth_conf iface_conf = iface_conf_default;
   uint16_t nb_rxd = rx_ring_size;
@@ -194,11 +194,13 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
       throw FailedToConfigureInterface(ERS_HERE, iface, "MAC address retrival", retval);
   }
 
-  if ((retval = rte_eth_link_get(iface, &link)) < 0) {
+  if ((retval = rte_eth_link_get(iface, &link)) != 0) {
     throw FailedToRetrieveLinkStatus(ERS_HERE, iface, retval);
   }
 
-  if (link.link_status == 0 ) {
+  TLOG() << "Link: speed=" << link.link_speed << " duplex=" << link.link_duplex << " autoneg=" << link.link_autoneg << " status=" << link.link_status;
+
+  if ( check_link_status && link.link_status == 0 ) {
     throw LinkOffline(ERS_HERE, iface);
   }
   
