@@ -46,13 +46,16 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       const uint16_t nb_rx = nb_rx_map[src_rx_q];
   
       // We got packets from burst on this queue
-      if (nb_rx != 0) {
+      if (nb_rx != 0) [[likely]] {
 
         m_max_burst_size[src_rx_q] = std::max(nb_rx, m_max_burst_size[src_rx_q].load());
         // -------
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
+
+// RS FIXME: removed for performance improvement hope
+/*
           // Check if packet is segmented. Implement support for it if needed.
           if (q_bufs[i_b]->nb_segs > 1) {
 	          //TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
@@ -61,6 +64,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
           // Check packet type, ommit/drop unexpected ones.
           auto pkt_type = q_bufs[i_b]->packet_type;
+
           //// Handle non IPV4 packets
           if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
             //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
@@ -74,15 +78,17 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
             }
             continue;
           }
+*/
+// RS FIXME
 
           // Check for UDP frames
           //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
           // Check for JUMBO frames
-          if (q_bufs[i_b]->pkt_len > 7000) { // RS FIXME: do proper check on data length later
+          if (q_bufs[i_b]->pkt_len > 7000) [[likely]] { // RS FIXME: do proper check on data length later
             // Handle them!
             std::size_t data_len = q_bufs[i_b]->data_len;
 
-            if ( m_lcore_enable_flow.load() ) {
+            if ( m_lcore_enable_flow.load() ) [[likely]] {
               char* message = udp::get_udp_payload(q_bufs[i_b]);
               handle_eth_payload(src_rx_q, message, data_len);
             }
