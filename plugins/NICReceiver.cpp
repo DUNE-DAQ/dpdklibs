@@ -268,24 +268,24 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
   } 
 }
 
-void
-NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
-  // Get DAQ Header and its StreamID
-  auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  //auto strid = (unsigned)daq_header->stream_id;
-  auto strid = (unsigned)daq_header->stream_id+(daq_header->slot_id<<8)+(daq_header->crate_id<<(8+4))+(daq_header->det_id<<(8+4+10));
-  if (m_sources.count(strid) != 0) {
-    auto ret = m_sources[strid]->handle_payload(payload, size);
-  } else {
-    // Really bad -> unexpeced StreamID in UDP Payload.
-    // This check is needed in order to avoid dynamically add thousands
-    // of Sources on the fly, in case the data corruption is extremely severe.
-    if (m_num_unexid_frames.count(strid) == 0) {
-      m_num_unexid_frames[strid] = 0;
-    }
-    m_num_unexid_frames[strid]++;
-  }
-}
+// void
+// NICReceiver::handle_eth_payload(int src_rx_q, char* payload, std::size_t size) {
+//   // Get DAQ Header and its StreamID
+//   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
+//   //auto strid = (unsigned)daq_header->stream_id;
+//   auto strid = (unsigned)daq_header->stream_id+(daq_header->slot_id<<8)+(daq_header->crate_id<<(8+4))+(daq_header->det_id<<(8+4+10));
+//   if (m_sources.count(strid) != 0) {
+//     auto ret = m_sources[strid]->handle_payload(payload, size);
+//   } else {
+//     // Really bad -> unexpeced StreamID in UDP Payload.
+//     // This check is needed in order to avoid dynamically add thousands
+//     // of Sources on the fly, in case the data corruption is extremely severe.
+//     if (m_num_unexid_frames.count(strid) == 0) {
+//       m_num_unexid_frames[strid] = 0;
+//     }
+//     m_num_unexid_frames[strid]++;
+//   }
+// }
 
 void 
 NICReceiver::set_running(bool should_run)

@@ -89,6 +89,10 @@ private:
   std::set<int> m_lcores;
   std::map<int, std::map<int, std::string>> m_rx_core_map;
 
+  // 
+  using mbuf_ptr_queue_t = folly::ProducerConsumerQueue<struct rte_mbuf*> ;
+  std::map<int, std::unique_ptr<mbuf_ptr_queue_t>> m_mbuf_queues_map;
+
   // Lcore stop signal
   std::atomic<bool> m_lcore_quit_signal{ false };
 
@@ -99,11 +103,17 @@ private:
   std::map<int, struct rte_mbuf **> m_bufs; // by queue
 
   // Stats by queues
-  std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
-  std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
+
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
   std::map<int, std::atomic<std::size_t>> m_num_full_bursts;
   std::map<int, std::atomic<uint16_t>> m_max_burst_size;
+
+  std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
+  std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
+  std::map<int, std::atomic<std::size_t>> m_num_frames_rxq_rejected;
+
+  std::map<int, std::atomic<std::size_t>> m_num_frames_processed;
+  std::map<int, std::atomic<std::size_t>> m_num_bytes_processed;
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
@@ -122,11 +132,11 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
-  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
-  
   // Lcore processor
-  //template<class T> 
   int rx_runner(void *arg __rte_unused);
+  int rx_receiver(void *arg __rte_unused);
+  int rx_router(void *arg __rte_unused);
+  static const uint8_t m_core_offset = 16;
 
   // What to do with every payload
   void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);

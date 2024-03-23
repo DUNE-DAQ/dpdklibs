@@ -83,7 +83,7 @@ private:
   int m_next_sink; 
 
   // What to do with every payload
-  void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
+  // void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
 
   // Stats
   int m_burst_number = 0;

@@ -72,6 +72,13 @@ info: s.record("Info", [
 queue: s.record("QueueStats", [
     s.field("packets_received", self.uint8, 0, doc="Packets received"),
     s.field("bytes_received", self.uint8, 0, doc="Bytes received"),
+    
+    s.field("packets_dropped_spsc_full", self.uint8, 0, doc="Number of packets dropped because the spsc queue is full"),
+    s.field("spsc_queue_occupancy", self.uint8, 0, doc="Number of elements in the sosc queue"),
+    
+    s.field("packets_copied", self.uint8, 0, doc="Packets copied"),
+    s.field("bytes_copied", self.uint8, 0, doc="Bytes copied"),
+
     s.field("full_rx_burst", self.uint8, 0, doc="Bytes received"),
     s.field("max_burst_size", self.uint4, 0, doc="Bytes received"),
 ], doc="Queue Statistics"),

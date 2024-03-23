@@ -119,5 +119,148 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
   return 0;
 }
 
+int 
+IfaceWrapper::rx_receiver(void *arg __rte_unused) {
+
+  // Timespec for opportunistic sleep. Nanoseconds configured in conf.
+  struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
+
+  bool once = true; // One shot action variable.
+  uint16_t iface = m_iface_id;
+
+  const uint16_t lid = rte_lcore_id();
+  auto rx_queues = m_rx_core_map[lid];
+
+  if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != (int)rte_socket_id()) {
+    TLOG() << "WARNING, iface " << iface << " is on remote NUMA node to polling thread! "
+           << "Performance will not be optimal.";
+  }
+
+  TLOG() << "LCore RX runner on CPU[" << lid << "]: Main loop starts for iface " << iface << " !";
+
+  // While loop of quit atomic member in IfaceWrapper
+  while(!this->m_lcore_quit_signal.load()) {
+
+    // Loop over assigned rx_queues to process
+    uint8_t fb_count(0);
+    for (const auto& q : rx_queues) {
+      auto src_rx_q = q.first;
+      auto* q_bufs = m_bufs[src_rx_q];
+      auto& mbuf_q = m_mbuf_queues_map[src_rx_q];
+
+      // Get burst from queue
+      const uint16_t nb_rx = rte_eth_rx_burst(iface, src_rx_q, q_bufs, m_burst_size);
+      // We got packets from burst on this queue
+      if (nb_rx != 0) {
+
+        // Record max burst
+        m_max_burst_size[src_rx_q] = std::max(nb_rx, m_max_burst_size[src_rx_q].load());
+
+        // Loop over packets
+        for (int i_b=0; i_b<nb_rx; ++i_b) {
+
+          auto* q_buf = q_bufs[i_b];
+          // rte_pktmbuf_free(q_buf);
+          std::size_t data_len = q_buf->data_len;
+
+          // enqueue the message
+          if (mbuf_q->write(q_buf)) {
+            ++m_num_frames_rxq[src_rx_q];
+            m_num_bytes_rxq[src_rx_q] += data_len;
+          } else {
+            // Release the buffer if mbuf queue full
+            rte_pktmbuf_free(q_buf);
+            ++m_num_frames_rxq_rejected[src_rx_q];
+          }
+        }
+      } // per burst
+      // Full burst counter
+      if (nb_rx == m_burst_size) {
+        ++fb_count;
+        ++m_num_full_bursts[src_rx_q];
+      }
+    } // per queue
+  }
+}
+
+int 
+IfaceWrapper::rx_router(void *arg __rte_unused) {
+
+  uint32_t max_burst = 32;
+
+  // Timespec for opportunistic sleep. Nanoseconds configured in conf.
+  struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
+
+  bool once = true; // One shot action variable.
+  uint16_t iface = m_iface_id;
+
+  const uint16_t lid = rte_lcore_id()+m_core_offset;
+  auto rx_queues = m_rx_core_map[lid];
+
+  if (rte_eth_dev_socket_id(iface) >= 0 && rte_eth_dev_socket_id(iface) != (int)rte_socket_id()) {
+    TLOG() << "WARNING, iface " << iface << " is on remote NUMA node to polling thread! "
+           << "Performance will not be optimal.";
+  }
+
+  TLOG() << "LCore RX runner on CPU[" << lid << "]: Main loop starts for iface " << iface << " !";
+
+  // While loop of quit atomic member in IfaceWrapper
+  while(!this->m_lcore_quit_signal.load()) {
+
+    // Loop over assigned rx_queues to process
+    for (const auto& q : rx_queues) {
+      auto src_rx_q = q.first;
+      auto& mbuf_q = m_mbuf_queues_map[src_rx_q];
+
+      rte_mbuf* q_buf;
+      for( size_t i(0); i<max_burst; ++i) {
+
+        if (!mbuf_q->read(q_buf)) {
+          // Nothing to read
+          continue;
+        }
+
+        // Check packet type, ommit/drop unexpected ones.
+        auto pkt_type = q_buf->packet_type;
+        //// Handle non IPV4 packets
+        if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
+          //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+          if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
+            //TLOG_DEBUG(10) << "TODO: Handle ARP request!";
+          } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
+            //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
+          } else {
+            //TLOG_DEBUG(10) << "Unidentified! Dumping...";
+            //rte_pktmbuf_dump(stdout, q_buf, m_bufs[src_rx_q][i_b]->pkt_len);
+          }
+          continue;
+        }
+
+        // Check for UDP frames
+        //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
+        // Check for JUMBO frames
+        if (q_buf->pkt_len > 7000) { // RS FIXME: do proper check on data length later
+          // Handle them!
+          std::size_t data_len = q_buf->data_len;
+
+          if ( m_lcore_enable_flow.load() ) {
+            char* message = udp::get_udp_payload(q_buf);
+            handle_eth_payload(src_rx_q, message, data_len);
+          }
+          ++m_num_frames_processed[src_rx_q];
+          m_num_bytes_processed[src_rx_q] += data_len;
+        }
+
+        // Free the buffer
+        rte_pktmbuf_free(q_buf);
+
+
+      }
+    }
+  }
+      
+
+}
+
 } // namespace dpdklibs
 } // namespace dunedaq

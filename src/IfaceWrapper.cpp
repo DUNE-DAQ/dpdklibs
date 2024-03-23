@@ -76,8 +76,6 @@ IfaceWrapper::allocate_mbufs()
     TLOG() << "Acquire pool with name=" << ss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
     m_mbuf_pools[i] = ealutils::get_mempool(ss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
-    // No need to alloc?
-    // rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
 
   std::stringstream ss;
@@ -207,11 +205,18 @@ IfaceWrapper::conf(const iface_conf_t& args)
     
         m_num_frames_rxq[rx_q] = { 0 };
         m_num_bytes_rxq[rx_q] = { 0 };
+        m_num_frames_rxq_rejected[rx_q] = { 0 };
+        m_num_bytes_rxq[rx_q] = { 0 };
         m_num_full_bursts[rx_q] = { 0 };
         m_max_burst_size[rx_q] = { 0 };
 
+        m_num_frames_processed[rx_q] = { 0 };
+        m_num_bytes_processed[rx_q] = { 0 };
+
         // No sanity check on config?    
         m_rx_core_map[lcore][rx_q] = src_ip;
+        // Create a mbuf spsc queue (1/2 the mempool size)
+        m_mbuf_queues_map[rx_q] = std::make_unique<mbuf_ptr_queue_t>(m_num_mbufs/2);
 
         // Check streams mapping and available source_ids
         auto& src_streams_map = exp_src.src_streams_mapping;
@@ -245,8 +250,6 @@ IfaceWrapper::conf(const iface_conf_t& args)
       TLOG() << "Registered Queues" << q;
     }
 
-
-
     // Adding single TX queue for ARP responses
     TLOG() << "Append TX_Q=0 for ARP responses.";
     m_tx_qs.insert(0);
@@ -274,8 +277,11 @@ IfaceWrapper::start()
 
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
-    int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_runner), this, lcoreid);
+    // int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_runner), this, lcoreid);
+    int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_receiver), this, lcoreid);
     TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret;
+    int ret2 = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_router), this, lcoreid-m_core_offset);
+    TLOG() << "  -> LCore[" << lcoreid-1<< "] launched with return code=" << ret2;
   }
 }
 
@@ -327,10 +333,22 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     nicreaderinfo::QueueStats qs;
+
+
+
     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
+    qs.packets_dropped_spsc_full = m_num_frames_rxq_rejected[src_rx_q].load();
+    qs.spsc_queue_occupancy = m_mbuf_queues_map[src_rx_q]->sizeGuess();
+
     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
     qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
+
+    qs.packets_copied = m_num_frames_processed[src_rx_q].load();
+    qs.bytes_copied = m_num_bytes_processed[src_rx_q].load();
+
+
+    TLOG() << "XXXX pkt_rec=" << qs.packets_received << ", pkt_drop_spsc=" << qs.packets_dropped_spsc_full << ", pkt_copied=" << qs.packets_copied << ", pkt_queue_occ=" << qs.spsc_queue_occupancy;
 
     opmonlib::InfoCollector queue_ci;
     queue_ci.add(qs);
