@@ -180,13 +180,25 @@ IfaceWrapper::rx_receiver(void *arg __rte_unused) {
           }
         }
       } // per burst
+      
       // Full burst counter
       if (nb_rx == m_burst_size) {
         ++fb_count;
         ++m_num_full_bursts[src_rx_q];
       }
     } // per queue
+  
+    // If no full buffers in burst...
+    if (!fb_count) {
+      if (m_lcore_sleep_ns) {
+        // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
+        /*int response =*/ nanosleep(&sleep_request, nullptr);
+      }
+    }
+
   }
+  TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
+  return 0;
 }
 
 int 
