@@ -136,7 +136,7 @@ private:
   int rx_runner(void *arg __rte_unused);
   int rx_receiver(void *arg __rte_unused);
   int rx_router(void *arg __rte_unused);
-  static const uint8_t m_core_offset = 16;
+  static const uint8_t m_core_offset = 1;
 
   // What to do with every payload
   void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
