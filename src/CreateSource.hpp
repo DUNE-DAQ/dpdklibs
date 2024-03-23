@@ -41,6 +41,9 @@ createSourceModel(const std::string& conn_uid)
     // Create Model
     auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>();
 
+    // For callback acquisition later (lazy)
+    source_model->set_sink_name(conn_uid);
+
     // Setup sink (acquire pointer from QueueRegistry)
     source_model->set_sink(conn_uid);
 
