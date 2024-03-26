@@ -77,11 +77,14 @@ namespace dunedaq::dpdklibs {
           TLOG() << "Cannot get xstat values!";
         //} else { 
         }
+
+        rte_eth_stats_get(m_iface_id, &m_eth_stats);
       }
     }
 
     int m_iface_id;
     bool m_allocated = false;
+    struct rte_eth_stats m_eth_stats;
     struct rte_eth_xstat_name *m_xstats_names;
     uint64_t *m_xstats_ids;
     uint64_t *m_xstats_values;
