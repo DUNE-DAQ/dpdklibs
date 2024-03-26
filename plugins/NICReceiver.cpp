@@ -101,8 +101,12 @@ NICReceiver::init(const data_t& args)
         ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "Output link ID could not be parsed on queue instance name! "));
       }
-      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid;
-      m_sources[sourceid] = createSourceModel(qi.uid);
+      bool callback_mode = false;
+      if (words.front() == "cb") {
+        callback_mode = true;
+      }
+      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid << " CallbacksMode?=" << callback_mode;
+      m_sources[sourceid] = createSourceModel(qi.uid, callback_mode);
       if (m_sources[sourceid] == nullptr) {
         ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "CreateSource failed to provide an appropriate model for queue!"));

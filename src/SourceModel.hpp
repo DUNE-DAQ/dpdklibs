@@ -52,25 +52,34 @@ public:
   {}
   ~SourceModel() {}
 
-  void set_sink(const std::string& sink_name) override
+  void set_sink(const std::string& sink_name, bool callback_mode) override
   {
-    if (m_sink_is_set) {
-      TLOG_DEBUG(5) << "SourceModel sink is already set in initialized!";
+    m_callback_mode = callback_mode;
+    if (callback_mode) {
+      TLOG_DEBUG(5) << "Callback mode requested. Won't acquire iom sender!";
     } else {
-      m_sink_queue = get_iom_sender<TargetPayloadType>(sink_name);
-      m_sink_is_set = true;
+      if (m_sink_is_set) {
+        TLOG_DEBUG(5) << "SourceModel sink is already set in initialized!";
+      } else {
+        m_sink_queue = get_iom_sender<TargetPayloadType>(sink_name);
+        m_sink_is_set = true;
+      }
     }
   }
 
   void acquire_callback() override
   {
-    if (m_callback_is_acquired) {
-      TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
+    if (m_callback_mode) {
+      if (m_callback_is_acquired) {
+        TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
+      } else {
+        // Getting DataMoveCBRegistry
+        auto dmcbr = readoutlibs::DataMoveCallbackRegistry::get();
+        m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_name);
+        m_callback_is_acquired = true;
+      }
     } else {
-      // Getting DataMoveCBRegistry
-      auto dmcbr = readoutlibs::DataMoveCallbackRegistry::get();
-      m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_name);
-      m_callback_is_acquired = true;
+      TLOG_DEBUG(5) << "Won't acquire callback, as IOM sink is set!";
     }
   }
 
@@ -163,6 +172,7 @@ private:
   bool m_configured{ false };
 
   std::string m_sink_id;
+  bool m_callback_mode;
 
   // Sink
   bool m_sink_is_set{ false };
