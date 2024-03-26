@@ -92,7 +92,7 @@ void
 IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
-  bool with_reset = true, with_mq_mode = true; // go to config
+  bool with_reset = true, with_mq_mode = false; // go to config
   bool check_link_status = false;
 
   int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
@@ -319,14 +319,27 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   // Convert JSON to NICReaderInfo struct
   nicreaderinfo::Info nri;
   nicreaderinfo::from_json(stat_json, nri);
-
   // Push to InfoCollector
   ci.add(nri);
   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
+
+  nicreaderinfo::EthInfo nr_ethinfo;
+  nr_ethinfo.ipackets = m_iface_xstats.m_eth_stats.ipackets;
+  nr_ethinfo.opackets = m_iface_xstats.m_eth_stats.opackets;
+  nr_ethinfo.ibytes = m_iface_xstats.m_eth_stats.ibytes;
+  nr_ethinfo.obytes = m_iface_xstats.m_eth_stats.obytes;
+  nr_ethinfo.imissed = m_iface_xstats.m_eth_stats.imissed;
+  nr_ethinfo.ierrors = m_iface_xstats.m_eth_stats.ierrors;
+  nr_ethinfo.oerrors = m_iface_xstats.m_eth_stats.oerrors;
+  nr_ethinfo.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
+  ci.add(nr_ethinfo);
+
+
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     nicreaderinfo::QueueStats qs;
+
     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();

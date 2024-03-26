@@ -11,7 +11,20 @@ local info = {
     uint4  : s.number("uint4", "u4", doc="An unsigned of 8 bytes"),
 // TODO: rename to 
 // info: s.record("XStats", [
+ethinfo: s.record("EthInfo", [
+    s.field("ipackets", self.uint8, 0, doc="New since last poll"),
+    s.field("opackets", self.uint8, 0, doc="New since last poll"),
+    s.field("ibytes", self.uint8, 0, doc="New since last poll"),
+    s.field("obytes", self.uint8, 0, doc="New since last poll"),
+    s.field("imissed", self.uint8, 0, doc="New since last poll"),
+    s.field("ierrors", self.uint8, 0, doc="New since last poll"),
+    s.field("oerrors", self.uint8, 0, doc="New since last poll"),
+    s.field("rx_nombuf", self.uint8, 0, doc="New since last poll"),
+
+    ], doc="NIC Stats information"),
+
 info: s.record("Info", [
+
     s.field("groups_sent", self.uint8, 0, doc="Number of groups of frames sent"),
     s.field("total_groups_sent", self.uint8, 0, doc="Total groups of frames sent"),
     s.field("rx_good_packets", self.uint8, 0, doc="New since last poll"),
