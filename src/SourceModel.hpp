@@ -136,19 +136,18 @@ public:
     bool push_out = true;
     if (push_out) {
 
-////////////////////////////////////
-// RS FIXME: Non optional callbacks. This version only works with callbacks setup.
       TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
-      (*m_sink_callback)(std::move(target_payload));
-/*
-      if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-        //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-        //  TLOG() << "Dropped data " << m_dropped_packets;
-        //}
-        ++m_dropped_packets;
+
+      if (m_callback_mode) {
+        (*m_sink_callback)(std::move(target_payload));
+      } else {
+        if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
+          //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+          //  TLOG() << "Dropped data " << m_dropped_packets;
+          //}
+          ++m_dropped_packets;
+        }
       }
-*/
-///////////////////////////////////
 
     } else {
       TargetPayloadType target_payload;
