@@ -61,10 +61,7 @@ local nicreader = {
 
     sources : s.sequence("Sources", self.source, doc="A list of sources"),
 
-    iface : s.record("Interface", [
-        s.field("pci_addr", self.pci, "0000:00:00.0", doc="PCIe address of the interface"),
-        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="MAC address of the interface"),
-        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
+    iface_parameters : s.record("InterfaceParameters", [
         s.field("with_flow_control", self.choice, true, doc="FlowAPI enabled"),
         s.field("promiscuous_mode", self.choice, false, doc="Promiscuous mode enabled"),
         s.field("mtu", self.count, 9000, doc="MTU of interface"),
@@ -73,8 +70,15 @@ local nicreader = {
         s.field("num_mbufs", self.count, 8191, doc="Number of total MBUFs"),
         s.field("mbuf_cache_size", self.count, 256, doc="MBUF cache size"),
         s.field("burst_size", self.count, 256, doc="RX burst size"),
-        s.field("lcore_sleep_us", self.count, 10, doc="LCore loop sleep in microseconds - 0 to disable"),
+        s.field("lcore_sleep_us", self.count, 10, doc="LCore loop sleep in microseconds - 0 to disable")
+    ], doc="Parameters of Ethernet interface through DPDK RTE"),
+
+    iface : s.record("Interface", [
+        s.field("pci_addr", self.pci, "0000:00:00.0", doc="PCIe address of the interface"),
+        s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="MAC address of the interface"),
+        s.field("ip_addr", self.ipv4, "192.168.0.1", doc="IP address of interface"),
         s.field("expected_sources", self.sources, doc="A list of expected sources"),
+        s.field("parameters", self.iface_parameters, default=self.iface_parameters, doc="Interface parameters")
     ], doc="Configuration an Ethernet interface through DPDK RTE"),
 
     ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),

@@ -170,8 +170,8 @@ IfaceWrapper::conf(const iface_conf_t& args)
   } else {
     // Load config
     m_cfg = args;
-    m_with_flow = m_cfg.with_flow_control;
-    m_prom_mode = m_cfg.promiscuous_mode;
+    m_with_flow = m_cfg.parameters.with_flow_control;
+    m_prom_mode = m_cfg.parameters.promiscuous_mode;
     m_ip_addr = m_cfg.ip_addr;
     IpAddr ip_addr_struct(m_ip_addr);
     m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
@@ -181,13 +181,13 @@ IfaceWrapper::conf(const iface_conf_t& args)
       ip_addr_struct.addr_bytes[0]
     );
     m_mac_addr = m_cfg.mac_addr;
-    m_mbuf_cache_size = m_cfg.mbuf_cache_size;
-    m_burst_size = m_cfg.burst_size;
-    m_lcore_sleep_ns = m_cfg.lcore_sleep_us*1'000;
-    m_mtu = m_cfg.mtu;
-    m_num_mbufs = m_cfg.num_mbufs;
-    m_rx_ring_size = m_cfg.rx_ring_size;
-    m_tx_ring_size = m_cfg.tx_ring_size;
+    m_mbuf_cache_size = m_cfg.parameters.mbuf_cache_size;
+    m_burst_size = m_cfg.parameters.burst_size;
+    m_lcore_sleep_ns = m_cfg.parameters.lcore_sleep_us*1'000;
+    m_mtu = m_cfg.parameters.mtu;
+    m_num_mbufs = m_cfg.parameters.num_mbufs;
+    m_rx_ring_size = m_cfg.parameters.rx_ring_size;
+    m_tx_ring_size = m_cfg.parameters.tx_ring_size;
 
     // Get NUMA/Socket of interface
     m_socket_id = rte_eth_dev_socket_id(m_iface_id);
