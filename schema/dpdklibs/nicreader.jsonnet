@@ -61,13 +61,6 @@ local nicreader = {
 
     sources : s.sequence("Sources", self.source, doc="A list of sources"),
 
-    stats_reporting : s.record("StatsReporting", [
-       s.field("expected_seq_id_step", self.big_count, 1, doc="Expected sequence ID increase per packet in a stream"),
-       s.field("expected_timestamp_step", self.big_count, -999, doc="Expected timestamp increase per packet in a stream"),
-       s.field("expected_packet_size", self.big_count, 7243, doc="Expected packet size"),
-       s.field("analyze_nth_packet", self.count, 1, doc="Analyze only every (1/analyze_nth_packet) packet"),
-    ], doc="Source field"),
-
     iface : s.record("Interface", [
         s.field("pci_addr", self.pci, "0000:00:00.0", doc="PCIe address of the interface"),
         s.field("mac_addr", self.mac, "AA:BB:CC:DD:EE:FF", doc="MAC address of the interface"),
@@ -82,7 +75,6 @@ local nicreader = {
         s.field("burst_size", self.count, 256, doc="RX burst size"),
         s.field("lcore_sleep_us", self.count, 10, doc="LCore loop sleep in microseconds - 0 to disable"),
         s.field("expected_sources", self.sources, doc="A list of expected sources"),
-        s.field("stats_reporting_cfg", self.stats_reporting, doc="Defines how stats are reported"),
     ], doc="Configuration an Ethernet interface through DPDK RTE"),
 
     ifaces : s.sequence("IfaceList", self.iface, doc="A list of interfaces to use"),
