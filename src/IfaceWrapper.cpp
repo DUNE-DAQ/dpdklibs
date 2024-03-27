@@ -311,6 +311,17 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   // Empty stat JSON placeholder
   nlohmann::json stat_json;
 
+  nicreaderinfo::EthStats nr_eth_stats;
+  nr_eth_stats.ipackets = m_iface_xstats.m_eth_stats.ipackets;
+  nr_eth_stats.opackets = m_iface_xstats.m_eth_stats.opackets;
+  nr_eth_stats.ibytes = m_iface_xstats.m_eth_stats.ibytes;
+  nr_eth_stats.obytes = m_iface_xstats.m_eth_stats.obytes;
+  nr_eth_stats.imissed = m_iface_xstats.m_eth_stats.imissed;
+  nr_eth_stats.ierrors = m_iface_xstats.m_eth_stats.ierrors;
+  nr_eth_stats.oerrors = m_iface_xstats.m_eth_stats.oerrors;
+  nr_eth_stats.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
+  ci.add(nr_eth_stats);
+
   // Poll stats from HW
   m_iface_xstats.poll();
 
@@ -323,24 +334,14 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   m_iface_xstats.reset_counters();
 
   // Convert JSON to NICReaderInfo struct
-  nicreaderinfo::Info nri;
-  nicreaderinfo::from_json(stat_json, nri);
+  nicreaderinfo::EthXStats nr_eth_xstats;
+  nicreaderinfo::from_json(stat_json, nr_eth_xstats);
   // Push to InfoCollector
-  ci.add(nri);
+  ci.add(nr_eth_xstats);
   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
 
-  nicreaderinfo::EthInfo nr_ethinfo;
-  nr_ethinfo.ipackets = m_iface_xstats.m_eth_stats.ipackets;
-  nr_ethinfo.opackets = m_iface_xstats.m_eth_stats.opackets;
-  nr_ethinfo.ibytes = m_iface_xstats.m_eth_stats.ibytes;
-  nr_ethinfo.obytes = m_iface_xstats.m_eth_stats.obytes;
-  nr_ethinfo.imissed = m_iface_xstats.m_eth_stats.imissed;
-  nr_ethinfo.ierrors = m_iface_xstats.m_eth_stats.ierrors;
-  nr_ethinfo.oerrors = m_iface_xstats.m_eth_stats.oerrors;
-  nr_ethinfo.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
-  ci.add(nr_ethinfo);
 
 
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
