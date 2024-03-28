@@ -121,8 +121,6 @@ private:
   std::thread m_garp_thread;
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
-
-  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
   
   // Lcore processor
   //template<class T> 

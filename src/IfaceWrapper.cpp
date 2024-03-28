@@ -92,7 +92,7 @@ void
 IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
-  bool with_reset = true, with_mq_mode = true; // go to config
+  bool with_reset = true, with_mq_mode = false; // go to config
   bool check_link_status = false;
 
   int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
@@ -170,8 +170,8 @@ IfaceWrapper::conf(const iface_conf_t& args)
   } else {
     // Load config
     m_cfg = args;
-    m_with_flow = m_cfg.with_flow_control;
-    m_prom_mode = m_cfg.promiscuous_mode;
+    m_with_flow = m_cfg.parameters.with_flow_control;
+    m_prom_mode = m_cfg.parameters.promiscuous_mode;
     m_ip_addr = m_cfg.ip_addr;
     IpAddr ip_addr_struct(m_ip_addr);
     m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
@@ -181,13 +181,13 @@ IfaceWrapper::conf(const iface_conf_t& args)
       ip_addr_struct.addr_bytes[0]
     );
     m_mac_addr = m_cfg.mac_addr;
-    m_mbuf_cache_size = m_cfg.mbuf_cache_size;
-    m_burst_size = m_cfg.burst_size;
-    m_lcore_sleep_ns = m_cfg.lcore_sleep_us*1'000;
-    m_mtu = m_cfg.mtu;
-    m_num_mbufs = m_cfg.num_mbufs;
-    m_rx_ring_size = m_cfg.rx_ring_size;
-    m_tx_ring_size = m_cfg.tx_ring_size;
+    m_mbuf_cache_size = m_cfg.parameters.mbuf_cache_size;
+    m_burst_size = m_cfg.parameters.burst_size;
+    m_lcore_sleep_ns = m_cfg.parameters.lcore_sleep_us*1'000;
+    m_mtu = m_cfg.parameters.mtu;
+    m_num_mbufs = m_cfg.parameters.num_mbufs;
+    m_rx_ring_size = m_cfg.parameters.rx_ring_size;
+    m_tx_ring_size = m_cfg.parameters.tx_ring_size;
 
     // Get NUMA/Socket of interface
     m_socket_id = rte_eth_dev_socket_id(m_iface_id);
@@ -305,6 +305,17 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   // Empty stat JSON placeholder
   nlohmann::json stat_json;
 
+  nicreaderinfo::EthStats nr_eth_stats;
+  nr_eth_stats.ipackets = m_iface_xstats.m_eth_stats.ipackets;
+  nr_eth_stats.opackets = m_iface_xstats.m_eth_stats.opackets;
+  nr_eth_stats.ibytes = m_iface_xstats.m_eth_stats.ibytes;
+  nr_eth_stats.obytes = m_iface_xstats.m_eth_stats.obytes;
+  nr_eth_stats.imissed = m_iface_xstats.m_eth_stats.imissed;
+  nr_eth_stats.ierrors = m_iface_xstats.m_eth_stats.ierrors;
+  nr_eth_stats.oerrors = m_iface_xstats.m_eth_stats.oerrors;
+  nr_eth_stats.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
+  ci.add(nr_eth_stats);
+
   // Poll stats from HW
   m_iface_xstats.poll();
 
@@ -317,16 +328,19 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   m_iface_xstats.reset_counters();
 
   // Convert JSON to NICReaderInfo struct
-  nicreaderinfo::Info nri;
-  nicreaderinfo::from_json(stat_json, nri);
-
+  nicreaderinfo::EthXStats nr_eth_xstats;
+  nicreaderinfo::from_json(stat_json, nr_eth_xstats);
   // Push to InfoCollector
-  ci.add(nri);
+  ci.add(nr_eth_xstats);
   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
+
+
+
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     nicreaderinfo::QueueStats qs;
+
     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();

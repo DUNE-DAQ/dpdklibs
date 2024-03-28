@@ -17,7 +17,6 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
-#include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
 #include "NICReceiver.hpp"
 
@@ -203,18 +202,6 @@ NICReceiver::do_configure(const data_t& args)
 void
 NICReceiver::do_start(const data_t&)
 {
-  // TLOG() << get_name() << ": Entering do_start() method";
-  // if (!m_run_marker.load()) {
-  //   set_running(true);
-  //   TLOG() << "Starting iface wrappers.";
-  //   for (auto& [iface_id, iface] : m_ifaces) {
-  //     iface->start();
-  //   }
-  // } else {
-  //   TLOG_DEBUG(5) << "NICReader is already running!";
-  // }
-  //
-  
   // Setup callbacks on all sourcemodels
   for (auto& [sourceid, source] : m_sources) {
     source->acquire_callback();
@@ -228,20 +215,6 @@ NICReceiver::do_start(const data_t&)
 void
 NICReceiver::do_stop(const data_t&)
 {
-  // TLOG() << get_name() << ": Entering do_stop() method";
-  // if (m_run_marker.load()) {
-  //   TLOG() << "Raising stop through variables!";
-  //   set_running(false);
-  //   TLOG() << "Stopping iface wrappers.";
-  //   for (auto& [iface_id, iface] : m_ifaces) {
-  //     iface->stop();
-  //   }
-  //   ealutils::wait_for_lcores();
-  //   TLOG() << "Stoppped DPDK lcore processors and internal threads...";
-  // } else {
-  //   TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
-  // }
-  // return;
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->disable_flow();
   }
