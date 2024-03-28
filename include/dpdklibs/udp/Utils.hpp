@@ -10,6 +10,8 @@
 
 #include "IPV4UDPPacket.hpp"
 
+#include "dpdklibs/receiverinfo/InfoStructs.hpp"
+
 #include "detdataformats/DAQEthHeader.hpp"
 #include "logging/Logging.hpp"
 
