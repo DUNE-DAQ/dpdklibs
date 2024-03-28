@@ -17,7 +17,6 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
-#include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
 #include "NICReceiver.hpp"
 
