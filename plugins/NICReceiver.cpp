@@ -101,8 +101,12 @@ NICReceiver::init(const data_t& args)
         ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "Output link ID could not be parsed on queue instance name! "));
       }
-      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid;
-      m_sources[sourceid] = createSourceModel(qi.uid);
+      bool callback_mode = false;
+      if (words.front() == "cb") {
+        callback_mode = true;
+      }
+      TLOG() << "Creating source for target queue: " << target << " DLH number: " << sourceid << " CallbacksMode?=" << callback_mode;
+      m_sources[sourceid] = createSourceModel(qi.uid, callback_mode);
       if (m_sources[sourceid] == nullptr) {
         ers::fatal(dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "CreateSource failed to provide an appropriate model for queue!"));
@@ -209,6 +213,13 @@ NICReceiver::do_start(const data_t&)
   // } else {
   //   TLOG_DEBUG(5) << "NICReader is already running!";
   // }
+  //
+  
+  // Setup callbacks on all sourcemodels
+  for (auto& [sourceid, source] : m_sources) {
+    source->acquire_callback();
+  }
+
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->enable_flow();
   }

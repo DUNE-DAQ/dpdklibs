@@ -26,7 +26,7 @@ DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::TDEFrameTypeAdapter, "TDEFram
 namespace dpdklibs {
 
 std::unique_ptr<SourceConcept>
-createSourceModel(const std::string& conn_uid)
+createSourceModel(const std::string& conn_uid, bool callback_mode)
 {
   auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
   if (datatypes.size() != 1) {
@@ -41,8 +41,11 @@ createSourceModel(const std::string& conn_uid)
     // Create Model
     auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>();
 
+    // For callback acquisition later (lazy)
+    source_model->set_sink_name(conn_uid);
+
     // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid);
+    source_model->set_sink(conn_uid, callback_mode);
 
     // Get parser and sink
     //auto& parser = source_model->get_parser();
@@ -62,7 +65,7 @@ createSourceModel(const std::string& conn_uid)
   } else if (raw_dt.find("TDEFrame") != std::string::npos) {
     // WIB2 specific char arrays
     auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEFrameTypeAdapter>>();
-    source_model->set_sink(conn_uid);
+    source_model->set_sink(conn_uid, callback_mode);
     //auto& parser = source_model->get_parser();
     //parser.process_chunk_func = parsers::fixsizedChunkInto<fdreadoutlibs::types::DUNEWIBSuperChunkTypeAdapter>(sink);
     return source_model;

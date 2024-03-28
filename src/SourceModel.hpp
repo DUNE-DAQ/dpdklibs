@@ -18,6 +18,8 @@
 #include "logging/Logging.hpp"
 // #include "readoutlibs/utils/ReusableThread.hpp"
 
+#include "readoutlibs/DataMoveCallbackRegistry.hpp"
+
 // #include <folly/ProducerConsumerQueue.h>
 // #include <nlohmann/json.hpp>
 
@@ -50,13 +52,34 @@ public:
   {}
   ~SourceModel() {}
 
-  void set_sink(const std::string& sink_name) override
+  void set_sink(const std::string& sink_name, bool callback_mode) override
   {
-    if (m_sink_is_set) {
-      TLOG_DEBUG(5) << "SourceModel sink is already set in initialized!";
+    m_callback_mode = callback_mode;
+    if (callback_mode) {
+      TLOG_DEBUG(5) << "Callback mode requested. Won't acquire iom sender!";
     } else {
-      m_sink_queue = get_iom_sender<TargetPayloadType>(sink_name);
-      m_sink_is_set = true;
+      if (m_sink_is_set) {
+        TLOG_DEBUG(5) << "SourceModel sink is already set in initialized!";
+      } else {
+        m_sink_queue = get_iom_sender<TargetPayloadType>(sink_name);
+        m_sink_is_set = true;
+      }
+    }
+  }
+
+  void acquire_callback() override
+  {
+    if (m_callback_mode) {
+      if (m_callback_is_acquired) {
+        TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
+      } else {
+        // Getting DataMoveCBRegistry
+        auto dmcbr = readoutlibs::DataMoveCallbackRegistry::get();
+        m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_name);
+        m_callback_is_acquired = true;
+      }
+    } else {
+      TLOG_DEBUG(5) << "Won't acquire callback, as IOM sink is set!";
     }
   }
 
@@ -114,12 +137,18 @@ public:
     if (push_out) {
 
       TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
-      if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-        //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-        //  TLOG() << "Dropped data " << m_dropped_packets;
-        //}
-        ++m_dropped_packets;
+
+      if (m_callback_mode) {
+        (*m_sink_callback)(std::move(target_payload));
+      } else {
+        if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
+          //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
+          //  TLOG() << "Dropped data " << m_dropped_packets;
+          //}
+          ++m_dropped_packets;
+        }
       }
+
     } else {
       TargetPayloadType target_payload;
       uint32_t bytes_copied = 0;
@@ -141,10 +170,18 @@ private:
   std::atomic<bool> m_run_marker;
   bool m_configured{ false };
 
+  std::string m_sink_id;
+  bool m_callback_mode;
+
   // Sink
   bool m_sink_is_set{ false };
   std::shared_ptr<sink_t> m_sink_queue;
   //std::shared_ptr<err_sink_t> m_error_sink_queue;
+
+  // Callback
+  bool m_callback_is_acquired{ false };
+  using sink_cb_t = std::shared_ptr<std::function<void(TargetPayloadType&&)>>;
+  sink_cb_t m_sink_callback;
 
   std::atomic<uint64_t> m_dropped_packets{0};
 

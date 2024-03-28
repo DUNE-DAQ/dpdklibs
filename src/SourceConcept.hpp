@@ -46,7 +46,8 @@ public:
   SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
 
   virtual void init(const nlohmann::json& args) = 0;
-  virtual void set_sink(const std::string& sink_name) = 0;
+  virtual void set_sink(const std::string& sink_name, bool callback_mode) = 0;
+  virtual void acquire_callback() = 0;
   virtual void conf(const nlohmann::json& args) = 0;
   virtual void start(const nlohmann::json& args) = 0;
   virtual void stop(const nlohmann::json& args) = 0;
@@ -56,6 +57,11 @@ public:
   //virtual bool queue_in_block_address(uint64_t block_addr) = 0; // NOLINT
 
   //DefaultParserImpl& get_parser() { return std::ref(m_parser_impl); }
+
+  void set_sink_name(const std::string& sink_name) 
+  { 
+    m_sink_name = sink_name; 
+  }
 
   void set_ids(int card, int pid, int sip, int lid)
   {
@@ -92,6 +98,7 @@ protected:
   std::string m_source_str;
   std::string m_opmon_str;
   std::string m_source_tid;
+  std::string m_sink_name;
   std::chrono::time_point<std::chrono::high_resolution_clock> m_t0;
 
 private:
