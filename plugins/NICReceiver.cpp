@@ -108,8 +108,20 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 	  ers::fatal(err);
 	  throw err;
   }
-  
-  m_sources[queue->get_source_id()] = createSourceModel(queue->UID());
+
+  // Check for CB prefix indicating Callback use
+  const char delim = '_';
+  std::string target = queue->UID();
+  std::vector<std::string> words;
+  tokenize(target, delim, words);
+  int sourceid = -1;
+
+  bool callback_mode = false;
+  if (words.front() == "cb") {
+    callback_mode = true;
+  }
+
+  m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
   //m_sources[queue->get_source_id()]->init(); 
  }
 }
@@ -212,6 +224,11 @@ NICReceiver::do_start(const data_t&)
     }
   } else {
     TLOG_DEBUG(5) << "NICReader is already running!";
+  }
+
+  // Setup callbacks on all sourcemodels
+  for (auto& [sourceid, source] : m_sources) {
+    source->acquire_callback();
   }
 
   for (auto& [iface_id, iface] : m_ifaces) {

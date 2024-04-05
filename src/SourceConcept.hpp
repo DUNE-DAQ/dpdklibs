@@ -36,7 +36,8 @@ public:
   SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
 
 //  virtual void init(const nlohmann::json& args) = 0;
-  virtual void set_sink(const std::string& sink_name) = 0;
+  virtual void set_sink(const std::string& sink_name, bool callback_mode) = 0;
+  virtual void acquire_callback() = 0;
 //  virtual void conf(const nlohmann::json& args) = 0;
 //  virtual void start(const nlohmann::json& args) = 0;
 //  virtual void stop(const nlohmann::json& args) = 0;
@@ -44,6 +45,12 @@ public:
 
   virtual bool handle_payload(char* message, std::size_t size) = 0;
 
+  void set_sink_name(const std::string& sink_name) 
+  { 
+    m_sink_name = sink_name; 
+  }
+
+  std::string m_sink_name;
 };
 
 } // namespace dpdklibs
