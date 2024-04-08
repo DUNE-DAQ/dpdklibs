@@ -108,8 +108,20 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 	  ers::fatal(err);
 	  throw err;
   }
-  
-  m_sources[queue->get_source_id()] = createSourceModel(queue->UID());
+
+  // Check for CB prefix indicating Callback use
+  const char delim = '_';
+  std::string target = queue->UID();
+  std::vector<std::string> words;
+  tokenize(target, delim, words);
+  int sourceid = -1;
+
+  bool callback_mode = false;
+  if (words.front() == "cb") {
+    callback_mode = true;
+  }
+
+  m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
   //m_sources[queue->get_source_id()]->init(); 
  }
 }
@@ -195,15 +207,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
     }
   }
-  
-  return;
 
-}
-
-void
-NICReceiver::do_start(const data_t&)
-{
-  TLOG() << get_name() << ": Entering do_start() method";
   if (!m_run_marker.load()) {
     set_running(true);
     TLOG() << "Starting iface wrappers.";
@@ -211,7 +215,20 @@ NICReceiver::do_start(const data_t&)
       iface->start();
     }
   } else {
-    TLOG_DEBUG(5) << "NICReader is already running!";
+    TLOG_DEBUG(5) << "iface wrappers are already running!";
+  }
+
+  return;
+
+}
+
+void
+NICReceiver::do_start(const data_t&)
+{
+
+  // Setup callbacks on all sourcemodels
+  for (auto& [sourceid, source] : m_sources) {
+    source->acquire_callback();
   }
 
   for (auto& [iface_id, iface] : m_ifaces) {
@@ -222,20 +239,6 @@ NICReceiver::do_start(const data_t&)
 void
 NICReceiver::do_stop(const data_t&)
 {
-  // TLOG() << get_name() << ": Entering do_stop() method";
-  // if (m_run_marker.load()) {
-  //   TLOG() << "Raising stop through variables!";
-  //   set_running(false);
-  //   TLOG() << "Stopping iface wrappers.";
-  //   for (auto& [iface_id, iface] : m_ifaces) {
-  //     iface->stop();
-  //   }
-  //   ealutils::wait_for_lcores();
-  //   TLOG() << "Stoppped DPDK lcore processors and internal threads...";
-  // } else {
-  //   TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
-  // }
-  // return;
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->disable_flow();
   }
@@ -245,7 +248,19 @@ NICReceiver::do_stop(const data_t&)
 void
 NICReceiver::do_scrap(const data_t&)
 {
- 
+  TLOG() << get_name() << ": Entering do_scrap() method";
+  if (m_run_marker.load()) {
+    TLOG() << "Raising stop through variables!";
+    set_running(false);
+    TLOG() << "Stopping iface wrappers.";
+    for (auto& [iface_id, iface] : m_ifaces) {
+      iface->stop();
+    }
+    ealutils::wait_for_lcores();
+    TLOG() << "Stoppped DPDK lcore processors and internal threads...";
+  } else {
+    TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
+  }
 }
 
 void

@@ -129,8 +129,6 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
-  // std::unique_ptr<udp::PacketInfoAccumulator> m_accum_ptr;
-  
   // Lcore processor
   //template<class T> 
   int rx_runner(void *arg __rte_unused);

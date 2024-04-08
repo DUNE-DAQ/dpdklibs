@@ -124,14 +124,6 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
   TLOG() << "Append TX_Q=0 for ARP responses.";
   m_tx_qs.insert(0);
 
-  auto sr = iface_cfg->get_configuration()->get_stats_conf();
-  /*
-  m_accum_ptr.reset( new udp::PacketInfoAccumulator(sr->get_expected_seq_id_step() > 0 ? sr->get_expected_seq_id_step() : udp::PacketInfoAccumulator::s_ignorable_value,
-                                                      sr->get_expected_timestamp_step() > 0 ? sr->get_expected_timestamp_step() : udp::PacketInfoAccumulator::s_ignorable_value,
-                                                      sr->get_expected_packet_size() > 0 ? sr->get_expected_packet_size() : udp::PacketInfoAccumulator::s_ignorable_value,
-                                                      sr->get_analyze_nth_packet()));
-  
- */
 }
 
 IfaceWrapper::~IfaceWrapper()
@@ -275,6 +267,18 @@ IfaceWrapper::scrap()
 void 
 IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 {
+
+  nicreaderinfo::EthStats s;
+  s.ipackets = m_iface_xstats.m_eth_stats.ipackets;
+  s.opackets = m_iface_xstats.m_eth_stats.opackets;
+  s.ibytes = m_iface_xstats.m_eth_stats.ibytes;
+  s.obytes = m_iface_xstats.m_eth_stats.obytes;
+  s.imissed = m_iface_xstats.m_eth_stats.imissed;
+  s.ierrors = m_iface_xstats.m_eth_stats.ierrors;
+  s.oerrors = m_iface_xstats.m_eth_stats.oerrors;
+  s.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
+  ci.add(s);
+
   // Empty stat JSON placeholder
   nlohmann::json stat_json;
 
@@ -290,11 +294,11 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   m_iface_xstats.reset_counters();
 
   // Convert JSON to NICReaderInfo struct
-  nicreaderinfo::Info nri;
-  nicreaderinfo::from_json(stat_json, nri);
+  nicreaderinfo::EthXStats xs;
+  nicreaderinfo::from_json(stat_json, xs);
 
   // Push to InfoCollector
-  ci.add(nri);
+  ci.add(xs);
   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
@@ -310,13 +314,6 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 
     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
   }
- /* FIXME: to be reactivated
-  for( const auto& [src_id, src_obj] :  m_sources) {
-    opmonlib::InfoCollector src_ci;
-    src_obj->get_info(src_ci, level);
-    ci.add(fmt::format("src_{}", src_id), src_ci);
-  }
-  */
 }
 
 void
