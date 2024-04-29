@@ -206,7 +206,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         while (true) {
             uint64_t packets_per_second = num_packets / time_per_report;
             uint64_t bytes_per_second   = num_bytes   / time_per_report;
-            fmt::print(
+            /*fmt::print(
                 "Since the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
@@ -215,7 +215,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 packets_per_second, bytes_per_second, total_packets, non_ipv4_packets, udp_pkt_counter,
                 num_bad_seq_id, max_seq_id_skip, total_bad_seq_id,
                 max_payload_size, min_payload_size
-            );
+            );*/ //BEN BEN BEN does not compile with folly for some reason
 
             if (expected_packet_size){
                 fmt::print(
