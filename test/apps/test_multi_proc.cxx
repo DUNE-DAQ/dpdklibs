@@ -217,7 +217,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         while (true) {
             uint64_t packets_per_second = num_packets / time_per_report;
             uint64_t bytes_per_second   = num_bytes   / time_per_report;
-            fmt::print(
+            /*fmt::print(
                 "Since the last report {} seconds ago:\n"
                 "Packets/s: {} Bytes/s: {} Total packets: {} Non-IPV4 packets: {} Total UDP packets: {}\n"
                 "Packets with wrong sequence id: {}, Max wrong seq_id jump {}, Total Packets with Wrong seq_id {}\n"
@@ -255,7 +255,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 }
                 stats.reset();
                 fmt::print("\n");
-            }
+            }*/
 
             fmt::print("\n");
             num_packets.exchange(0);
