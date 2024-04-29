@@ -402,8 +402,8 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    auto proc_type = rte_eal_process_type();
-    fmt::print("Proc type is: {}\n", proc_type);
+    //auto proc_type = rte_eal_process_type();
+    //fmt::print("Proc type is: {}\n", proc_type);
 
     //std::this_thread::sleep_for(std::chrono::seconds(10));
 
