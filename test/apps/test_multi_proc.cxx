@@ -345,8 +345,8 @@ void signal_callback_handler(int signum){
     }
 
     // proc type on exit:
-    auto proc_type = rte_eal_process_type();
-    fmt::print("Proc type on exit is: {}\n", proc_type);
+    //auto proc_type = rte_eal_process_type();
+    //fmt::print("Proc type on exit is: {}\n", proc_type);
 
     // Terminate program
     std::exit(signum);
