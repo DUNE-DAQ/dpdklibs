@@ -215,7 +215,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 packets_per_second, bytes_per_second, total_packets, non_ipv4_packets, udp_pkt_counter,
                 num_bad_seq_id, max_seq_id_skip, total_bad_seq_id,
                 max_payload_size, min_payload_size
-            );*/ //BEN BEN BEN does not compile with folly for some reason
+            ); //BEN BEN BEN does not compile with folly for some reason
 
             if (expected_packet_size){
                 fmt::print(
@@ -244,7 +244,7 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
                 }
                 stats.reset();
                 fmt::print("\n");
-            }
+            }*/
 
             fmt::print("\n");
             num_packets.exchange(0);
