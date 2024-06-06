@@ -65,6 +65,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
   } else if (raw_dt.find("TDEEthFrame") != std::string::npos) {
     // WIB2 specific char arrays
     auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEEthTypeAdapter>>();
+    source_model->set_sink_name(conn_uid);
     source_model->set_sink(conn_uid, callback_mode);
     //auto& parser = source_model->get_parser();
     //parser.process_chunk_func = parsers::fixsizedChunkInto<fdreadoutlibs::types::DUNEWIBSuperChunkTypeAdapter>(sink);
