@@ -27,7 +27,7 @@
 #include <rte_udp.h>
 
 #include "dpdklibs/udp/PacketCtor.hpp"
-#include "fddetdataformats/TDE16Frame.hpp"
+#include "fddetdataformats/TDEEthFrame.hpp"
 
 #include "readoutlibs/utils/RateLimiter.hpp"
 
@@ -352,7 +352,7 @@ NICSender::do_start(const data_t&)
 {
   m_run_mark.store(true);
   if (m_frontend_type == "tde") {
-    auto fun = &lcore_main<fddetdataformats::TDE16Frame>;
+    auto fun = &lcore_main<fddetdataformats::TDEEthFrame>;
     for (auto& [id, _] : m_core_map) {
         TLOG() << "Starting core " << id;
         rte_eal_remote_launch(fun, reinterpret_cast<void*>(this), id);
