@@ -10,14 +10,14 @@
 #include "appfwk/ConfigurationManager.hpp"
 #include "appfwk/ModuleConfiguration.hpp"
 
-#include "appdal/DataReader.hpp"
-#include "coredal/ReadoutInterface.hpp"
-#include "appdal/NICReceiverConf.hpp"
-#include "appdal/NICInterface.hpp"
-#include "appdal/NICInterfaceConfiguration.hpp"
-#include "appdal/NICStatsConf.hpp"
-#include "appdal/EthStreamParameters.hpp"
-#include "coredal/QueueWithId.hpp"
+#include "appmodel/DataReader.hpp"
+#include "confmodel/ReadoutInterface.hpp"
+#include "appmodel/NICReceiverConf.hpp"
+#include "appmodel/NICInterface.hpp"
+#include "appmodel/NICInterfaceConfiguration.hpp"
+#include "appmodel/NICStatsConf.hpp"
+#include "appmodel/EthStreamParameters.hpp"
+#include "confmodel/QueueWithId.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -93,7 +93,7 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 void
 NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
- auto mdal = mcfg->module<appdal::DataReader>(get_name());
+ auto mdal = mcfg->module<appmodel::DataReader>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
@@ -102,7 +102,7 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  }
 
  for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<coredal::QueueWithId>();
+  auto queue = con->cast<confmodel::QueueWithId>();
   if(queue == nullptr) {
 	  auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
 	  ers::fatal(err);
@@ -131,8 +131,8 @@ NICReceiver::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = m_cfg->module<appdal::DataReader>(get_name());
-  auto module_conf = mdal->get_configuration()->cast<appdal::NICReceiverConf>();
+  auto mdal = m_cfg->module<appmodel::DataReader>(get_name());
+  auto module_conf = mdal->get_configuration()->cast<appmodel::NICReceiverConf>();
   auto res_set = mdal->get_interfaces();
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
@@ -143,7 +143,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
   std::string first_pcie_addr;
   bool is_first_pcie_addr = true;
   for (auto res : res_set) {
-    auto interface = res->cast<appdal::NICInterface>();
+    auto interface = res->cast<appmodel::NICInterface>();
     if (interface == nullptr) {
       dunedaq::readoutlibs::GenericConfigurationError err(
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
@@ -182,7 +182,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
   }
 
   for (auto res : res_set) {
-    auto interface = res->cast<appdal::NICInterface>();
+    auto interface = res->cast<appmodel::NICInterface>();
     if (interface == nullptr) {
       dunedaq::readoutlibs::GenericConfigurationError err(
           ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
