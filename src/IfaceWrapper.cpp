@@ -22,13 +22,13 @@
 #include "IfaceWrapper.hpp"
 
 #include "appfwk/ConfigurationManager.hpp"
-#include "coredal/DROStreamConf.hpp"
-#include "coredal/StreamParameters.hpp"
-#include "coredal/GeoId.hpp"
-#include "appdal/NICInterface.hpp"
-#include "appdal/NICInterfaceConfiguration.hpp"
-#include "appdal/NICStatsConf.hpp"
-#include "appdal/EthStreamParameters.hpp"
+#include "confmodel/DROStreamConf.hpp"
+#include "confmodel/StreamParameters.hpp"
+#include "confmodel/GeoId.hpp"
+#include "appmodel/NICInterface.hpp"
+#include "appmodel/NICInterfaceConfiguration.hpp"
+#include "appmodel/NICStatsConf.hpp"
+#include "appmodel/EthStreamParameters.hpp"
 
 #include <chrono>
 #include <memory>
@@ -47,7 +47,7 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
+IfaceWrapper::IfaceWrapper(const appmodel::NICInterface *iface_cfg, source_to_sink_map_t& sources, std::atomic<bool>& run_marker)
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
@@ -83,7 +83,7 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
   auto res_set = iface_cfg->get_contains();
   for (const auto res : res_set) {
     
-    auto stream = res->cast<coredal::DROStreamConf>();
+    auto stream = res->cast<confmodel::DROStreamConf>();
     if (stream == nullptr) {
       dunedaq::readoutlibs::GenericConfigurationError err(
         ERS_HERE, std::string("NICInterface contains resources other than DROStreamConf!"));
@@ -93,7 +93,7 @@ IfaceWrapper::IfaceWrapper(const appdal::NICInterface *iface_cfg, source_to_sink
       TLOG() << "Sink for source_id "<< stream->get_source_id() << " not initialized!";
 	    continue;
     }
-    auto stream_params = stream->get_stream_params()->cast<appdal::EthStreamParameters>();
+    auto stream_params = stream->get_stream_params()->cast<appmodel::EthStreamParameters>();
 
     auto src_ip = stream_params->get_tx_ip();
     auto rx_q = stream_params->get_rx_queue();
