@@ -167,7 +167,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
       );
     }
 
-    auto nic_interface = receiver->get_uses();
+    auto nic_interface = receiver->get_uses()->cast<confmodel::NetworkDevice>();
 
     if (is_first_pcie_addr) {
       first_pcie_addr = nic_interface->get_pcie_addr();
@@ -216,7 +216,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
       nw_senders.push_back(nw_sender);
     }
 
-    auto nic_interface = dpdk_receiver->get_uses();
+    auto nic_interface = dpdk_receiver->get_uses()->cast<appmodel::NICInterface>();
     
     if ((m_mac_to_id_map.count(nic_interface->get_mac_address()) == 0) || (m_pci_to_id_map.count(nic_interface->get_pcie_addr()) == 0)) {
         TLOG() << "No available interface with MAC=" << nic_interface->get_mac_address();

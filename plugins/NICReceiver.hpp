@@ -76,8 +76,8 @@ private:
   std::map<uint16_t, std::unique_ptr<IfaceWrapper>> m_ifaces;
 
   // Sinks (SourceConcepts)
-  using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
-  source_to_sink_map_t m_sources;
+  using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  sid_to_source_map_t m_sources;
 
 };
 

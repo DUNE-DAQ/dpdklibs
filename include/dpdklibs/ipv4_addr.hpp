@@ -16,12 +16,12 @@ namespace dunedaq::dpdklibs {
       std::istringstream f(ip_address);
       std::string s;    
       while (getline(f, s, '.')) {
-	//std::cout << s << std::endl;
-	bytes.push_back(std::stoi(s));
+        //std::cout << s << std::endl;
+        bytes.push_back(std::stoi(s));
       }
       
-      for (int i = 0; i < bytes.size(); ++i) {
-	addr_bytes[i] = bytes[i];
+      for (size_t i = 0; i < bytes.size(); ++i) {
+        addr_bytes[i] = bytes[i];
       }
     }
 
