@@ -238,33 +238,6 @@ NICReceiver::do_configure(const data_t& /*args*/)
 
   }
 
-  // for (auto res : res_set) {
-  //   auto connection = res->cast<appmodel::NICconnection>();
-  //   if (connection == nullptr) {
-  //     dunedaq::readoutlibs::GenericConfigurationError err(
-  //         ERS_HERE, "NICReceiver configuration failed due expected but unavailable connection!");
-  //     ers::fatal(err);
-  //     throw err;      
-  //   }
-  //       if (connection->disabled(*(m_cfg->configuration_manager()->session()))) {
-  //           continue;
-  //   }
-
-  //   if ((m_mac_to_id_map.count(connection->get_rx_mac()) != 0) && (m_pci_to_id_map.count(connection->get_rx_pcie_addr()) != 0)) {
-  //      m_mac_to_id_map[connection->get_rx_mac()] = connection->get_rx_iface(); 
-      //  m_ifaces[connection->get_rx_iface()] = std::make_unique<IfaceWrapper>(connection, m_sources, m_run_marker); 
-  //      //m_ifaces[connection->get_rx_iface()] = conf(iface_cfg);
-  //      m_ifaces[connection->get_rx_iface()]->allocate_mbufs();
-  //      m_ifaces[connection->get_rx_iface()]->setup_connection();
-  //      m_ifaces[connection->get_rx_iface()]->setup_flow_steering();
-  //      m_ifaces[connection->get_rx_iface()]->setup_xstats();
-  //   } else {
-  //      TLOG() << "No available interface with MAC=" << interface->get_rx_mac();
-  //      throw dunedaq::readoutlibs::InitializationError(
-  //         ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
-  //   }
-  // }
-
   if (!m_run_marker.load()) {
     set_running(true);
     TLOG() << "Starting iface wrappers.";
