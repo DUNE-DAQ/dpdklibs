@@ -93,7 +93,6 @@ private:
   std::set<std::string> m_ips;
   std::set<int> m_rx_qs;
   std::set<int> m_tx_qs;
-  // std::set<int> m_lcores;
 
   // CPU core ID -> [queue -> ip]
   std::map<int, std::map<int, std::string>> m_rx_core_map;
