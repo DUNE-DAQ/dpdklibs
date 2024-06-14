@@ -1,5 +1,5 @@
 /**
- * @file NICReceiver.hpp Generic NIC receiver DAQ Module over DPDK.
+ * @file DPDKReader.hpp Generic NIC receiver DAQ Module over DPDK.
  *
  * This is part of the DUNE DAQ , copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
@@ -35,20 +35,20 @@
 
 namespace dunedaq::dpdklibs {
 
-class NICReceiver : public dunedaq::appfwk::DAQModule
+class DPDKReader : public dunedaq::appfwk::DAQModule
 {
 public:
   /**
-   * @brief NICReceiver Constructor
-   * @param name Instance name for this NICReceiver instance
+   * @brief DPDKReader Constructor
+   * @param name Instance name for this DPDKReader instance
    */
-  explicit NICReceiver(const std::string& name);
-  ~NICReceiver();
+  explicit DPDKReader(const std::string& name);
+  ~DPDKReader();
 
-  NICReceiver(const NICReceiver&) = delete;            ///< NICReceiver is not copy-constructible
-  NICReceiver& operator=(const NICReceiver&) = delete; ///< NICReceiver is not copy-assignable
-  NICReceiver(NICReceiver&&) = delete;                 ///< NICReceiver is not move-constructible
-  NICReceiver& operator=(NICReceiver&&) = delete;      ///< NICReceiver is not move-assignable
+  DPDKReader(const DPDKReader&) = delete;            ///< DPDKReader is not copy-constructible
+  DPDKReader& operator=(const DPDKReader&) = delete; ///< DPDKReader is not copy-assignable
+  DPDKReader(DPDKReader&&) = delete;                 ///< DPDKReader is not move-constructible
+  DPDKReader& operator=(DPDKReader&&) = delete;      ///< DPDKReader is not move-assignable
 
   void init(const std::shared_ptr<appfwk::ModuleConfiguration> mfcg) override;
 
