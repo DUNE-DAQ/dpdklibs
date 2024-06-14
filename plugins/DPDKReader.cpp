@@ -1,5 +1,5 @@
 /**
- * @file NICReceiver.cpp NICReceiver DAQModule implementation
+ * @file DPDKReader.cpp DPDKReader DAQModule implementation
  *
  * This is part of the DUNE DAQ Application Framework, copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
@@ -12,13 +12,13 @@
 
 #include "confmodel/DetectorToDaqConnection.hpp"
 
-#include "appmodel/DataReader.hpp"
-#include "appmodel/NICReceiverConf.hpp"
+#include "appmodel/DataReceiverModule.hpp"
+#include "appmodel/DPDKReaderConf.hpp"
 #include "appmodel/NICInterface.hpp"
 // #include "appmodel/NICInterfaceConfiguration.hpp"
 // #include "appmodel/NICStatsConf.hpp"
 // #include "appmodel/EthStreamParameters.hpp"
-#include "confmodel/QueueWithId.hpp"
+#include "confmodel/QueueWithSourceId.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -32,7 +32,7 @@
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
-#include "NICReceiver.hpp"
+#include "DPDKReader.hpp"
 
 #include "opmonlib/InfoCollector.hpp"
 
@@ -49,7 +49,7 @@
 /**
  * @brief Name used by TRACE TLOG calls from this source file
  */
-#define TRACE_NAME "NICReceiver" // NOLINT
+#define TRACE_NAME "DPDKReader" // NOLINT
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -64,17 +64,17 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-NICReceiver::NICReceiver(const std::string& name)
+DPDKReader::DPDKReader(const std::string& name)
   : DAQModule(name),
     m_run_marker{ false }
 {
-  register_command("conf", &NICReceiver::do_configure);
-  register_command("start", &NICReceiver::do_start);
-  register_command("stop_trigger_sources", &NICReceiver::do_stop);
-  register_command("scrap", &NICReceiver::do_scrap);
+  register_command("conf", &DPDKReader::do_configure);
+  register_command("start", &DPDKReader::do_start);
+  register_command("stop_trigger_sources", &DPDKReader::do_stop);
+  register_command("scrap", &DPDKReader::do_scrap);
 }
 
-NICReceiver::~NICReceiver()
+DPDKReader::~DPDKReader()
 {
   TLOG() << get_name() << ": Destructor called. Tearing down EAL.";
   ealutils::finish_eal();
@@ -92,9 +92,9 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
+DPDKReader::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
- auto mdal = mcfg->module<appmodel::DataReader>(get_name());
+ auto mdal = mcfg->module<appmodel::DataReceiverModule>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
@@ -103,7 +103,7 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  }
 
  for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<confmodel::QueueWithId>();
+  auto queue = con->cast<confmodel::QueueWithSourceId>();
   if(queue == nullptr) {
 	  auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
 	  ers::fatal(err);
@@ -128,12 +128,12 @@ NICReceiver::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 }
 
 void
-NICReceiver::do_configure(const data_t& /*args*/)
+DPDKReader::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = m_cfg->module<appmodel::DataReader>(get_name());
-  auto module_conf = mdal->get_configuration()->cast<appmodel::NICReceiverConf>();
+  auto mdal = m_cfg->module<appmodel::DataReceiverModule>(get_name());
+  auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
@@ -221,7 +221,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
     if ((m_mac_to_id_map.count(nic_interface->get_mac_address()) == 0) || (m_pci_to_id_map.count(nic_interface->get_pcie_addr()) == 0)) {
         TLOG() << "No available interface with MAC=" << nic_interface->get_mac_address();
         throw dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!"
+          ERS_HERE, "DPDKReader configuration failed due expected but unavailable interface!"
         );
     }
     
@@ -242,7 +242,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
   //   auto connection = res->cast<appmodel::NICconnection>();
   //   if (connection == nullptr) {
   //     dunedaq::readoutlibs::GenericConfigurationError err(
-  //         ERS_HERE, "NICReceiver configuration failed due expected but unavailable connection!");
+  //         ERS_HERE, "DPDKReader configuration failed due expected but unavailable connection!");
   //     ers::fatal(err);
   //     throw err;      
   //   }
@@ -261,7 +261,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
   //   } else {
   //      TLOG() << "No available interface with MAC=" << interface->get_rx_mac();
   //      throw dunedaq::readoutlibs::InitializationError(
-  //         ERS_HERE, "NICReceiver configuration failed due expected but unavailable interface!");
+  //         ERS_HERE, "DPDKReader configuration failed due expected but unavailable interface!");
   //   }
   // }
 
@@ -280,7 +280,7 @@ NICReceiver::do_configure(const data_t& /*args*/)
 }
 
 void
-NICReceiver::do_start(const data_t&)
+DPDKReader::do_start(const data_t&)
 {
 
   // Setup callbacks on all sourcemodels
@@ -294,7 +294,7 @@ NICReceiver::do_start(const data_t&)
 }
 
 void
-NICReceiver::do_stop(const data_t&)
+DPDKReader::do_stop(const data_t&)
 {
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->disable_flow();
@@ -303,7 +303,7 @@ NICReceiver::do_stop(const data_t&)
 
 
 void
-NICReceiver::do_scrap(const data_t&)
+DPDKReader::do_scrap(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
   if (m_run_marker.load()) {
@@ -321,7 +321,7 @@ NICReceiver::do_scrap(const data_t&)
 }
 
 void
-NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
+DPDKReader::get_info(opmonlib::InfoCollector& ci, int level)
 {
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->get_info(ci, level);
@@ -329,7 +329,7 @@ NICReceiver::get_info(opmonlib::InfoCollector& ci, int level)
 }
 
 void 
-NICReceiver::set_running(bool should_run)
+DPDKReader::set_running(bool should_run)
 {
   bool was_running = m_run_marker.exchange(should_run);
   TLOG_DEBUG(5) << "Active state was toggled from " << was_running << " to " << should_run;
@@ -338,4 +338,4 @@ NICReceiver::set_running(bool should_run)
 } // namespace dpdklibs
 } // namespace dunedaq
 
-DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::NICReceiver)
+DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::DPDKReader)

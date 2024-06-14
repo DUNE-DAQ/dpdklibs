@@ -103,9 +103,9 @@ Stream (1, 2, 3, 4)   : n.pkts 0 (tot. 23786829)
 ```
 ...since `dpdklibs_test_frame_transmitter` intentionally constructs the `detdataformats::DAQEthHeader` in its packets to have a `det_id` of 1, a `crate_id` of 2, a `slot_id` of 3, and a `stream_id` of 4.  
 
-## Configuring stats reporting from the `NICReceiver`
+## Configuring stats reporting from the `DPDKReader`
 
-The way packet statistics are reported from the `NICReceiver` is on a per-interface basis. An example JSON snippet which can control this reporting is as follows:
+The way packet statistics are reported from the `DPDKReader` is on a per-interface basis. An example JSON snippet which can control this reporting is as follows:
 ```
                 "ifaces": [
                     {
