@@ -23,7 +23,9 @@
 #include "SourceConcept.hpp"
 
 #include <confmodel/Session.hpp>
-#include <appmodel/NICInterface.hpp>
+// #include <appmodel/NICInterface.hpp>
+#include "appmodel/DPDKReceiver.hpp"
+#include "appmodel/NWDetDataSender.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -41,11 +43,9 @@ namespace dpdklibs {
 class IfaceWrapper
 {
 public:
-  //using iface_conf_t = dunedaq::dpdklibs::nicreader::Interface;
-  //using source_conf_t = dunedaq::dpdklibs::nicreader::Source;
   using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(const appmodel::NICInterface* interface, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
