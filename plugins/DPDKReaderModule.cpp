@@ -1,5 +1,5 @@
 /**
- * @file DPDKReader.cpp DPDKReader DAQModule implementation
+ * @file DPDKReaderModule.cpp DPDKReaderModule DAQModule implementation
  *
  * This is part of the DUNE DAQ Application Framework, copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
@@ -32,7 +32,7 @@
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
-#include "DPDKReader.hpp"
+#include "DPDKReaderModule.hpp"
 
 #include "opmonlib/InfoCollector.hpp"
 
@@ -49,7 +49,7 @@
 /**
  * @brief Name used by TRACE TLOG calls from this source file
  */
-#define TRACE_NAME "DPDKReader" // NOLINT
+#define TRACE_NAME "DPDKReaderModule" // NOLINT
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -64,17 +64,17 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-DPDKReader::DPDKReader(const std::string& name)
+DPDKReaderModule::DPDKReaderModule(const std::string& name)
   : DAQModule(name),
     m_run_marker{ false }
 {
-  register_command("conf", &DPDKReader::do_configure);
-  register_command("start", &DPDKReader::do_start);
-  register_command("stop_trigger_sources", &DPDKReader::do_stop);
-  register_command("scrap", &DPDKReader::do_scrap);
+  register_command("conf", &DPDKReaderModule::do_configure);
+  register_command("start", &DPDKReaderModule::do_start);
+  register_command("stop_trigger_sources", &DPDKReaderModule::do_stop);
+  register_command("scrap", &DPDKReaderModule::do_scrap);
 }
 
-DPDKReader::~DPDKReader()
+DPDKReaderModule::~DPDKReaderModule()
 {
   TLOG() << get_name() << ": Destructor called. Tearing down EAL.";
   ealutils::finish_eal();
@@ -92,7 +92,7 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-DPDKReader::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
+DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
  auto mdal = mcfg->module<appmodel::DataReceiverModule>(get_name());
  m_cfg = mcfg;
@@ -128,7 +128,7 @@ DPDKReader::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 }
 
 void
-DPDKReader::do_configure(const data_t& /*args*/)
+DPDKReaderModule::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
@@ -221,7 +221,7 @@ DPDKReader::do_configure(const data_t& /*args*/)
     if ((m_mac_to_id_map.count(nic_interface->get_mac_address()) == 0) || (m_pci_to_id_map.count(nic_interface->get_pcie_addr()) == 0)) {
         TLOG() << "No available interface with MAC=" << nic_interface->get_mac_address();
         throw dunedaq::readoutlibs::InitializationError(
-          ERS_HERE, "DPDKReader configuration failed due expected but unavailable interface!"
+          ERS_HERE, "DPDKReaderModule configuration failed due expected but unavailable interface!"
         );
     }
     
@@ -253,7 +253,7 @@ DPDKReader::do_configure(const data_t& /*args*/)
 }
 
 void
-DPDKReader::do_start(const data_t&)
+DPDKReaderModule::do_start(const data_t&)
 {
 
   // Setup callbacks on all sourcemodels
@@ -267,7 +267,7 @@ DPDKReader::do_start(const data_t&)
 }
 
 void
-DPDKReader::do_stop(const data_t&)
+DPDKReaderModule::do_stop(const data_t&)
 {
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->disable_flow();
@@ -276,7 +276,7 @@ DPDKReader::do_stop(const data_t&)
 
 
 void
-DPDKReader::do_scrap(const data_t&)
+DPDKReaderModule::do_scrap(const data_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
   if (m_run_marker.load()) {
@@ -294,7 +294,7 @@ DPDKReader::do_scrap(const data_t&)
 }
 
 void
-DPDKReader::get_info(opmonlib::InfoCollector& ci, int level)
+DPDKReaderModule::get_info(opmonlib::InfoCollector& ci, int level)
 {
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->get_info(ci, level);
@@ -302,7 +302,7 @@ DPDKReader::get_info(opmonlib::InfoCollector& ci, int level)
 }
 
 void 
-DPDKReader::set_running(bool should_run)
+DPDKReaderModule::set_running(bool should_run)
 {
   bool was_running = m_run_marker.exchange(should_run);
   TLOG_DEBUG(5) << "Active state was toggled from " << was_running << " to " << should_run;
@@ -311,4 +311,4 @@ DPDKReader::set_running(bool should_run)
 } // namespace dpdklibs
 } // namespace dunedaq
 
-DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::DPDKReader)
+DEFINE_DUNE_DAQ_MODULE(dunedaq::dpdklibs::DPDKReaderModule)
