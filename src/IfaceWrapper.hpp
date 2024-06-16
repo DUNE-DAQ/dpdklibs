@@ -10,7 +10,7 @@
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
 //#include "dpdklibs/nicreader/Structs.hpp"
-#include "appmodel/NICInterface.hpp"
+#include "confmodel/NetworkDevice.hpp"
 
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
@@ -23,7 +23,7 @@
 #include "SourceConcept.hpp"
 
 #include <confmodel/Session.hpp>
-// #include <appmodel/NICInterface.hpp>
+// #include <confmodel/NetworkDevice.hpp>
 #include "appmodel/DPDKReceiver.hpp"
 #include "appmodel/NWDetDataSender.hpp"
 

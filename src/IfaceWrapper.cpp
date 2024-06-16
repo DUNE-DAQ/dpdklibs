@@ -28,7 +28,7 @@
 #include "confmodel/DetectorStream.hpp"
 #include "confmodel/ProcessingResource.hpp"
 #include "appmodel/DPDKPortConfiguration.hpp"
-// #include "appmodel/NICInterface.hpp"
+// #include "confmodel/NetworkDevice.hpp"
 // #include "appmodel/NICInterfaceConfiguration.hpp"
 // #include "appmodel/NICStatsConf.hpp"
 // #include "appmodel/EthStreamParameters.hpp"

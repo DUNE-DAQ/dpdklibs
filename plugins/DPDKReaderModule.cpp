@@ -14,7 +14,7 @@
 
 #include "appmodel/DataReceiverModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
-#include "appmodel/NICInterface.hpp"
+#include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
 
 #include "logging/Logging.hpp"
