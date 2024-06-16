@@ -1,5 +1,5 @@
 /**
- * @file DPDKReader.hpp Generic NIC receiver DAQ Module over DPDK.
+ * @file DPDKReaderModule.hpp Generic NIC receiver DAQ Module over DPDK.
  *
  * This is part of the DUNE DAQ , copyright 2020.
  * Licensing/copyright details are in the COPYING file that you should have
@@ -35,20 +35,20 @@
 
 namespace dunedaq::dpdklibs {
 
-class DPDKReader : public dunedaq::appfwk::DAQModule
+class DPDKReaderModule : public dunedaq::appfwk::DAQModule
 {
 public:
   /**
-   * @brief DPDKReader Constructor
-   * @param name Instance name for this DPDKReader instance
+   * @brief DPDKReaderModule Constructor
+   * @param name Instance name for this DPDKReaderModule instance
    */
-  explicit DPDKReader(const std::string& name);
-  ~DPDKReader();
+  explicit DPDKReaderModule(const std::string& name);
+  ~DPDKReaderModule();
 
-  DPDKReader(const DPDKReader&) = delete;            ///< DPDKReader is not copy-constructible
-  DPDKReader& operator=(const DPDKReader&) = delete; ///< DPDKReader is not copy-assignable
-  DPDKReader(DPDKReader&&) = delete;                 ///< DPDKReader is not move-constructible
-  DPDKReader& operator=(DPDKReader&&) = delete;      ///< DPDKReader is not move-assignable
+  DPDKReaderModule(const DPDKReaderModule&) = delete;            ///< DPDKReaderModule is not copy-constructible
+  DPDKReaderModule& operator=(const DPDKReaderModule&) = delete; ///< DPDKReaderModule is not copy-assignable
+  DPDKReaderModule(DPDKReaderModule&&) = delete;                 ///< DPDKReaderModule is not move-constructible
+  DPDKReaderModule& operator=(DPDKReaderModule&&) = delete;      ///< DPDKReaderModule is not move-assignable
 
   void init(const std::shared_ptr<appfwk::ModuleConfiguration> mfcg) override;
 
@@ -76,8 +76,8 @@ private:
   std::map<uint16_t, std::unique_ptr<IfaceWrapper>> m_ifaces;
 
   // Sinks (SourceConcepts)
-  using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
-  source_to_sink_map_t m_sources;
+  using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  sid_to_source_map_t m_sources;
 
 };
 

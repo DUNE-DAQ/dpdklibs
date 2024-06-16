@@ -1,4 +1,4 @@
-# dpdklibs - DPDK UIO software and utilities 
+# dpdklibs - DPDK UIO software and utilities
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 
 # Setting up DPDK on NP04
@@ -91,7 +91,7 @@ There are a set of tests or example applications
 ## `dpdklibs_test_transmit_and_receive`
 If you're on a host which contains two dpdk-enabled interfaces, you can run `dpdklibs_test_transmit_and_receive`. This app will send packets out of one interface on the host and receive them on the other. It will also keep track of the # of packets sent and received per second, the total # of bytes sent and received per second, and the number of packets which are received as corrupted per second (hopefully zero). Each packet is literally an ethernet header + an IPv4 header + a UDP header + a `detdataformats::DAQEthHeader` + a payload of zeros. The default length of the payload is 9000 bytes, but you can adjust this via the `--payload` argument; e.g. `dpdklibs_test_transmit_and_receive --payload 0` would send packets with no payload. 
 
-##  `dpdklibs_test_frame_transmitter` / `dpdklibs_test_frame_receiver`
+## `dpdklibs_test_frame_transmitter` / `dpdklibs_test_frame_receiver`
 
 `dpdklibs_test_frame_transmitter` and `dpdklibs_test_frame_receiver` only individually require a host with a single dpdk-enabled interface. A very common idiom is to run `dpdklibs_test_frame_receiver` receiving packets on the interface of one host and to run `dpdklibs_test_frame_transmitter` sending packets on the interface of another host. 
 
@@ -103,9 +103,9 @@ Stream (1, 2, 3, 4)   : n.pkts 0 (tot. 23786829)
 ```
 ...since `dpdklibs_test_frame_transmitter` intentionally constructs the `detdataformats::DAQEthHeader` in its packets to have a `det_id` of 1, a `crate_id` of 2, a `slot_id` of 3, and a `stream_id` of 4.  
 
-## Configuring stats reporting from the `DPDKReader`
+## Configuring stats reporting from the `DPDKReaderModule`
 
-The way packet statistics are reported from the `DPDKReader` is on a per-interface basis. An example JSON snippet which can control this reporting is as follows:
+The way packet statistics are reported from the `DPDKReaderModule` is on a per-interface basis. An example JSON snippet which can control this reporting is as follows:
 ```
                 "ifaces": [
                     {
