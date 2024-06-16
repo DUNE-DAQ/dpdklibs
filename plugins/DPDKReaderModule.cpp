@@ -164,14 +164,14 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       );
     }
 
-    auto nic_interface = receiver->get_uses()->cast<confmodel::NetworkDevice>();
+    auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
 
     if (is_first_pcie_addr) {
-      first_pcie_addr = nic_interface->get_pcie_addr();
+      first_pcie_addr = net_device->get_pcie_addr();
       is_first_pcie_addr = false;
     }
     eal_params.push_back("-a");
-    eal_params.push_back(nic_interface->get_pcie_addr());
+    eal_params.push_back(net_device->get_pcie_addr());
   }
 
 
@@ -191,6 +191,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     std::string mac_addr_str = ifaceutils::get_iface_mac_str(ifc_id);
     std::string pci_addr_str = ifaceutils::get_iface_pci_str(ifc_id);
     m_mac_to_id_map[mac_addr_str] = ifc_id;
+    // TODO: remove
     m_pci_to_id_map[pci_addr_str] = ifc_id;
     TLOG() << "Available iface with MAC=" << mac_addr_str << " PCIe=" <<  pci_addr_str << " logical ID=" << ifc_id;
   }
@@ -213,21 +214,17 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       nw_senders.push_back(nw_sender);
     }
 
-    auto nic_interface = dpdk_receiver->get_uses()->cast<appmodel::NICInterface>();
+    auto net_device = dpdk_receiver->get_uses()->cast<confmodel::NetworkDevice>();
     
-    if ((m_mac_to_id_map.count(nic_interface->get_mac_address()) == 0) || (m_pci_to_id_map.count(nic_interface->get_pcie_addr()) == 0)) {
-        TLOG() << "No available interface with MAC=" << nic_interface->get_mac_address();
+    if ((m_mac_to_id_map.count(net_device->get_mac_address()) == 0) || (m_pci_to_id_map.count(net_device->get_pcie_addr()) == 0)) {
+        TLOG() << "No available interface with MAC=" << net_device->get_mac_address();
         throw dunedaq::readoutlibs::InitializationError(
           ERS_HERE, "DPDKReaderModule configuration failed due expected but unavailable interface!"
         );
     }
     
-    auto iface_id = nic_interface->get_iface();
-    auto mac_addr = nic_interface->get_mac_address();
-
-    m_mac_to_id_map[mac_addr] = iface_id;
-
-    m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(dpdk_receiver, nw_senders,  m_sources, m_run_marker); 
+    uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
+    m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders,  m_sources, m_run_marker); 
     m_ifaces[iface_id]->allocate_mbufs();
     m_ifaces[iface_id]->setup_interface();
     m_ifaces[iface_id]->setup_flow_steering();

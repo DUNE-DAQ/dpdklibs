@@ -53,6 +53,7 @@ namespace dpdklibs {
 
 //-----------------------------------------------------------------------------
 IfaceWrapper::IfaceWrapper(
+  uint iface_id,
   const appmodel::DPDKReceiver* receiver,
   const std::vector<const appmodel::NWDetDataSender*>& nw_senders,
   sid_to_source_map_t& sources,
@@ -61,11 +62,11 @@ IfaceWrapper::IfaceWrapper(
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
-  auto nic_interface = receiver->get_uses()->cast<appmodel::NICInterface>();
+  auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
 
-  m_iface_id = nic_interface->get_iface();
-  m_mac_addr = nic_interface->get_mac_address();
-  m_ip_addr = nic_interface->get_ip_address();
+  m_iface_id = iface_id;
+  m_mac_addr = net_device->get_mac_address();
+  m_ip_addr = net_device->get_ip_address();
   IpAddr ip_addr_struct(m_ip_addr);
   m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
       ip_addr_struct.addr_bytes[3],

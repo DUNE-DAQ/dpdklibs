@@ -45,7 +45,7 @@ class IfaceWrapper
 public:
   using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
