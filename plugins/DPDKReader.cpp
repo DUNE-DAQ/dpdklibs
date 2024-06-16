@@ -15,9 +15,6 @@
 #include "appmodel/DataReceiverModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
 #include "appmodel/NICInterface.hpp"
-// #include "appmodel/NICInterfaceConfiguration.hpp"
-// #include "appmodel/NICStatsConf.hpp"
-// #include "appmodel/EthStreamParameters.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
 
 #include "logging/Logging.hpp"
