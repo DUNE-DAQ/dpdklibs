@@ -14,6 +14,8 @@
 
 #include "appmodel/DataReceiverModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
+#include "appmodel/DPDKPortConfiguration.hpp"
+#include "confmodel/ProcessingResource.hpp"
 #include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
 
@@ -141,6 +143,11 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   // Construct the pcie devices allowed mask
   std::string first_pcie_addr;
   bool is_first_pcie_addr = true;
+  std::vector<uint16_t> rte_cores;
+
+  // FIXME: Hardcoding core 0 for GARP. Replace with better param.
+  rte_cores.push_back(0);
+
   std::vector<const confmodel::DetectorToDaqConnection*> d2d_conns;
   for (auto res : res_set) {
     auto connection = res->cast<confmodel::DetectorToDaqConnection>();
@@ -172,7 +179,14 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     }
     eal_params.push_back("-a");
     eal_params.push_back(net_device->get_pcie_addr());
+
+    for ( const auto* proc_res : receiver->get_configuration()->get_used_lcores() ) {
+      rte_cores.insert(rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
+    }
   }
+
+  eal_params.push_back("-l");
+  eal_params.push_back(fmt::format("{}", fmt::join(rte_cores,",")));
 
 
   // Use the first pcie device id as file prefix

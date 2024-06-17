@@ -9,6 +9,7 @@ import click
 N_STREAM = 128
 FRAME_SIZE = 7200
 FRAME_TS_GAP = 2048
+FRAME_TS_GAP = 2000
 
 def print_header(wib_frame,prefix="\t"):
     header = wib_frame.get_daqheader()
@@ -35,20 +36,34 @@ def dump_data(data):
 @click.command()
 @click.option('-d', '--dump', is_flag=True, default=False)
 @click.option('-c', '--count', type=int, default=None)
-def main(dump, count):
+@click.option('-p', '--port', type=int, default=None)
+@click.option('-g', '--gap', type=int, default=None)
+@click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde']), default='wib')
+def main(dump, count, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
-    s.bind(('0.0.0.0', 0x4444))
+    s.bind(('0.0.0.0', port))
+
     prev_stream = {}
     i=0
     dtstart = time.time()
     dtlast = dtstart
     sampling = 100000
+    match frame_type:
+        case 'wib':
+            frame_class = fddetdataformats.WIBEthFrame
+            port = port if not port is None else 0x4444
+            gap = gap if not gap is None else 2048
+        case 'tde':
+            frame_class = fddetdataformats.TDEEthFrame
+            port = port if not port is None else 54323
+            gap = gap if not gap is None else 2000
+            
     print('Starting receiver')
     while (count==None or i<count):
     # while i<10:
         data, address = s.recvfrom(20000)
-        wf = fddetdataformats.WIBEthFrame(data)
+        wf = frame_class(data)
         header = wf.get_daqheader()
 
 

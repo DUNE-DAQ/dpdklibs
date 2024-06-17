@@ -63,10 +63,12 @@ public:
   void setup_interface();
   void setup_flow_steering();
   void setup_xstats();
-
+  
   void enable_flow() { m_lcore_enable_flow.store(true);}
   void disable_flow() { m_lcore_enable_flow.store(false);}
   
+  const std::vector<uint16_t>& get_rte_cores() const { return m_rte_cores; }
+
 protected:
   //iface_conf_t m_cfg;
   int m_iface_id;
@@ -93,6 +95,7 @@ private:
   std::set<std::string> m_ips;
   std::set<int> m_rx_qs;
   std::set<int> m_tx_qs;
+  std::vector<uint16_t> m_rte_cores;
 
   // CPU core ID -> [queue -> ip]
   std::map<int, std::map<int, std::string>> m_rx_core_map;
