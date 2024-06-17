@@ -12,7 +12,7 @@
 
 #include "confmodel/DetectorToDaqConnection.hpp"
 
-#include "appmodel/DataReceiverModule.hpp"
+#include "appmodel/DataReaderModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
 #include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
@@ -91,7 +91,7 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 void
 DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
 {
- auto mdal = mcfg->module<appmodel::DataReceiverModule>(get_name());
+ auto mdal = mcfg->module<appmodel::DataReaderModule>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
 	auto err = dunedaq::readoutlibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
@@ -129,7 +129,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = m_cfg->module<appmodel::DataReceiverModule>(get_name());
+  auto mdal = m_cfg->module<appmodel::DataReaderModule>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
   // EAL setup
