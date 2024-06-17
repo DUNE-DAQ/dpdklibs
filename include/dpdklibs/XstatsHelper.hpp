@@ -26,7 +26,7 @@ namespace dunedaq::dpdklibs {
       rte_eth_xstats_reset(m_iface_id);
 
       // Get number of stats
-      m_len = rte_eth_xstats_get_names_by_id(m_iface_id, NULL, NULL, 0);
+      m_len = rte_eth_xstats_get_names_by_id(m_iface_id, NULL, 0, NULL);
       if (m_len < 0) {
         printf("Cannot get xstats count\n");
       }

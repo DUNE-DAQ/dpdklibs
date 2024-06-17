@@ -10,7 +10,7 @@
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
 //#include "dpdklibs/nicreader/Structs.hpp"
-#include "appmodel/NICInterface.hpp"
+#include "confmodel/NetworkDevice.hpp"
 
 #include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
@@ -23,7 +23,7 @@
 #include "SourceConcept.hpp"
 
 #include <confmodel/Session.hpp>
-// #include <appmodel/NICInterface.hpp>
+// #include <confmodel/NetworkDevice.hpp>
 #include "appmodel/DPDKReceiver.hpp"
 #include "appmodel/NWDetDataSender.hpp"
 
@@ -43,9 +43,9 @@ namespace dpdklibs {
 class IfaceWrapper
 {
 public:
-  using source_to_sink_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
 
-  IfaceWrapper(const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, source_to_sink_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
@@ -93,7 +93,8 @@ private:
   std::set<std::string> m_ips;
   std::set<int> m_rx_qs;
   std::set<int> m_tx_qs;
-  std::set<int> m_lcores;
+
+  // CPU core ID -> [queue -> ip]
   std::map<int, std::map<int, std::string>> m_rx_core_map;
 
   // Lcore stop signal
@@ -115,9 +116,10 @@ private:
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
 
-  // Source to sink map
-  std::map<int, std::map<int, int>> m_stream_to_source_id;
-  source_to_sink_map_t& m_sources;
+  // stream -> source id map indexed by queue id
+  // queue -> [stream_id -> sid]
+  std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
+  sid_to_source_map_t& m_sources;
 
   // Run marker
   std::atomic<bool>& m_run_marker;
@@ -130,7 +132,6 @@ private:
   std::atomic<uint64_t> m_garps_sent{0};
 
   // Lcore processor
-  //template<class T> 
   int rx_runner(void *arg __rte_unused);
 
   // What to do with every payload

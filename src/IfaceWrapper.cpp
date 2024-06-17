@@ -25,7 +25,10 @@
 // #include "confmodel/DROStreamConf.hpp"
 // #include "confmodel/StreamParameters.hpp"
 #include "confmodel/GeoId.hpp"
-// #include "appmodel/NICInterface.hpp"
+#include "confmodel/DetectorStream.hpp"
+#include "confmodel/ProcessingResource.hpp"
+#include "appmodel/DPDKPortConfiguration.hpp"
+// #include "confmodel/NetworkDevice.hpp"
 // #include "appmodel/NICInterfaceConfiguration.hpp"
 // #include "appmodel/NICStatsConf.hpp"
 // #include "appmodel/EthStreamParameters.hpp"
@@ -47,90 +50,106 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
+
+//-----------------------------------------------------------------------------
 IfaceWrapper::IfaceWrapper(
+  uint iface_id,
   const appmodel::DPDKReceiver* receiver,
-  const std::vector<const appmodel::NWDetDataSender*>& senders,
-  source_to_sink_map_t& sources,
+  const std::vector<const appmodel::NWDetDataSender*>& nw_senders,
+  sid_to_source_map_t& sources,
   std::atomic<bool>& run_marker
   )
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
-  //auto iface_cfg = appfwk::ConfigurationManager::get()->get_dal<NICInterface>(iface_name);	
-  // m_iface_id = iface_cfg->get_rx_iface();
-  // m_mac_addr = iface_cfg->get_rx_mac();
-  // m_ip_addr = iface_cfg->get_rx_ip();
-  // IpAddr ip_addr_struct(m_ip_addr);
-  // m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
-  //     ip_addr_struct.addr_bytes[3],
-  //     ip_addr_struct.addr_bytes[2],
-  //     ip_addr_struct.addr_bytes[1],
-  //     ip_addr_struct.addr_bytes[0]
-  // );
+  auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
 
-  // m_with_flow = iface_cfg->get_configuration()->get_flow_control();
-  // m_prom_mode = iface_cfg->get_configuration()->get_promiscuous_mode();;
-  // m_mtu = iface_cfg->get_configuration()->get_mtu();
-  // m_rx_ring_size = iface_cfg->get_configuration()->get_rx_ring_size();
-  // m_tx_ring_size = iface_cfg->get_configuration()->get_tx_ring_size();
-  // m_num_mbufs = iface_cfg->get_configuration()->get_num_bufs();
-  // m_burst_size = iface_cfg->get_configuration()->get_burst_size();
-  // m_mbuf_cache_size = iface_cfg->get_configuration()->get_mbuf_cache_size();
+  m_iface_id = iface_id;
+  m_mac_addr = net_device->get_mac_address();
+  m_ip_addr = net_device->get_ip_address();
+  IpAddr ip_addr_struct(m_ip_addr);
+  m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
+      ip_addr_struct.addr_bytes[3],
+      ip_addr_struct.addr_bytes[2],
+      ip_addr_struct.addr_bytes[1],
+      ip_addr_struct.addr_bytes[0]
+  );
 
-  // m_lcore_sleep_ns = iface_cfg->get_configuration()->get_lcore_sleep_us() * 1000;
-  // m_socket_id = rte_eth_dev_socket_id(m_iface_id);
+  auto iface_cfg = receiver->get_configuration();
 
-  // //m_iface_id_str = "iface-" + std::to_string(m_iface_id);
-  // m_iface_id_str = iface_cfg->UID();
+  m_with_flow = iface_cfg->get_flow_control();
+  m_prom_mode = iface_cfg->get_promiscuous_mode();;
+  m_mtu = iface_cfg->get_mtu();
+  m_rx_ring_size = iface_cfg->get_rx_ring_size();
+  m_tx_ring_size = iface_cfg->get_tx_ring_size();
+  m_num_mbufs = iface_cfg->get_num_bufs();
+  m_burst_size = iface_cfg->get_burst_size();
+  m_mbuf_cache_size = iface_cfg->get_mbuf_cache_size();
 
-  // // iterate through active streams
-  // //auto session = appfwk::ConfigurationManager()->session();
-  // auto res_set = iface_cfg->get_contains();
-  // for (const auto res : res_set) {
-    
-  //   auto stream = res->cast<confmodel::DROStreamConf>();
-  //   if (stream == nullptr) {
-  //     dunedaq::readoutlibs::GenericConfigurationError err(
-  //       ERS_HERE, std::string("NICInterface contains resources other than DROStreamConf!"));
-  //     throw err;
-  //   }
-  //   if(sources.find(stream->get_source_id()) == sources.end()) {
-  //     TLOG() << "Sink for source_id "<< stream->get_source_id() << " not initialized!";
-	//     continue;
-  //   }
-  //   auto stream_params = stream->get_stream_params()->cast<appmodel::EthStreamParameters>();
+  m_lcore_sleep_ns = iface_cfg->get_lcore_sleep_us() * 1000;
+  m_socket_id = rte_eth_dev_socket_id(m_iface_id);
 
-  //   auto src_ip = stream_params->get_tx_ip();
-  //   auto rx_q = stream_params->get_rx_queue();
-  //   auto lcore = stream_params->get_lcore();
-  //   m_ips.insert(src_ip);
-  //   m_rx_qs.insert(rx_q);
-  //   m_lcores.insert(lcore);
+  m_iface_id_str = iface_cfg->UID();
 
-  //   m_num_frames_rxq[rx_q] = { 0 };
-  //   m_num_bytes_rxq[rx_q] = { 0 };
 
-  //   m_rx_core_map[lcore][rx_q] = src_ip;
+  // Here is my list of cores
+  std::vector<uint16_t> rte_cores;
+  for( auto proc_res : iface_cfg->get_used_lcores()) {
+    rte_cores.insert(rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
+  }
 
-  //   auto stream_id = stream->get_geo_id()->get_stream_id();
+  // iterate through active streams
 
-  //   m_stream_to_source_id[rx_q][stream_id] = stream->get_source_id();
-  // }
+  // Create a map of sender ni (ip) to streams
+  std::map<std::string, std::map<uint, uint>> ip_to_stream_src_groups;
 
-  // // Log mapping
-  // for (auto const& [lcore, rx_qs] : m_rx_core_map) {
-  //   TLOG() << "Lcore=" << lcore << " handles: ";
-  //   for (auto const& [rx_q, src_ip] : rx_qs) {
-  //     TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
-  //   }
-  // }
+  for( auto nw_sender : nw_senders ) {
+    auto sender_ni = nw_sender->get_uses();
 
-  // // Adding single TX queue for ARP responses
-  // TLOG() << "Append TX_Q=0 for ARP responses.";
-  // m_tx_qs.insert(0);
+    std::string tx_ip = sender_ni->get_ip_address();
+
+    for ( auto res : nw_sender->get_contains() ) {
+
+      auto det_stream = res->cast<confmodel::DetectorStream>();
+      uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
+      ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
+
+    }
+
+  }
+
+  uint32_t core_idx(0), rx_q(0);
+  for( const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
+    m_ips.insert(tx_ip);
+    m_rx_qs.insert(rx_q);
+    m_num_frames_rxq[rx_q] = { 0 };
+    m_num_bytes_rxq[rx_q] = { 0 };
+
+    m_rx_core_map[rte_cores[core_idx]][rx_q] = tx_ip;
+    m_stream_id_to_source_id[rx_q] = strm_src;
+
+    ++rx_q;
+    if ( ++core_idx == rte_cores.size()) {
+      core_idx = 0;
+    }
+  }
+
+  // Log mapping
+  for (auto const& [lcore, rx_qs] : m_rx_core_map) {
+    TLOG() << "Lcore=" << lcore << " handles: ";
+    for (auto const& [rx_q, src_ip] : rx_qs) {
+      TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
+    }
+  }
+
+  // Adding single TX queue for ARP responses
+  TLOG() << "Append TX_Q=0 for ARP responses.";
+  m_tx_qs.insert(0);
 
 }
 
+
+//-----------------------------------------------------------------------------
 IfaceWrapper::~IfaceWrapper()
 {
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destructor called. First stop check, then closing iface.";
@@ -142,6 +161,8 @@ IfaceWrapper::~IfaceWrapper()
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
 }
 
+
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::allocate_mbufs() 
 {
@@ -164,6 +185,8 @@ IfaceWrapper::allocate_mbufs()
   rte_pktmbuf_alloc_bulk(m_garp_mbuf_pool.get(), m_garp_bufs[0], m_burst_size);
 }
 
+
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::setup_interface()
 {
@@ -179,6 +202,8 @@ IfaceWrapper::setup_interface()
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
 }
 
+
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::setup_flow_steering()
 {
@@ -217,6 +242,7 @@ IfaceWrapper::setup_flow_steering()
   return;
 }
 
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::setup_xstats() 
 {
@@ -225,6 +251,8 @@ IfaceWrapper::setup_xstats()
   m_iface_xstats.reset_counters();
 }
 
+
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::start()
 {
@@ -249,6 +277,7 @@ IfaceWrapper::start()
   }
 }
 
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::stop()
 {
@@ -269,6 +298,9 @@ IfaceWrapper::scrap()
   rte_flow_flush(m_iface_id, &error);
 }
 */
+
+
+//-----------------------------------------------------------------------------
 void 
 IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 {
@@ -321,6 +353,7 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
   }
 }
 
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::garp_func()
 {  
@@ -333,12 +366,13 @@ IfaceWrapper::garp_func()
   TLOG() << "GARP function joins.";
 }
 
+//-----------------------------------------------------------------------------
 void
 IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
 {  
   // Get DAQ Header and its StreamID
   auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  auto src_id = m_stream_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
+  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
 
   if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
     src_it->second->handle_payload(payload, size);
