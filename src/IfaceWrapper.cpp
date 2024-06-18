@@ -93,9 +93,8 @@ IfaceWrapper::IfaceWrapper(
 
 
   // Here is my list of cores
-  std::vector<uint16_t> rte_cores;
-  for( auto proc_res : iface_cfg->get_used_lcores()) {
-    rte_cores.insert(rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
+  for( const auto* proc_res : iface_cfg->get_used_lcores()) {
+    m_rte_cores.insert(m_rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
   }
 
   // iterate through active streams
@@ -125,11 +124,11 @@ IfaceWrapper::IfaceWrapper(
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
 
-    m_rx_core_map[rte_cores[core_idx]][rx_q] = tx_ip;
+    m_rx_core_map[m_rte_cores[core_idx]][rx_q] = tx_ip;
     m_stream_id_to_source_id[rx_q] = strm_src;
 
     ++rx_q;
-    if ( ++core_idx == rte_cores.size()) {
+    if ( ++core_idx == m_rte_cores.size()) {
       core_idx = 0;
     }
   }
