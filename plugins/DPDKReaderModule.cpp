@@ -120,9 +120,9 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
   if (words.front() == "cb") {
     callback_mode = true;
   }
-
   m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
   //m_sources[queue->get_source_id()]->init(); 
+  fmt::print("Created source {} {} -> {}\n",queue->get_source_id(), queue->UID(), (void*)m_sources[queue->get_source_id()].get());
  }
 }
 

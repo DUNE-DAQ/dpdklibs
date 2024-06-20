@@ -44,6 +44,7 @@ public:
  // virtual void get_info(opmonlib::InfoCollector& ci, int level) = 0;
 
   virtual bool handle_payload(char* message, std::size_t size) = 0;
+  virtual void get_info(opmonlib::InfoCollector& ci, int /*level*/) = 0;
 
   void set_sink_name(const std::string& sink_name) 
   { 

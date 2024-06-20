@@ -112,7 +112,7 @@ IfaceWrapper::IfaceWrapper(
       auto det_stream = res->cast<confmodel::DetectorStream>();
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
-
+      TLOG() << fmt::format("AAAAAAAA {} -> [{} -> {}]", tx_ip, tx_geo_stream_id, det_stream->get_source_id());
     }
 
   }
@@ -134,10 +134,19 @@ IfaceWrapper::IfaceWrapper(
   }
 
   // Log mapping
+  TLOG() << "--- Core to queue->ip mapping ---";
   for (auto const& [lcore, rx_qs] : m_rx_core_map) {
-    TLOG() << "Lcore=" << lcore << " handles: ";
+    TLOG() << fmt::format("Lcore={} handles:", lcore);
     for (auto const& [rx_q, src_ip] : rx_qs) {
-      TLOG() << " rx_q=" << rx_q << " src_ip=" << src_ip;
+      TLOG() << fmt::format(" rx_q={} src_ip={}", rx_q, src_ip);
+    }
+  }
+
+  TLOG() << "--- Queue to [stream_id -> sid] mapping";
+  for (auto const& [rx_q, strms] : m_stream_id_to_source_id) {
+    TLOG() << fmt::format("Queue : {}",rx_q);
+    for (auto const& [strm, srcid] : strms) {
+      TLOG() << fmt::format("  strm={} -> srcid={}", strm, srcid);
     }
   }
 
@@ -350,6 +359,13 @@ IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
 
     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
   }
+
+  for ( const auto& [src_id, src_obj] : m_sources ) {    
+    opmonlib::InfoCollector src_ci;
+    src_obj->get_info(src_ci, level);
+    ci.add(fmt::format("src_{}", src_id), src_ci);
+  }
+
 }
 
 //-----------------------------------------------------------------------------

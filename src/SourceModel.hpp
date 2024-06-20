@@ -90,12 +90,12 @@ public:
   
       if (m_callback_mode) {
         (*m_sink_callback)(std::move(target_payload));
+        ++m_processed_packets;
       } else {
         if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-          //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-          //  TLOG() << "Dropped data " << m_dropped_packets;
-          //}
           ++m_dropped_packets;
+        } else {
+          ++m_processed_packets;
         }
       }
 
@@ -108,9 +108,10 @@ public:
     return true;
   }
 
-  void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
+  void get_info(opmonlib::InfoCollector& ci, int /*level*/) override {
     nicreaderinfo::SourceStats ss;
     ss.dropped_frames = m_dropped_packets.load();
+    ss.processed_frames = m_processed_packets.load();
     ci.add(ss);
   }
 
@@ -127,6 +128,7 @@ private:
   sink_cb_t m_sink_callback;
 
   std::atomic<uint64_t> m_dropped_packets{0};
+  std::atomic<uint64_t> m_processed_packets{0};
 
 };
 

@@ -91,6 +91,7 @@ queue: s.record("QueueStats", [
 
     source: s.record("SourceStats",[
         s.field("dropped_frames", self.uint4, 0, doc="Dropped frames"),
+        s.field("processed_frames", self.uint4, 0, doc="Dropped frames"),
     ], doc="Source Statistics"),
 
 };
