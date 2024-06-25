@@ -6,7 +6,7 @@
  * received with this code.
  */
 #include "logging/Logging.hpp"
-#include "readoutlibs/ReadoutIssues.hpp"
+#include "datahandlinglibs/DataHandlingIssues.hpp"
 
 #include "dpdklibs/Issues.hpp"
 
@@ -231,7 +231,7 @@ IfaceWrapper::setup_flow_steering()
         TLOG() << "Flow can't be created for " << rxqid
          << " Error type: " << (unsigned)error.type
          << " Message: " << error.message;
-        ers::fatal(dunedaq::readoutlibs::InitializationError(
+        ers::fatal(dunedaq::datahandlinglibs::InitializationError(
           ERS_HERE, "Couldn't create Flow API rules!"));
         rte_exit(EXIT_FAILURE, "error in creating flow");
       }

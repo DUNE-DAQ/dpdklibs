@@ -9,7 +9,7 @@
 
 #include "detdataformats/DAQEthHeader.hpp"
 #include "logging/Logging.hpp"
-#include "readoutlibs/ReadoutIssues.hpp"
+#include "datahandlinglibs/DataHandlingIssues.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -174,7 +174,7 @@ add_file_contents_to_vector(const std::string& filename, std::vector<char>& buff
   packetfile.open(filename, std::ios::binary);
 
   if (!packetfile) {
-    throw ::dunedaq::readoutlibs::CannotOpenFile(ERS_HERE, filename);
+    throw ::dunedaq::datahandlinglibs::CannotOpenFile(ERS_HERE, filename);
   }
 
   while (packetfile.get(byte)) {

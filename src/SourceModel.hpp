@@ -15,8 +15,8 @@
 #include "iomanager/Sender.hpp"
 #include "logging/Logging.hpp"
 
-// #include "readoutlibs/utils/ReusableThread.hpp"
-#include "readoutlibs/DataMoveCallbackRegistry.hpp"
+// #include "datahandlinglibs/utils/ReusableThread.hpp"
+#include "datahandlinglibs/DataMoveCallbackRegistry.hpp"
 
 // #include <folly/ProducerConsumerQueue.h>
 // #include <nlohmann/json.hpp>
@@ -70,7 +70,7 @@ public:
         TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
       } else {
         // Getting DataMoveCBRegistry
-        auto dmcbr = readoutlibs::DataMoveCallbackRegistry::get();
+        auto dmcbr = datahandlinglibs::DataMoveCallbackRegistry::get();
         m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_name);
         m_callback_is_acquired = true;
       }
@@ -102,7 +102,7 @@ public:
     } else {
       TargetPayloadType target_payload;
       uint32_t bytes_copied = 0;
-      readoutlibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
+      datahandlinglibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     }
 
     return true;

@@ -9,15 +9,15 @@ import moo.otypes
 
 moo.otypes.load_types("dpdklibs/nicreader.jsonnet")
 
-moo.otypes.load_types("readoutlibs/sourceemulatorconfig.jsonnet")
-moo.otypes.load_types("readoutlibs/readoutconfig.jsonnet")
-moo.otypes.load_types("readoutlibs/recorderconfig.jsonnet")
+moo.otypes.load_types("datahandlinglibs/sourceemulatorconfig.jsonnet")
+moo.otypes.load_types("datahandlinglibs/readoutconfig.jsonnet")
+moo.otypes.load_types("datahandlinglibs/recorderconfig.jsonnet")
 
 # Import new types
 import dunedaq.dpdklibs.nicreader as nrc
-import dunedaq.readoutlibs.sourceemulatorconfig as sec
-import dunedaq.readoutlibs.readoutconfig as rconf
-import dunedaq.readoutlibs.recorderconfig as bfs
+import dunedaq.datahandlinglibs.sourceemulatorconfig as sec
+import dunedaq.datahandlinglibs.readoutconfig as rconf
+import dunedaq.datahandlinglibs.recorderconfig as bfs
 
 from daqconf.core.app import App, ModuleGraph
 from daqconf.core.daqmodule import DAQModule
@@ -83,7 +83,7 @@ def generate_dpdk_reader_app(
             queues += [Queue(f"datahandler_{idx}.tp_out",f"sw_tp_handler_{idx}.raw_input",f"sw_tp_link_{idx}",100000 )]                
 
         modules += [DAQModule(name=f"datahandler_{source_id}", plugin="DataLinkHandler", conf=rconf.Conf(
-                    readoutmodelconf=rconf.ReadoutModelConf(
+                    readoutmodelconf=rconf.DataHandlingModelConf(
                         source_queue_timeout_ms=QUEUE_POP_WAIT_MS,
                         fake_trigger_flag=1,
                         # source_id =link.dro_source_id,
