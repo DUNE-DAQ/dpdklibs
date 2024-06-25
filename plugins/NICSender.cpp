@@ -29,7 +29,7 @@
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "fddetdataformats/TDE16Frame.hpp"
 
-#include "readoutlibs/utils/RateLimiter.hpp"
+#include "datahandlinglibs/utils/RateLimiter.hpp"
 
 /**
  * @brief Name used by TRACE TLOG calls from this source file
@@ -197,7 +197,7 @@ int lcore_main(void *arg)
   struct rte_mbuf **pkt = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, pkt, m_burst_size);
 
-  readoutlibs::RateLimiter rl(1.0 / 2.290);
+  datahandlinglibs::RateLimiter rl(1.0 / 2.290);
 
   std::random_device rd;
   std::default_random_engine rng(rd());
