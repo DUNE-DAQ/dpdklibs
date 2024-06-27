@@ -82,7 +82,7 @@ def generate_dpdk_reader_app(
         if ENABLE_SOFTWARE_TPG:
             queues += [Queue(f"datahandler_{idx}.tp_out",f"sw_tp_handler_{idx}.raw_input",f"sw_tp_link_{idx}",100000 )]                
 
-        modules += [DAQModule(name=f"datahandler_{source_id}", plugin="DataLinkHandler", conf=rconf.Conf(
+        modules += [DAQModule(name=f"datahandler_{source_id}", plugin="RawDataHandler", conf=rconf.Conf(
                     readoutmodelconf=rconf.DataHandlingModelConf(
                         source_queue_timeout_ms=QUEUE_POP_WAIT_MS,
                         fake_trigger_flag=1,
