@@ -26,8 +26,6 @@
 #include <mutex>
 #include <string>
 
-#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
-
 
 namespace dunedaq::dpdklibs {
 
@@ -108,12 +106,13 @@ public:
     return true;
   }
 
-  void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
-    nicreaderinfo::SourceStats ss;
-    ss.dropped_frames = m_dropped_packets.load();
-    ci.add(ss);
-  }
-
+  #warning MISSING OPMON
+  // void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
+  //   nicreaderinfo::SourceStats ss;
+  //   ss.dropped_frames = m_dropped_packets.load();
+  //   ci.add(ss);
+  // }
+  
 private:
   // Sink internals
   std::string m_sink_id;

@@ -22,7 +22,6 @@
 #include "datahandlinglibs/utils/ReusableThread.hpp"
 
 //#include "dpdklibs/nicreader/Structs.hpp"
-//#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "IfaceWrapper.hpp"
 
@@ -61,7 +60,9 @@ private:
   void do_start(const data_t&);
   void do_stop(const data_t&);
   void do_scrap(const data_t&);
-  void get_info(opmonlib::InfoCollector& ci, int level);
+
+  #warning MISSING OPMON
+  //void get_info(opmonlib::InfoCollector& ci, int level);
 
   // Internals
   std::shared_ptr<appfwk::ModuleConfiguration> m_cfg;
