@@ -12,8 +12,6 @@
 //#include "dpdklibs/nicreader/Structs.hpp"
 #include "confmodel/NetworkDevice.hpp"
 
-#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
-
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -56,8 +54,9 @@ public:
   //void init();
   void start();
   void stop();
-  
-  void get_info(opmonlib::InfoCollector& ci, int level);
+
+  #warning MISSING OPMON
+  //  void get_info(opmonlib::InfoCollector& ci, int level);
 
   void allocate_mbufs();
   void setup_interface();

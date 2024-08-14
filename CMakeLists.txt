@@ -23,7 +23,6 @@ find_package(Boost COMPONENTS unit_test_framework REQUIRED)
 find_package(fmt REQUIRED)
 
 daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
-daq_codegen( *info.jsonnet DEP_PKGS opmonlib TEMPLATES opmonlib/InfoStructs.hpp.j2 opmonlib/InfoNljs.hpp.j2 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 

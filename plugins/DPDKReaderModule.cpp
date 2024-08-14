@@ -29,11 +29,8 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
-#include "dpdklibs/receiverinfo/InfoNljs.hpp"
 #include "CreateSource.hpp"
 #include "DPDKReaderModule.hpp"
-
-#include "opmonlib/InfoCollector.hpp"
 
 #include <cinttypes>
 #include <chrono>
@@ -301,13 +298,13 @@ DPDKReaderModule::do_scrap(const data_t&)
   }
 }
 
-void
-DPDKReaderModule::get_info(opmonlib::InfoCollector& ci, int level)
-{
-  for (auto& [iface_id, iface] : m_ifaces) {
-    iface->get_info(ci, level);
-  } 
-}
+// void
+// DPDKReaderModule::get_info(opmonlib::InfoCollector& ci, int level)
+// {
+//   for (auto& [iface_id, iface] : m_ifaces) {
+//     iface->get_info(ci, level);
+//   } 
+// }
 
 void 
 DPDKReaderModule::set_running(bool should_run)

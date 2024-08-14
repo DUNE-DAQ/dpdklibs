@@ -11,7 +11,6 @@
 #include "dpdklibs/Issues.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
-#include "dpdklibs/nicreaderinfo/InfoNljs.hpp"
 
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
@@ -300,57 +299,57 @@ IfaceWrapper::scrap()
 
 
 //-----------------------------------------------------------------------------
-void 
-IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
-{
+// void 
+// IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
+// {
 
-  nicreaderinfo::EthStats s;
-  s.ipackets = m_iface_xstats.m_eth_stats.ipackets;
-  s.opackets = m_iface_xstats.m_eth_stats.opackets;
-  s.ibytes = m_iface_xstats.m_eth_stats.ibytes;
-  s.obytes = m_iface_xstats.m_eth_stats.obytes;
-  s.imissed = m_iface_xstats.m_eth_stats.imissed;
-  s.ierrors = m_iface_xstats.m_eth_stats.ierrors;
-  s.oerrors = m_iface_xstats.m_eth_stats.oerrors;
-  s.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
-  ci.add(s);
+//   nicreaderinfo::EthStats s;
+//   s.ipackets = m_iface_xstats.m_eth_stats.ipackets;
+//   s.opackets = m_iface_xstats.m_eth_stats.opackets;
+//   s.ibytes = m_iface_xstats.m_eth_stats.ibytes;
+//   s.obytes = m_iface_xstats.m_eth_stats.obytes;
+//   s.imissed = m_iface_xstats.m_eth_stats.imissed;
+//   s.ierrors = m_iface_xstats.m_eth_stats.ierrors;
+//   s.oerrors = m_iface_xstats.m_eth_stats.oerrors;
+//   s.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
+//   ci.add(s);
 
-  // Empty stat JSON placeholder
-  nlohmann::json stat_json;
+//   // Empty stat JSON placeholder
+//   nlohmann::json stat_json;
 
-  // Poll stats from HW
-  m_iface_xstats.poll();
+//   // Poll stats from HW
+//   m_iface_xstats.poll();
 
-  // Build JSON from values 
-  for (int i = 0; i < m_iface_xstats.m_len; ++i) {
-    stat_json[m_iface_xstats.m_xstats_names[i].name] = m_iface_xstats.m_xstats_values[i];
-  }
+//   // Build JSON from values 
+//   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
+//     stat_json[m_iface_xstats.m_xstats_names[i].name] = m_iface_xstats.m_xstats_values[i];
+//   }
 
-  // Reset HW counters
-  m_iface_xstats.reset_counters();
+//   // Reset HW counters
+//   m_iface_xstats.reset_counters();
 
-  // Convert JSON to NICReaderInfo struct
-  nicreaderinfo::EthXStats xs;
-  nicreaderinfo::from_json(stat_json, xs);
+//   // Convert JSON to NICReaderInfo struct
+//   nicreaderinfo::EthXStats xs;
+//   nicreaderinfo::from_json(stat_json, xs);
 
-  // Push to InfoCollector
-  ci.add(xs);
-  TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
-    << " -> Result looks like the following:\n" << ci.get_collected_infos();
+//   // Push to InfoCollector
+//   ci.add(xs);
+//   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
+//     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
-  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
-    nicreaderinfo::QueueStats qs;
-    qs.packets_received = m_num_frames_rxq[src_rx_q].load();
-    qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
-    qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
-    qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
+//   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+//     nicreaderinfo::QueueStats qs;
+//     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
+//     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
+//     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
+//     qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
 
-    opmonlib::InfoCollector queue_ci;
-    queue_ci.add(qs);
+//     opmonlib::InfoCollector queue_ci;
+//     queue_ci.add(qs);
 
-    ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
-  }
-}
+//     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
+//   }
+// }
 
 //-----------------------------------------------------------------------------
 void
