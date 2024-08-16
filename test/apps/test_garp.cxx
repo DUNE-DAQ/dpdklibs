@@ -21,6 +21,16 @@
 #include <fstream>
 #include <csignal>
 
+
+#include "CLI/App.hpp"
+#include "CLI/Config.hpp"
+#include "CLI/Formatter.hpp"
+
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
+#include <regex>
+
 using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
@@ -38,18 +48,16 @@ namespace {
 } // namespace ""
 
 static int
-lcore_main(struct rte_mempool *mbuf_pool)
+lcore_main(struct rte_mempool *mbuf_pool, const std::vector<std::string>& ip_addr_strs)
 {
   uint16_t iface = 0;
   TLOG() << "Launch lcore for interface: " << iface;
 
   // IP for ARP
-  std::string ip_addr_str{"10.73.139.26"};
-
-  std::vector<std::string> ip_addr_strs = {
-    "10.73.139.26",
-    "10.73.139.27"
-  }
+  // std::vector<std::string> ip_addr_strs = {
+  //   "10.73.139.26",
+  //   "10.73.139.27"
+  // };
 
   std::vector<rte_be32_t> ip_addr_bin_vector;
   for( const auto& ip_addr_str : ip_addr_strs ) {
@@ -67,13 +75,13 @@ lcore_main(struct rte_mempool *mbuf_pool)
   struct rte_mbuf **tx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, tx_bufs, burst_size);
 
-  auto stats = std::thread([&]() {
+  auto garp = std::thread([&]() {
     while (true) {
       TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets;
       num_packets.exchange(0);
       num_bytes.exchange(0);
 
-      for(const auto& ip_addr_bin_vector : ip_addr_bin ) {
+      for(const auto& ip_addr_bin : ip_addr_bin_vector ) {
         arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
         ++garps_sent;
       }
@@ -130,17 +138,57 @@ lcore_main(struct rte_mempool *mbuf_pool)
 int
 main(int argc, char* argv[])
 {  
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0) {
-    rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+
+  std::vector<std::string> ip_addresses;
+  std::vector<std::string> pcie_addresses;
+
+  CLI::App app{"test_garp"};
+  app.add_option("-i", ip_addresses, "IP Addresses");
+  app.add_option("-p", pcie_addresses, "PCIE Addresses");
+  CLI11_PARSE(app, argc, argv);
+
+  fmt::print("ips   : {}\n", fmt::join(ip_addresses," | "));
+  fmt::print("pcies   : {}\n", fmt::join(pcie_addresses," | "));
+
+  std::regex re_ipv4("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}");
+  std::regex re_pcie("^0{0,4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}.[0-9]$");
+  
+  fmt::print("IP addresses\n");
+  bool all_ip_ok = true;
+  for( const auto& ip: ip_addresses) {
+    bool ip_ok = std::regex_match(ip, re_ipv4);
+    fmt::print("- {} {}\n", ip, ip_ok);
+    all_ip_ok &= ip_ok;
   }
+
+  fmt::print("PCIE addresses\n");
+  bool all_pcie_ok = true;
+  for( const auto& pcie: pcie_addresses) {
+    bool pcie_ok = std::regex_match(pcie, re_pcie);
+    fmt::print("- {} {}\n", pcie, pcie_ok);
+    all_pcie_ok &= pcie_ok;
+  }
+
+  if (!all_ip_ok or !all_pcie_ok) {
+    return -1;
+  }
+
+  std::vector<std::string> eal_args;
+  eal_args.push_back("dpdklibds_test_garp");
+  for( const auto& pcie: pcie_addresses) {
+    eal_args.push_back("-a");
+    eal_args.push_back(pcie);
+  }
+
+
+  dunedaq::dpdklibs::ealutils::init_eal(eal_args);
 
   // Iface ID and its queue numbers
   int iface_id = 0;
   const uint16_t rx_qs = 1;
   const uint16_t tx_qs = 1;
-  const uint16_t rx_ring_size = 1024;
-  const uint16_t tx_ring_size = 1024;
+  const uint16_t rx_ring_size = 2048;
+  const uint16_t tx_ring_size = 2048;
   // Get pool
   std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
   TLOG() << "Allocating pool";
@@ -158,7 +206,7 @@ main(int argc, char* argv[])
   ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
 
   // Launch lcores
-  lcore_main(mbuf_pools[0].get());
+  lcore_main(mbuf_pools[0].get(), ip_addresses);
 
   // Cleanup
   TLOG() << "EAL cleanup...";

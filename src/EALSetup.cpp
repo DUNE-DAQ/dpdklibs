@@ -5,8 +5,8 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#ifndef DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
-#define DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
+// #ifndef DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
+// #define DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
 
 #include "logging/Logging.hpp"
 
@@ -57,7 +57,7 @@ std::string get_mac_addr_str(const rte_ether_addr& addr) {
   
 // Modifies Ethernet device configuration to multi-queue RSS with offload
 void
-iface_conf_rss_mode(struct rte_eth_conf& iface_conf, bool mode = false, bool offload = false)
+iface_conf_rss_mode(struct rte_eth_conf& iface_conf, bool mode, bool offload)
 {
   if (mode) {
     iface_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
@@ -71,7 +71,7 @@ iface_conf_rss_mode(struct rte_eth_conf& iface_conf, bool mode = false, bool off
 
 // Enables RX in promiscuous mode for the Ethernet device.
 int
-iface_promiscuous_mode(std::uint16_t iface, bool mode = false) 
+iface_promiscuous_mode(std::uint16_t iface, bool mode) 
 {
   int retval = -1;
   retval = rte_eth_promiscuous_get(iface);
@@ -332,5 +332,5 @@ void finish_eal() {
 } // namespace ealutils
 } // namespace dpdklibs
 } // namespace dunedaq
+// #endif // DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
 
-#endif // DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
