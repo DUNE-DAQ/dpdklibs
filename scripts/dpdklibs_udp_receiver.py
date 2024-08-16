@@ -36,13 +36,13 @@ def dump_data(data):
 @click.command()
 @click.option('-d', '--dump', is_flag=True, default=False)
 @click.option('-c', '--count', type=int, default=None)
-@click.option('-p', '--port', type=int, default=None)
+@click.option('-p', '--port', type=int, default=0x4444)
 @click.option('-g', '--gap', type=int, default=None)
 @click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde']), default='wib')
 def main(dump, count, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
-    s.bind(('0.0.0.0', port))
+    s.bind(('', port))
 
     prev_stream = {}
     i=0
