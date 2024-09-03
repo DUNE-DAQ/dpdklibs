@@ -338,18 +338,16 @@ IfaceWrapper::generate_opmon_data() {
 //   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
 //     << " -> Result looks like the following:\n" << ci.get_collected_infos();
 
-//   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
-//     nicreaderinfo::QueueStats qs;
-//     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
-//     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
-//     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
-//     qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
-
-//     opmonlib::InfoCollector queue_ci;
-//     queue_ci.add(qs);
-
-//     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
-//   }
+  
+  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+    opmon::QueueInfo i;
+    i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );
+    i.set_bytes_received( m_num_bytes_rxq[src_rx_q].load() );
+    i.set_full_rx_burst( m_num_full_bursts[src_rx_q].load() );
+    i.set_max_burst_size( m_max_burst_size[src_rx_q].exchange(0) );
+    
+    publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
+  }
 }
 
 //-----------------------------------------------------------------------------

@@ -13,3 +13,12 @@ message EthStats {
   uint64 oerrors  = 22;  // Output Errors
   uint64 rx_nombuf = 30; // Number of Rx mbuf allocation failures 
 }
+
+
+message QueueInfo {
+
+  uint64 packets_received = 1;
+  uint64 bytes_received   = 2;
+  uint64 full_rx_burst    = 3;
+  uint32 max_burst_size   = 4;
+}
