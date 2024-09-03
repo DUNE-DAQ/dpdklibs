@@ -63,9 +63,6 @@ private:
   void do_stop(const data_t&);
   void do_scrap(const data_t&);
 
-  #warning MISSING OPMON
-  //void get_info(opmonlib::InfoCollector& ci, int level);
-
   // Internals
   std::shared_ptr<appfwk::ModuleConfiguration> m_cfg;
   
