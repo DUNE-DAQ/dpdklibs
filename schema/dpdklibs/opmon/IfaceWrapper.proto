@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package dunedaq.dpdklibs.opmon;
+
+message EthStats {
+
+  uint64 ipackets = 1;   // Received packets
+  uint64 opackets = 2;   // Transmitted packets
+  uint64 ibytes   = 10;  // Received bytes
+  uint64 obytes   = 11;  // Transmitted bytes
+  uint64 imissed  = 20;  // Missed packets
+  uint64 ierrors  = 21;  // Received errors
+  uint64 oerrors  = 22;  // Output Errors
+  uint64 rx_nombuf = 30; // Number of Rx mbuf allocation failures 
+}

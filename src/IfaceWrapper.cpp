@@ -32,6 +32,8 @@
 // #include "appmodel/NICStatsConf.hpp"
 // #include "appmodel/EthStreamParameters.hpp"
 
+#include "dpdklibs/opmon/IfaceWrapper.pb.h"
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -299,20 +301,19 @@ IfaceWrapper::scrap()
 
 
 //-----------------------------------------------------------------------------
-// void 
-// IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
-// {
+void 
+IfaceWrapper::generate_opmon_data() {
 
-//   nicreaderinfo::EthStats s;
-//   s.ipackets = m_iface_xstats.m_eth_stats.ipackets;
-//   s.opackets = m_iface_xstats.m_eth_stats.opackets;
-//   s.ibytes = m_iface_xstats.m_eth_stats.ibytes;
-//   s.obytes = m_iface_xstats.m_eth_stats.obytes;
-//   s.imissed = m_iface_xstats.m_eth_stats.imissed;
-//   s.ierrors = m_iface_xstats.m_eth_stats.ierrors;
-//   s.oerrors = m_iface_xstats.m_eth_stats.oerrors;
-//   s.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
-//   ci.add(s);
+  opmon::EthStats s;
+  s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
+  s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
+  s.set_ibytes( m_iface_xstats.m_eth_stats.ibytes );
+  s.set_obytes( m_iface_xstats.m_eth_stats.obytes );
+  s.set_imissed( m_iface_xstats.m_eth_stats.imissed );
+  s.set_ierrors( m_iface_xstats.m_eth_stats.ierrors );
+  s.set_oerrors( m_iface_xstats.m_eth_stats.oerrors );
+  s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
+  publish( std::move(s) );
 
 //   // Empty stat JSON placeholder
 //   nlohmann::json stat_json;
@@ -349,7 +350,7 @@ IfaceWrapper::scrap()
 
 //     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
 //   }
-// }
+}
 
 //-----------------------------------------------------------------------------
 void
