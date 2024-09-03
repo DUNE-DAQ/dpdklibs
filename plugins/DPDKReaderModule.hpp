@@ -51,6 +51,8 @@ public:
 
   void init(const std::shared_ptr<appfwk::ModuleConfiguration> mfcg) override;
 
+
+  
 private:
   // Types
   //using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
@@ -74,12 +76,18 @@ private:
   // Interfaces (logical ID, MAC) -> IfaceWrapper
   std::map<std::string, uint16_t> m_mac_to_id_map;
   std::map<std::string, uint16_t> m_pci_to_id_map;
-  std::map<uint16_t, std::unique_ptr<IfaceWrapper>> m_ifaces;
+  std::map<uint16_t, std::shared_ptr<IfaceWrapper>> m_ifaces;
 
   // Sinks (SourceConcepts)
-  using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  using sid_to_source_map_t = std::map<int, std::shared_ptr<SourceConcept>>;
   sid_to_source_map_t m_sources;
 
+  // Comment of Monitoring
+  // Both SourceConcepts and IfaceWrappers are Monitorable Objecets
+  // Both quantities are available for the ReaderModule but to avoid loop registrations
+  //   we only register the Wrappers to the module and then SourceConcepts are registered by the Wrappers
+
+  
 };
 
 } // namespace dunedaq::dpdklibs

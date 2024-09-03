@@ -38,12 +38,14 @@
 namespace dunedaq {
 namespace dpdklibs {
 
-class IfaceWrapper
+  class IfaceWrapper : public opmonlib::MonitorableObject
 {
 public:
-  using sid_to_source_map_t = std::map<int, std::unique_ptr<SourceConcept>>;
+  using sid_to_source_map_t = std::map<int, std::shared_ptr<SourceConcept>>;
 
-  IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver, const std::vector<const appmodel::NWDetDataSender*>& senders, sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
+  IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver,
+	       const std::vector<const appmodel::NWDetDataSender*>& senders,
+	       sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
@@ -56,7 +58,6 @@ public:
   void stop();
 
   #warning MISSING OPMON
-  //  void get_info(opmonlib::InfoCollector& ci, int level);
 
   void allocate_mbufs();
   void setup_interface();

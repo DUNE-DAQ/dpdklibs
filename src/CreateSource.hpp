@@ -25,7 +25,7 @@ DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::TDEFrameTypeAdapter, "TDEFram
 
 namespace dpdklibs {
 
-std::unique_ptr<SourceConcept>
+std::shared_ptr<SourceConcept>
 createSourceModel(const std::string& conn_uid, bool callback_mode)
 {
   auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
@@ -39,7 +39,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
 
   if (raw_dt.find("WIBEthFrame") != std::string::npos) {
     // Create Model
-    auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>();
+    auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>();
 
     // For callback acquisition later (lazy)
     source_model->set_sink_name(conn_uid);
@@ -64,7 +64,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
 
   } else if (raw_dt.find("TDEFrame") != std::string::npos) {
     // WIB2 specific char arrays
-    auto source_model = std::make_unique<SourceModel<fdreadoutlibs::types::TDEFrameTypeAdapter>>();
+    auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::TDEFrameTypeAdapter>>();
     source_model->set_sink_name(conn_uid);
     source_model->set_sink(conn_uid, callback_mode);
     //auto& parser = source_model->get_parser();
