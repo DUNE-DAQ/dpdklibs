@@ -37,6 +37,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <regex>
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -315,30 +316,46 @@ IfaceWrapper::generate_opmon_data() {
   s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
   publish( std::move(s) );
 
-//   // Empty stat JSON placeholder
-//   nlohmann::json stat_json;
+  // Poll stats from HW
+  m_iface_xstats.poll();
 
-//   // Poll stats from HW
-//   m_iface_xstats.poll();
+  // loop over all the xstats information
+  opmon::EthXStats xs;
+  std::map<std::string, opmon::QueueEthXStats> xq;
+  for (int i = 0; i < m_iface_xstats.m_len; ++i) {
 
-//   // Build JSON from values 
-//   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
+    std::string name(m_iface_xstats.m_xstats_names[i].name);
+    
+    // first we select the info from the queue
+    static std::regex queue_regex("rx_q(\d+)_(packets|bytes)");
+    std::smatch match;
+    
+    if ( std::regex_match(name, match, queue_regex) ) {
+      auto & entry = xq[match[1]];
+      if ( match[2] == "packets" ) {
+	entry.set_rx_packets(m_iface_xstats.m_xstats_values[i]);
+      } else if ( match[2] == "bytes" ) {
+	entry.set_rx_bytes(m_iface_xstats.m_xstats_values[i]);
+      }
+      continue;
+    } 
+
+    // here we assume we put the info in the global EthXStats
+
+    // if none is availalbe we send a warning
+   
 //     stat_json[m_iface_xstats.m_xstats_names[i].name] = m_iface_xstats.m_xstats_values[i];
-//   }
+  }
 
-//   // Reset HW counters
-//   m_iface_xstats.reset_counters();
+  // Reset HW counters
+  m_iface_xstats.reset_counters();
 
-//   // Convert JSON to NICReaderInfo struct
-//   nicreaderinfo::EthXStats xs;
-//   nicreaderinfo::from_json(stat_json, xs);
-
-//   // Push to InfoCollector
-//   ci.add(xs);
-//   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
-//     << " -> Result looks like the following:\n" << ci.get_collected_infos();
-
-  
+  // finally we publish the information
+  publish( std::move(xs) );
+  for ( auto [id, stat] : xq ) {
+    publish( std::move(stat), {{"queue", id}} );
+  }
+ 
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     opmon::QueueInfo i;
     i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );

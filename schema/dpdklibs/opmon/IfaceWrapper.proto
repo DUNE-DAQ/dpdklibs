@@ -22,3 +22,19 @@ message QueueInfo {
   uint64 full_rx_burst    = 3;
   uint32 max_burst_size   = 4;
 }
+
+message QueueEthXStats {
+ 
+  uint64 rx_packets = 1;
+  uint64 rx_bytes   = 2;
+  
+}
+
+
+message EthXStats {
+
+  uint64 groups_sent = 1;
+  uint64 total_groups_sent = 2;
+  uint64 rx_good_packets   = 3;
+  uint64 rx_good_bytes     = 4;
+}
