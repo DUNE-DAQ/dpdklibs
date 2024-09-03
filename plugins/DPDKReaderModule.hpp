@@ -84,8 +84,8 @@ private:
 
   // Comment of Monitoring
   // Both SourceConcepts and IfaceWrappers are Monitorable Objecets
-  // Both quantities are available for the ReaderModule but to avoid loop registrations
-  //   we only register the Wrappers to the module and then SourceConcepts are registered by the Wrappers
+  // Both quantities are available for the ReaderModule and both are registered.
+  // There is no loop because the Sources passed to the Wrappers are not registered in the wrapper
 
   
 };
