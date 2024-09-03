@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package dunedaq.dpdklibs.opmon;
+
+message SourceInfo {
+
+  uint32 dropped_frames = 1;
+  
+}
