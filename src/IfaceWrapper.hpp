@@ -66,7 +66,6 @@ public:
   void start();
   void stop();
 
-  #warning MISSING OPMON
   void generate_opmon_data() override;
 
   void allocate_mbufs();

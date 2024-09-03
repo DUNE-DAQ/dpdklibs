@@ -328,7 +328,7 @@ IfaceWrapper::generate_opmon_data() {
     std::string name(m_iface_xstats.m_xstats_names[i].name);
     
     // first we select the info from the queue
-    static std::regex queue_regex("rx_q(\d+)_(packets|bytes)");
+    static std::regex queue_regex(R"(rx_q(\d+)_(packets|bytes))");
     std::smatch match;
     
     if ( std::regex_match(name, match, queue_regex) ) {
