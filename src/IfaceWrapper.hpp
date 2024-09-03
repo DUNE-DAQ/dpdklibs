@@ -27,6 +27,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <ers/ers.hpp>
+
 #include <memory>
 #include <sstream>
 #include <string>
@@ -36,6 +38,13 @@
 #include <folly/ProducerConsumerQueue.h>
 
 namespace dunedaq {
+
+  ERS_DECLARE_ISSUE( dpdklibs,
+		     MetricNotAvailable,
+		     "Field " << field << " not available in " << measurement,
+		     ((std::string)field)((std::string)measurement)
+		     )
+  
 namespace dpdklibs {
 
   class IfaceWrapper : public opmonlib::MonitorableObject

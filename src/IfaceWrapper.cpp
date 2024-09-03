@@ -322,6 +322,7 @@ IfaceWrapper::generate_opmon_data() {
   // loop over all the xstats information
   opmon::EthXStats xs;
   std::map<std::string, opmon::QueueEthXStats> xq;
+
   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
 
     std::string name(m_iface_xstats.m_xstats_names[i].name);
@@ -340,12 +341,24 @@ IfaceWrapper::generate_opmon_data() {
       continue;
     } 
 
+    const auto * descriptor_p = xs.GetDescriptor();
+    const auto & des = *descriptor_p;
+
     // here we assume we put the info in the global EthXStats
+    auto field_ptr = des.FindFieldByName(name);
+    if ( field_ptr ) {
+
+      const auto * reflection_p = xs.GetReflection();
+      const auto & ref = *reflection_p;
+
+      ref.SetUInt64( & xs, field_ptr, m_iface_xstats.m_xstats_values[i] );
+      continue;
+    }
 
     // if none is availalbe we send a warning
-   
-//     stat_json[m_iface_xstats.m_xstats_names[i].name] = m_iface_xstats.m_xstats_values[i];
-  }
+    ers::warning( MetricNotAvailable(ERS_HERE, name, xs.GetTypeName() ) );
+
+  } // loop over xstats
 
   // Reset HW counters
   m_iface_xstats.reset_counters();
