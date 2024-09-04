@@ -8,6 +8,8 @@
 #include "logging/Logging.hpp"
 #include "datahandlinglibs/DataHandlingIssues.hpp"
 
+#include "opmonlib/Utils.hpp"
+
 #include "dpdklibs/Issues.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
@@ -320,11 +322,11 @@ IfaceWrapper::generate_opmon_data() {
   m_iface_xstats.poll();
 
   // loop over all the xstats information
-  opmon::EthXStats xs;
+  opmon::EthXStatsInfo xs;
   std::map<std::string, opmon::QueueEthXStats> xq;
 
   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
-
+    
     std::string name(m_iface_xstats.m_xstats_names[i].name);
     
     // first we select the info from the queue
@@ -341,35 +343,37 @@ IfaceWrapper::generate_opmon_data() {
       continue;
     } 
 
-    const auto * descriptor_p = xs.GetDescriptor();
-    const auto & des = *descriptor_p;
+    opmonlib::set_value(xs, name, m_iface_xstats.m_xstats_values[i]);
+    
+    // const auto * descriptor_p = xs.GetDescriptor();
+    // const auto & des = *descriptor_p;
 
-    // here we assume we put the info in the global EthXStats
-    auto field_ptr = des.FindFieldByName(name);
-    if ( field_ptr ) {
+    // // // here we assume we put the info in the global EthXStats
+    // auto field_ptr = des.FindFieldByName(name);
+    // if ( field_ptr ) {
 
-      const auto * reflection_p = xs.GetReflection();
-      const auto & ref = *reflection_p;
+    //   const auto * reflection_p = xs.GetReflection();
+    //   const auto & ref = *reflection_p;
 
-      ref.SetUInt64( & xs, field_ptr, m_iface_xstats.m_xstats_values[i] );
-      continue;
+    //   ref.SetUInt64( & xs, field_ptr, m_iface_xstats.m_xstats_values[i] );
+    //   continue;
+    
+
+    //   // if none is availalbe we send a warning
+    //   ers::warning( MetricNotAvailable(ERS_HERE, name, xs.GetTypeName() ) );
+      
+    } // loop over xstats
+    
+    // Reset HW counters
+    m_iface_xstats.reset_counters();
+    
+    // finally we publish the information
+    publish( std::move(xs) );
+    for ( auto [id, stat] : xq ) {
+      publish( std::move(stat), {{"queue", id}} );
     }
-
-    // if none is availalbe we send a warning
-    ers::warning( MetricNotAvailable(ERS_HERE, name, xs.GetTypeName() ) );
-
-  } // loop over xstats
-
-  // Reset HW counters
-  m_iface_xstats.reset_counters();
-
-  // finally we publish the information
-  publish( std::move(xs) );
-  for ( auto [id, stat] : xq ) {
-    publish( std::move(stat), {{"queue", id}} );
-  }
- 
-  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+    
+    for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     opmon::QueueInfo i;
     i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );
     i.set_bytes_received( m_num_bytes_rxq[src_rx_q].load() );
