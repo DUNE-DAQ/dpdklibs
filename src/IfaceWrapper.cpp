@@ -346,7 +346,7 @@ IfaceWrapper::generate_opmon_data() {
     } 
 
     google::protobuf::Message * metric_p = nullptr;
-    static std::regex err_regex(R"(.+_errors)");
+    static std::regex err_regex(R"(.+error.*)");
     if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
     else  metric_p = & xinfos;
     
