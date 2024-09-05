@@ -26,9 +26,9 @@ message QueueInfo {
 
 message QueueEthXStats {
  
-  uint64 rx_packets = 1;
-  uint64 rx_bytes   = 2;
-  uint64 rx_errors  = 3;
+  uint64 packets = 1;
+  uint64 bytes   = 2;
+  uint64 errors  = 3;
   
 }
 
@@ -45,7 +45,7 @@ message EthXStatsInfo {
   uint64 rx_crc_errors      = 8;
   uint64 rx_illegal_byte_errors = 9;
   uint64 rx_jabber_errors = 10;
-//  uint64 rx_size_1523_to_max_packets = 10;
+
 }
 
 message EthXStatsErrors {

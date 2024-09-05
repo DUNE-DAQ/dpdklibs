@@ -40,9 +40,9 @@
 namespace dunedaq {
 
   ERS_DECLARE_ISSUE( dpdklibs,
-		     MetricNotAvailable,
-		     "Field " << field << " not available in " << measurement,
-		     ((std::string)field)((std::string)measurement)
+		     MetricPublishFailed,
+		     "Field " << field << " was not reported",
+		     ((std::string)field)
 		     )
   
 namespace dpdklibs {

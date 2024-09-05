@@ -322,7 +322,8 @@ IfaceWrapper::generate_opmon_data() {
   m_iface_xstats.poll();
 
   // loop over all the xstats information
-  opmon::EthXStatsInfo xs;
+  opmon::EthXStatsInfo xinfos;
+  opmon::EthXStatsErrors xerrs;
   std::map<std::string, opmon::QueueEthXStats> xq;
 
   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
@@ -330,50 +331,44 @@ IfaceWrapper::generate_opmon_data() {
     std::string name(m_iface_xstats.m_xstats_names[i].name);
     
     // first we select the info from the queue
-    static std::regex queue_regex(R"(rx_q(\d+)_(packets|bytes))");
+    static std::regex queue_regex(R"((rx|tx)_q(\d+)_([^_]+))");
     std::smatch match;
     
     if ( std::regex_match(name, match, queue_regex) ) {
-      auto & entry = xq[match[1]];
-      if ( match[2] == "packets" ) {
-	entry.set_rx_packets(m_iface_xstats.m_xstats_values[i]);
-      } else if ( match[2] == "bytes" ) {
-	entry.set_rx_bytes(m_iface_xstats.m_xstats_values[i]);
+      auto queue_name = match[1].str() + '-' + match[2].str();
+      auto & entry = xq[queue_name];
+      try {
+	opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
+      } catch ( const ers::Issue & e ) {
+	ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
       }
       continue;
     } 
 
-    opmonlib::set_value(xs, name, m_iface_xstats.m_xstats_values[i]);
+    google::protobuf::Message * metric_p = nullptr;
+    static std::regex err_regex(R"(.+_errors)");
+    if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
+    else  metric_p = & xinfos;
     
-    // const auto * descriptor_p = xs.GetDescriptor();
-    // const auto & des = *descriptor_p;
-
-    // // // here we assume we put the info in the global EthXStats
-    // auto field_ptr = des.FindFieldByName(name);
-    // if ( field_ptr ) {
-
-    //   const auto * reflection_p = xs.GetReflection();
-    //   const auto & ref = *reflection_p;
-
-    //   ref.SetUInt64( & xs, field_ptr, m_iface_xstats.m_xstats_values[i] );
-    //   continue;
-    
-
-    //   // if none is availalbe we send a warning
-    //   ers::warning( MetricNotAvailable(ERS_HERE, name, xs.GetTypeName() ) );
-      
-    } // loop over xstats
-    
-    // Reset HW counters
-    m_iface_xstats.reset_counters();
-    
-    // finally we publish the information
-    publish( std::move(xs) );
-    for ( auto [id, stat] : xq ) {
-      publish( std::move(stat), {{"queue", id}} );
+    try { 
+      opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
+    } catch ( const ers::Issue & e ) {
+      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
     }
     
-    for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+  } // loop over xstats
+  
+  // Reset HW counters
+  m_iface_xstats.reset_counters();
+  
+  // finally we publish the information
+  publish( std::move(xinfos) );
+  publish( std::move(xerrs) );
+  for ( auto [id, stat] : xq ) {
+    publish( std::move(stat), {{"queue", id}} );
+  }
+  
+  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
     opmon::QueueInfo i;
     i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );
     i.set_bytes_received( m_num_bytes_rxq[src_rx_q].load() );
