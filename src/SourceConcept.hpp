@@ -13,6 +13,7 @@
 
 //#include "DefaultParserImpl.hpp"
 
+#include "opmonlib/MonitorableObject.hpp"
 #include "appfwk/DAQModule.hpp"
 //#include "packetformat/detail/block_parser.hpp"
 #include <nlohmann/json.hpp>
@@ -22,38 +23,37 @@
 #include <string>
 
 namespace dunedaq {
-namespace dpdklibs {
+  namespace dpdklibs {
 
-class SourceConcept
-{
-public:
-  SourceConcept() {}
-  virtual ~SourceConcept() {}
+    class SourceConcept : public opmonlib::MonitorableObject
+    {
+    public:
+      SourceConcept() {}
+      virtual ~SourceConcept() {}
 
-  SourceConcept(const SourceConcept&) = delete;            ///< SourceConcept is not copy-constructible
-  SourceConcept& operator=(const SourceConcept&) = delete; ///< SourceConcept is not copy-assginable
-  SourceConcept(SourceConcept&&) = delete;                 ///< SourceConcept is not move-constructible
-  SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
+      SourceConcept(const SourceConcept&) = delete;            ///< SourceConcept is not copy-constructible
+      SourceConcept& operator=(const SourceConcept&) = delete; ///< SourceConcept is not copy-assginable
+      SourceConcept(SourceConcept&&) = delete;                 ///< SourceConcept is not move-constructible
+      SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
 
-//  virtual void init(const nlohmann::json& args) = 0;
-  virtual void set_sink(const std::string& sink_name, bool callback_mode) = 0;
-  virtual void acquire_callback() = 0;
-//  virtual void conf(const nlohmann::json& args) = 0;
-//  virtual void start(const nlohmann::json& args) = 0;
-//  virtual void stop(const nlohmann::json& args) = 0;
- // virtual void get_info(opmonlib::InfoCollector& ci, int level) = 0;
+      //  virtual void init(const nlohmann::json& args) = 0;
+      virtual void set_sink(const std::string& sink_name, bool callback_mode) = 0;
+      virtual void acquire_callback() = 0;
+      //  virtual void conf(const nlohmann::json& args) = 0;
+      //  virtual void start(const nlohmann::json& args) = 0;
+      //  virtual void stop(const nlohmann::json& args) = 0;
 
-  virtual bool handle_payload(char* message, std::size_t size) = 0;
+      virtual bool handle_payload(char* message, std::size_t size) = 0;
 
-  void set_sink_name(const std::string& sink_name) 
-  { 
-    m_sink_name = sink_name; 
-  }
+      void set_sink_name(const std::string& sink_name) 
+      { 
+	m_sink_name = sink_name; 
+      }
 
-  std::string m_sink_name;
-};
+      std::string m_sink_name;
+    };
 
-} // namespace dpdklibs
+  } // namespace dpdklibs
 } // namespace dunedaq
 
 #endif // DPDKLIBS_SRC_SOURCECONCEPT_HPP_

@@ -15,6 +15,8 @@
 #include "iomanager/Sender.hpp"
 #include "logging/Logging.hpp"
 
+#include "dpdklibs/opmon/SourceModel.pb.h"
+
 // #include "datahandlinglibs/utils/ReusableThread.hpp"
 #include "datahandlinglibs/DataMoveCallbackRegistry.hpp"
 
@@ -106,12 +108,13 @@ public:
     return true;
   }
 
-  #warning MISSING OPMON
-  // void get_info(opmonlib::InfoCollector& ci, int /*level*/) {
-  //   nicreaderinfo::SourceStats ss;
-  //   ss.dropped_frames = m_dropped_packets.load();
-  //   ci.add(ss);
-  // }
+  void generate_opmon_data() override {
+
+    opmon::SourceInfo info;
+    info.set_dropped_frames( m_dropped_packets.load() ); 
+
+    publish( std::move(info) );
+  }
   
 private:
   // Sink internals

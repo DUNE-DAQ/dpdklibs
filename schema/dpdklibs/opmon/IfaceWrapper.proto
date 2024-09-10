@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package dunedaq.dpdklibs.opmon;
+
+message EthStats {
+
+  uint64 ipackets = 1;   // Received packets
+  uint64 opackets = 2;   // Transmitted packets
+  uint64 ibytes   = 10;  // Received bytes
+  uint64 obytes   = 11;  // Transmitted bytes
+  uint64 imissed  = 20;  // Missed packets
+  uint64 ierrors  = 21;  // Received errors
+  uint64 oerrors  = 22;  // Output Errors
+  uint64 rx_nombuf = 30; // Number of Rx mbuf allocation failures 
+}
+
+
+message QueueInfo {
+
+  uint64 packets_received = 1;
+  uint64 bytes_received   = 2;
+  uint64 full_rx_burst    = 3;
+  uint32 max_burst_size   = 4;
+  
+}
+
+message QueueEthXStats {
+ 
+  uint64 packets = 1;
+  uint64 bytes   = 2;
+  uint64 errors  = 3;
+  
+}
+
+
+message EthXStatsInfo {
+
+  uint64 groups_sent = 1;
+  uint64 total_groups_sent = 2;
+  uint64 rx_good_packets   = 3;
+  uint64 rx_good_bytes     = 4;
+  uint64 rx_dropped_packets = 5;
+
+uint64 rx_unicast_packets = 11;
+  uint64 rx_multicast_packets = 12;
+  uint64 rx_broadcast_packets = 13;
+  uint64 rx_unknown_protocol_packets = 14;
+  uint64 rx_xon_packets = 15;
+  uint64 rx_xoff_packets = 16;
+  
+  uint64 rx_size_64_packets = 49;
+  uint64 rx_size_65_to_127_packets = 50;
+  uint64 rx_size_128_to_255_packets = 51;
+  uint64 rx_size_256_to_511_packets = 52;
+  uint64 rx_size_512_to_1023_packets = 53;
+  uint64 rx_size_1024_to_1522_packets = 54;
+  uint64 rx_size_1523_to_max_packets = 55;
+  uint64 rx_mac_short_pkt_dropped = 60;
+
+  uint64 tx_good_packets = 100;
+  uint64 tx_good_bytes   = 101;
+  uint64 tx_unicast_packets = 102;
+  uint64 tx_multicast_packets = 103;
+  uint64 tx_broadcast_packets = 104;
+  uint64 tx_dropped_packets = 105;
+  uint64 tx_link_down_dropped = 106;
+  uint64 tx_xon_packets = 107;
+  uint64 tx_xoff_packets = 108;
+  
+  uint64 tx_size_64_packets = 149;
+  uint64 tx_size_65_to_127_packets = 150;
+  uint64 tx_size_128_to_255_packets = 151;
+  uint64 tx_size_256_to_511_packets = 152;
+  uint64 tx_size_512_to_1023_packets = 153;
+  uint64 tx_size_1024_to_1522_packets = 154;
+  uint64 tx_size_1523_to_max_packets = 155;
+
+}
+
+message EthXStatsErrors {
+
+  uint64 rx_missed_errors   = 1;
+  uint64 rx_errors          = 2;
+  uint64 rx_error_bytes = 3;
+  uint64 rx_mbuf_allocation_errors = 4;
+  uint64 rx_crc_errors      = 5;
+  uint64 rx_illegal_byte_errors = 6;
+  uint64 rx_jabber_errors = 7;
+  uint64 mac_local_errors = 20;
+  uint64 mac_remote_errors = 21;
+  uint64 rx_len_errors = 22;
+  uint64 rx_undersized_errors = 23;
+  uint64 rx_oversize_errors = 24;
+  uint64 rx_fragmented_errors = 25;
+
+  uint64 tx_errors          = 100;
+
+}

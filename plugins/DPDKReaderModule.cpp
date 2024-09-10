@@ -42,6 +42,7 @@
 #include <vector>
 #include <ios>
 
+
 /**
  * @brief Name used by TRACE TLOG calls from this source file
  */
@@ -93,9 +94,9 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  auto mdal = mcfg->module<appmodel::DataReaderModule>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
-	auto err = dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
-  ers::fatal(err);
-	throw err;
+   auto err = dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
+   ers::fatal(err);
+   throw err;
  }
 
  for (auto con : mdal->get_outputs()) {
@@ -118,7 +119,8 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
     callback_mode = true;
   }
 
-  m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
+  auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
+  register_node( queue->UID(), ptr );
   //m_sources[queue->get_source_id()]->init(); 
  }
 }
@@ -235,11 +237,12 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     }
     
     uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
-    m_ifaces[iface_id] = std::make_unique<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders,  m_sources, m_run_marker); 
-    m_ifaces[iface_id]->allocate_mbufs();
-    m_ifaces[iface_id]->setup_interface();
-    m_ifaces[iface_id]->setup_flow_steering();
-    m_ifaces[iface_id]->setup_xstats();
+    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders,  m_sources, m_run_marker);
+    register_node( fmt::format("interface-{}", iface_id), ptr);
+    ptr->allocate_mbufs();
+    ptr->setup_interface();
+    ptr->setup_flow_steering();
+    ptr->setup_xstats();
 
   }
 
@@ -298,13 +301,6 @@ DPDKReaderModule::do_scrap(const data_t&)
   }
 }
 
-// void
-// DPDKReaderModule::get_info(opmonlib::InfoCollector& ci, int level)
-// {
-//   for (auto& [iface_id, iface] : m_ifaces) {
-//     iface->get_info(ci, level);
-//   } 
-// }
 
 void 
 DPDKReaderModule::set_running(bool should_run)

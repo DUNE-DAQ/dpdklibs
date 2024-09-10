@@ -8,6 +8,8 @@
 #include "logging/Logging.hpp"
 #include "datahandlinglibs/DataHandlingIssues.hpp"
 
+#include "opmonlib/Utils.hpp"
+
 #include "dpdklibs/Issues.hpp"
 
 #include "dpdklibs/nicreader/Structs.hpp"
@@ -32,9 +34,12 @@
 // #include "appmodel/NICStatsConf.hpp"
 // #include "appmodel/EthStreamParameters.hpp"
 
+#include "dpdklibs/opmon/IfaceWrapper.pb.h"
+
 #include <chrono>
 #include <memory>
 #include <string>
+#include <regex>
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -299,57 +304,80 @@ IfaceWrapper::scrap()
 
 
 //-----------------------------------------------------------------------------
-// void 
-// IfaceWrapper::get_info(opmonlib::InfoCollector& ci, int level)
-// {
+void 
+IfaceWrapper::generate_opmon_data() {
 
-//   nicreaderinfo::EthStats s;
-//   s.ipackets = m_iface_xstats.m_eth_stats.ipackets;
-//   s.opackets = m_iface_xstats.m_eth_stats.opackets;
-//   s.ibytes = m_iface_xstats.m_eth_stats.ibytes;
-//   s.obytes = m_iface_xstats.m_eth_stats.obytes;
-//   s.imissed = m_iface_xstats.m_eth_stats.imissed;
-//   s.ierrors = m_iface_xstats.m_eth_stats.ierrors;
-//   s.oerrors = m_iface_xstats.m_eth_stats.oerrors;
-//   s.rx_nombuf = m_iface_xstats.m_eth_stats.rx_nombuf;
-//   ci.add(s);
+  opmon::EthStats s;
+  s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
+  s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
+  s.set_ibytes( m_iface_xstats.m_eth_stats.ibytes );
+  s.set_obytes( m_iface_xstats.m_eth_stats.obytes );
+  s.set_imissed( m_iface_xstats.m_eth_stats.imissed );
+  s.set_ierrors( m_iface_xstats.m_eth_stats.ierrors );
+  s.set_oerrors( m_iface_xstats.m_eth_stats.oerrors );
+  s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
+  publish( std::move(s) );
 
-//   // Empty stat JSON placeholder
-//   nlohmann::json stat_json;
+  // Poll stats from HW
+  m_iface_xstats.poll();
 
-//   // Poll stats from HW
-//   m_iface_xstats.poll();
+  // loop over all the xstats information
+  opmon::EthXStatsInfo xinfos;
+  opmon::EthXStatsErrors xerrs;
+  std::map<std::string, opmon::QueueEthXStats> xq;
 
-//   // Build JSON from values 
-//   for (int i = 0; i < m_iface_xstats.m_len; ++i) {
-//     stat_json[m_iface_xstats.m_xstats_names[i].name] = m_iface_xstats.m_xstats_values[i];
-//   }
+  for (int i = 0; i < m_iface_xstats.m_len; ++i) {
+    
+    std::string name(m_iface_xstats.m_xstats_names[i].name);
+    
+    // first we select the info from the queue
+    static std::regex queue_regex(R"((rx|tx)_q(\d+)_([^_]+))");
+    std::smatch match;
+    
+    if ( std::regex_match(name, match, queue_regex) ) {
+      auto queue_name = match[1].str() + '-' + match[2].str();
+      auto & entry = xq[queue_name];
+      try {
+	opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
+      } catch ( const ers::Issue & e ) {
+	ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+      }
+      continue;
+    } 
 
-//   // Reset HW counters
-//   m_iface_xstats.reset_counters();
-
-//   // Convert JSON to NICReaderInfo struct
-//   nicreaderinfo::EthXStats xs;
-//   nicreaderinfo::from_json(stat_json, xs);
-
-//   // Push to InfoCollector
-//   ci.add(xs);
-//   TLOG_DEBUG(TLVL_WORK_STEPS) << "opmonlib::InfoCollector object passed by reference to IfaceWrapper::get_info"
-//     << " -> Result looks like the following:\n" << ci.get_collected_infos();
-
-//   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
-//     nicreaderinfo::QueueStats qs;
-//     qs.packets_received = m_num_frames_rxq[src_rx_q].load();
-//     qs.bytes_received = m_num_bytes_rxq[src_rx_q].load();
-//     qs.full_rx_burst = m_num_full_bursts[src_rx_q].load();
-//     qs.max_burst_size = m_max_burst_size[src_rx_q].exchange(0);
-
-//     opmonlib::InfoCollector queue_ci;
-//     queue_ci.add(qs);
-
-//     ci.add(fmt::format("queue_{}", src_rx_q), queue_ci);
-//   }
-// }
+    google::protobuf::Message * metric_p = nullptr;
+    static std::regex err_regex(R"(.+error.*)");
+    if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
+    else  metric_p = & xinfos;
+    
+    try { 
+      opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
+    } catch ( const ers::Issue & e ) {
+      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+    }
+    
+  } // loop over xstats
+  
+  // Reset HW counters
+  m_iface_xstats.reset_counters();
+  
+  // finally we publish the information
+  publish( std::move(xinfos) );
+  publish( std::move(xerrs) );
+  for ( auto [id, stat] : xq ) {
+    publish( std::move(stat), {{"queue", id}} );
+  }
+  
+  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+    opmon::QueueInfo i;
+    i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );
+    i.set_bytes_received( m_num_bytes_rxq[src_rx_q].load() );
+    i.set_full_rx_burst( m_num_full_bursts[src_rx_q].load() );
+    i.set_max_burst_size( m_max_burst_size[src_rx_q].exchange(0) );
+    
+    publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
+  }
+}
 
 //-----------------------------------------------------------------------------
 void
