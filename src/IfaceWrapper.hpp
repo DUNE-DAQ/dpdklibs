@@ -86,8 +86,8 @@ protected:
 
   bool m_with_flow;
   bool m_prom_mode;
-  std::string m_ip_addr;
-  rte_be32_t m_ip_addr_bin;
+  std::vector<std::string> m_ip_addr;
+  std::vector<rte_be32_t> m_ip_addr_bin;
   std::string m_mac_addr;
   int m_socket_id;
   int m_mtu;
