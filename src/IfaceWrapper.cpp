@@ -71,13 +71,17 @@ IfaceWrapper::IfaceWrapper(
   m_iface_id = iface_id;
   m_mac_addr = net_device->get_mac_address();
   m_ip_addr = net_device->get_ip_address();
-  IpAddr ip_addr_struct(m_ip_addr);
-  m_ip_addr_bin = udp::ip_address_dotdecimal_to_binary(
-      ip_addr_struct.addr_bytes[3],
-      ip_addr_struct.addr_bytes[2],
-      ip_addr_struct.addr_bytes[1],
-      ip_addr_struct.addr_bytes[0]
-  );
+
+  for( const std::string& ip_addr : m_ip_addr) {
+    IpAddr ip_addr_struct(ip_addr);
+    m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
+        ip_addr_struct.addr_bytes[3],
+        ip_addr_struct.addr_bytes[2],
+        ip_addr_struct.addr_bytes[1],
+        ip_addr_struct.addr_bytes[0]
+    ));
+  } 
+
 
   auto iface_cfg = receiver->get_configuration();
 
@@ -109,7 +113,7 @@ IfaceWrapper::IfaceWrapper(
   for( auto nw_sender : nw_senders ) {
     auto sender_ni = nw_sender->get_uses();
 
-    std::string tx_ip = sender_ni->get_ip_address();
+    std::string tx_ip = sender_ni->get_ip_address().at(0);
 
     for ( auto res : nw_sender->get_contains() ) {
 
@@ -385,7 +389,9 @@ IfaceWrapper::garp_func()
 {  
   TLOG() << "Launching GARP sender...";
   while(m_run_marker.load()) {
-    arp::pktgen_send_garp(m_garp_bufs[0][0], m_iface_id, m_ip_addr_bin);   
+    for( const auto& ip_addr_bin : m_ip_addr_bin ) {
+      arp::pktgen_send_garp(m_garp_bufs[0][0], m_iface_id, ip_addr_bin);   
+    }
     ++m_garps_sent;
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
