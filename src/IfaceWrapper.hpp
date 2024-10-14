@@ -20,7 +20,7 @@
 #include "dpdklibs/XstatsHelper.hpp"
 #include "SourceConcept.hpp"
 
-#include <confmodel/Session.hpp>
+#include <confmodel/System.hpp>
 // #include <confmodel/NetworkDevice.hpp>
 #include "appmodel/DPDKReceiver.hpp"
 #include "appmodel/NWDetDataSender.hpp"
