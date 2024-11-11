@@ -129,7 +129,7 @@ void
 DPDKReaderModule::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
-  //auto session = appfwk::ModuleManager::get()->session();
+  //auto system = appfwk::ModuleManager::get()->system();
   auto mdal = m_cfg->module<appmodel::DataReaderModule>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
@@ -157,7 +157,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (connection->disabled(*(m_cfg->configuration_manager()->session()))) {
+    if (connection->disabled(*(m_cfg->configuration_manager()->system()))) {
 	    continue;
     }
 
@@ -221,7 +221,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
         );
       }
 
-      if ( nw_sender->disabled(*(m_cfg->configuration_manager()->session())) ) {
+      if ( nw_sender->disabled(*(m_cfg->configuration_manager()->system())) ) {
         continue;
       }
       nw_senders.push_back(nw_sender);
