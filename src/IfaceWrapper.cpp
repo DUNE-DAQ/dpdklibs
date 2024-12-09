@@ -344,7 +344,7 @@ IfaceWrapper::generate_opmon_data() {
       try {
 	opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
       } catch ( const ers::Issue & e ) {
-	ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+//        ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
       }
       continue;
     } 
@@ -357,7 +357,7 @@ IfaceWrapper::generate_opmon_data() {
     try { 
       opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
     } catch ( const ers::Issue & e ) {
-      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+//      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
     }
     
   } // loop over xstats
