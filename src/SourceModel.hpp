@@ -17,7 +17,7 @@
 
 #include "dpdklibs/opmon/SourceModel.pb.h"
 
-// #include "datahandlinglibs/utils/ReusableThread.hpp"
+// #include "utilities/ReusableThread.hpp"
 #include "datahandlinglibs/DataMoveCallbackRegistry.hpp"
 
 // #include <folly/ProducerConsumerQueue.h>
