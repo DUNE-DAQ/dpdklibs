@@ -19,7 +19,7 @@
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 
-#include "utilities/ReusableThread.hpp"
+#include "datahandlinglibs/utils/ReusableThread.hpp"
 
 //#include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/EALSetup.hpp"
