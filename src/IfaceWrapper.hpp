@@ -34,7 +34,6 @@
 #include <string>
 #include <set>
 
-#include "utilities/ReusableThread.hpp"
 #include <folly/ProducerConsumerQueue.h>
 
 namespace dunedaq {
