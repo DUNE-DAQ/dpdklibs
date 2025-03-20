@@ -27,6 +27,9 @@ generate_ipv4_flow(uint16_t port_id, uint16_t rx_q,
 struct rte_flow *
 generate_drop_flow(uint16_t port_id, struct rte_flow_error *error);
 
+struct rte_flow *
+generate_arp_flow(uint16_t port_id, uint16_t rx_q, struct rte_flow_error *error);
+
 } // namespace dpdklibs
 } // namespace dunedaq
 

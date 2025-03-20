@@ -6,6 +6,7 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
+#include "dpdklibs/FlowControl.hpp"
 
 #include <inttypes.h>
 #include <rte_cycles.h>
@@ -44,7 +45,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
   TLOG() << "Launch lcore for interface: " << iface;
 
   // IP for ARP
-  std::string ip_addr_str{"10.73.139.26"};
+  std::string ip_addr_str{"10.73.32.192"};
   TLOG() << "IP address for ARP responses: " << ip_addr_str;
   IpAddr ip_addr(ip_addr_str);
   rte_be32_t ip_addr_bin = ip_address_dotdecimal_to_binary(
@@ -63,8 +64,8 @@ lcore_main(struct rte_mempool *mbuf_pool)
       num_packets.exchange(0);
       num_bytes.exchange(0);
 
-      arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
-      ++garps_sent;
+      //arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
+      //++garps_sent;
 
       std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
     }
@@ -96,13 +97,13 @@ lcore_main(struct rte_mempool *mbuf_pool)
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG() << "TODO: Handle ARP request!";
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
-            //arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
+            arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             TLOG() << "TODO: Handle LLDP packet!";
-            rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+            //rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
           } else {
             TLOG() << "Unidentified! Dumping...";
-            rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+            //rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
           }
           continue;
         }
@@ -144,6 +145,22 @@ main(int argc, char* argv[])
   TLOG() << "Initialize interface " << iface_id;
   ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
   ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
+
+  // Flow steering setup
+  TLOG() << "Configuring Flow steering rules for iface=" << iface_id;
+  struct rte_flow_error error;
+  struct rte_flow *flow;
+  TLOG() << "Attempt to flush previous flow rules...";
+  rte_flow_flush(iface_id, &error);
+  TLOG() << "Create control flow rules (ARP).";
+
+  flow = generate_arp_flow(iface_id, 0, &error);
+  if (not flow) { // ers::fatal
+    TLOG() << "Flow can't be created for ARP queue=0"
+           << " Error type: " << (unsigned)error.type
+           << " Message: " << error.message;
+    return 1;
+  }
 
   // Launch lcores
   lcore_main(mbuf_pools[0].get());
