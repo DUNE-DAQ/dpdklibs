@@ -8,7 +8,7 @@ int
 IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
   // Timespec for opportunistic sleep. Nanoseconds configured in conf.
-  struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
+	struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
 
   bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
@@ -53,10 +53,9 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
-// RS FIXME: Removed for performance improvement hope
 /*
           // Check if packet is segmented. Implement support for it if needed.
-          if (q_bufs[i_b]->nb_segs > 1) {
+          if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
 	          //TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
             //               << " there's currently no logic in this program to handle this";
 	        }
@@ -64,10 +63,10 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           // Check packet type, ommit/drop unexpected ones.
           auto pkt_type = q_bufs[i_b]->packet_type;
           //// Handle non IPV4 packets
-          if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
+          if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) [[unlikely]] {
             //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
             if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
-              //TLOG_DEBUG(10) << "TODO: Handle ARP request!";
+              //TLOG() << "Unexpected: Should handle an ARP request from lcore=" << lid << " rx_q=" << src_rx_q << "! Flow should be steered to dedicated RX Queue.";
             } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
               //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
             } else {
@@ -119,6 +118,68 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
   } // main while(quit) loop
  
   TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
+  return 0;
+}
+
+
+int 
+IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
+
+  // Timespec for opportunistic sleep. Nanoseconds configured in conf.
+  struct timespec sleep_request = { 0, (long)900000 };
+
+  bool once = true; // One shot action variable.
+  uint16_t iface = m_iface_id;
+
+  const uint16_t lid = rte_lcore_id();
+  unsigned arp_rx_queue = m_arp_rx_queue;
+
+  TLOG() << "LCore ARP responder on CPU[" << lid << "]: Main loop starts for iface " << iface << " rx queue: " << arp_rx_queue;
+
+  // While loop of quit atomic member in IfaceWrapper
+  while(!this->m_lcore_quit_signal.load()) {
+
+    const uint16_t nb_rx = rte_eth_rx_burst(iface, arp_rx_queue, m_arp_bufs[arp_rx_queue], m_burst_size);
+
+    // We got packets from burst on this queue
+    if (nb_rx != 0) {
+      // Iterate on burst packets
+      for (int i_b=0; i_b<nb_rx; ++i_b) {
+
+        // Check packet type, ommit/drop unexpected ones.
+        auto pkt_type = m_arp_bufs[arp_rx_queue][i_b]->packet_type;
+        //// Handle non IPV4 packets
+        if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
+          //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+          if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
+            TLOG() << "TODO: Handle ARP request with IP allow-list!!!!";
+            // if (ip is in as const auto& ip_addr_bin : m_ip_addr_bin ) {
+            //   arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, ip_addr_bin);
+            //
+          } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
+            //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
+          } else {
+            //TLOG_DEBUG(10) << "Unidentified! Dumping...";
+            //rte_pktmbuf_dump(stdout, m_arp_bufs[arp_rx_queue][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+          }
+          continue;
+        }
+      }
+
+      // Bulk free of mbufs
+      rte_pktmbuf_free_bulk(m_arp_bufs[arp_rx_queue], nb_rx);
+      
+    } // per burst
+
+    // If no full buffers in burst...
+    if (m_lcore_sleep_ns) {
+      // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
+      /*int response =*/ nanosleep(&sleep_request, nullptr);
+    }
+
+  } // main while(quit) loop
+ 
+  TLOG() << "LCore ARP responder on CPU[" << lid << "] returned.";
   return 0;
 }
 

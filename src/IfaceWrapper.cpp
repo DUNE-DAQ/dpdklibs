@@ -40,6 +40,7 @@
 #include <memory>
 #include <string>
 #include <regex>
+#include <stdexcept>
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -104,6 +105,10 @@ IfaceWrapper::IfaceWrapper(
   for( const auto* proc_res : iface_cfg->get_used_lcores()) {
     m_rte_cores.insert(m_rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
   }
+  if(std::find(m_rte_cores.begin(), m_rte_cores.end(), 0)!=m_rte_cores.end()) {
+    TLOG() << "ERROR! Throw ERS error here that LCore=0 should not be used, as it's a control RTE core!";
+    throw std::runtime_error(std::string("ERROR! Throw ERS here that LCore=0 should not be used, as it's a control RTE core!"));
+  }
 
   // iterate through active streams
 
@@ -125,7 +130,8 @@ IfaceWrapper::IfaceWrapper(
 
   }
 
-  uint32_t core_idx(0), rx_q(0);
+// RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned... 
+  uint32_t core_idx(0), rx_q(1); // RS FIXME: Ensure that no RX_Q=0 is used for UDP RX, ever.
   for( const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
     m_ips.insert(tx_ip);
     m_rx_qs.insert(rx_q);
@@ -173,23 +179,35 @@ IfaceWrapper::~IfaceWrapper()
 void
 IfaceWrapper::allocate_mbufs() 
 {
-  TLOG() << "Allocating pools and mbufs.";
+  TLOG() << "Allocating pools and mbufs for UDP, GARP, and ARP.";
+
+  // Pools for UDP RX messages 
   for (size_t i=0; i<m_rx_qs.size(); ++i) {
-    std::stringstream ss;
-    ss << "MBP-" << m_iface_id << '-' << i;
-    TLOG() << "Acquire pool with name=" << ss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
-    m_mbuf_pools[i] = ealutils::get_mempool(ss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
+    std::stringstream bufss;
+    bufss << "MBP-" << m_iface_id << '-' << i;
+    TLOG() << "Acquire pool with name=" << bufss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
+    m_mbuf_pools[i] = ealutils::get_mempool(bufss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     // No need to alloc?
     // rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
 
-  std::stringstream ss;
-  ss << "GARPMBP-" << m_iface_id;
-  TLOG() << "Acquire GARP pool with name=" << ss.str() << " for iface_id=" << m_iface_id;
-  m_garp_mbuf_pool = ealutils::get_mempool(ss.str());
+  // Pools for GARP messages
+  std::stringstream garpss;
+  garpss << "GARPMBP-" << m_iface_id;
+  TLOG() << "Acquire GARP pool with name=" << garpss.str() << " for iface_id=" << m_iface_id;
+  m_garp_mbuf_pool = ealutils::get_mempool(garpss.str());
   m_garp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(m_garp_mbuf_pool.get(), m_garp_bufs[0], m_burst_size);
+
+  // Pools for ARP request/responses
+  std::stringstream arpss;
+  arpss << "ARPMBP-" << m_iface_id;
+  TLOG() << "Acquire ARP pool with name=" << arpss.str() << " for iface_id=" << m_iface_id;
+  m_arp_mbuf_pool = ealutils::get_mempool(arpss.str());
+  m_arp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  rte_pktmbuf_alloc_bulk(m_arp_mbuf_pool.get(), m_arp_bufs[0], m_burst_size);
+
 }
 
 
@@ -221,6 +239,19 @@ IfaceWrapper::setup_flow_steering()
   TLOG() << "Attempt to flush previous flow rules...";
   rte_flow_flush(m_iface_id, &error);
 #warning RS: FIXME -> Check for flow flush return!
+
+  TLOG() << "Create control flow rules (ARP).";
+	flow = generate_arp_flow(m_iface_id, m_arp_rx_queue, &error);
+  if (not flow) { // ers::fatal
+        TLOG() << "ARP flow  can't be created for " << m_arp_rx_queue
+         << " Error type: " << (unsigned)error.type
+         << " Message: " << error.message;
+        ers::fatal(dunedaq::datahandlinglibs::InitializationError(
+          ERS_HERE, "Couldn't create ARP flow API rules!"));
+        rte_exit(EXIT_FAILURE, "error in creating ARP flow");
+      }
+
+  TLOG() << "Create flow rules for UDP RX.";
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
     for (auto const& [rxqid, srcip] : rxqs) {
       // Put the IP numbers temporarily in a vector, so they can be converted easily to uint32_t
@@ -269,13 +300,15 @@ IfaceWrapper::start()
     m_num_full_bursts[rx_q] = { 0 };
     m_max_burst_size[rx_q] = { 0 };
   }
-  
-  
+
   m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(false);
   TLOG() << "Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
   
+  TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
+  int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, 0);
+  TLOG() << "  -> ARP LCore[0] launched with return code=" << ret;
 
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
