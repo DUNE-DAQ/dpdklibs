@@ -245,7 +245,7 @@ IfaceWrapper::setup_flow_steering()
   if (not flow) { // ers::fatal
         TLOG() << "ARP flow  can't be created for " << m_arp_rx_queue
          << " Error type: " << (unsigned)error.type
-         << " Message: " << error.message;
+         << " Message: '" << error.message << "'";
         ers::fatal(dunedaq::datahandlinglibs::InitializationError(
           ERS_HERE, "Couldn't create ARP flow API rules!"));
         rte_exit(EXIT_FAILURE, "error in creating ARP flow");
@@ -269,7 +269,7 @@ IfaceWrapper::setup_flow_steering()
       if (not flow) { // ers::fatal
         TLOG() << "Flow can't be created for " << rxqid
          << " Error type: " << (unsigned)error.type
-         << " Message: " << error.message;
+         << " Message: '" << error.message << "'";
         ers::fatal(dunedaq::datahandlinglibs::InitializationError(
           ERS_HERE, "Couldn't create Flow API rules!"));
         rte_exit(EXIT_FAILURE, "error in creating flow");

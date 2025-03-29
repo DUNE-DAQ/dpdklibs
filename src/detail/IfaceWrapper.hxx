@@ -1,5 +1,5 @@
-
 #include <time.h>
+#include <rte_arp.h>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -153,6 +153,12 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
           //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG() << "TODO: Handle ARP request with IP allow-list!!!!";
+            struct rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(m_arp_bufs[arp_rx_queue][i_b], struct rte_ether_hdr *);
+            struct rte_arp_hdr* arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+
+            if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) != m_ip_addr_bin.end()) {
+              arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, arp_hdr->arp_data.arp_tip);
+            }
             // if (ip is in as const auto& ip_addr_bin : m_ip_addr_bin ) {
             //   arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, ip_addr_bin);
             //
