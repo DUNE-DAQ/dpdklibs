@@ -14,6 +14,7 @@
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
+#include <rte_arp.h>
 
 #include <sstream>
 #include <stdint.h>
@@ -38,6 +39,45 @@ namespace {
 
 } // namespace ""
 
+void print_arp(struct rte_mbuf *mbuf) {
+  struct rte_ether_hdr *eth_hdr;
+  struct rte_arp_hdr *arp_hdr;
+
+  // Get Ethernet header
+  eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+
+  // Check for ARP packet
+  if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+      // ARP header is directly after Ethernet header
+      arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+
+      // Convert IPs from network to host byte order
+      uint32_t sender_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
+      uint32_t target_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+
+      printf("ARP Sender MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+             arp_hdr->arp_data.arp_sha.addr_bytes[0],
+             arp_hdr->arp_data.arp_sha.addr_bytes[1],
+             arp_hdr->arp_data.arp_sha.addr_bytes[2],
+             arp_hdr->arp_data.arp_sha.addr_bytes[3],
+             arp_hdr->arp_data.arp_sha.addr_bytes[4],
+             arp_hdr->arp_data.arp_sha.addr_bytes[5]);
+
+      printf("ARP Sender IP: %u.%u.%u.%u\n",
+             (sender_ip >> 24) & 0xFF,
+             (sender_ip >> 16) & 0xFF,
+             (sender_ip >> 8) & 0xFF,
+             sender_ip & 0xFF);
+
+      printf("ARP Target IP: %u.%u.%u.%u\n",
+             (target_ip >> 24) & 0xFF,
+             (target_ip >> 16) & 0xFF,
+             (target_ip >> 8) & 0xFF,
+             target_ip & 0xFF);
+  }
+}
+
+
 static int
 lcore_main(struct rte_mempool *mbuf_pool)
 {
@@ -45,14 +85,14 @@ lcore_main(struct rte_mempool *mbuf_pool)
   TLOG() << "Launch lcore for interface: " << iface;
 
   // IP for ARP
-  std::string ip_addr_str{"10.73.32.192"};
+  std::string ip_addr_str{"10.73.32.129"};
   TLOG() << "IP address for ARP responses: " << ip_addr_str;
   IpAddr ip_addr(ip_addr_str);
   rte_be32_t ip_addr_bin = ip_address_dotdecimal_to_binary(
-    ip_addr.addr_bytes[3],
-    ip_addr.addr_bytes[2],
+    ip_addr.addr_bytes[0],
     ip_addr.addr_bytes[1],
-    ip_addr.addr_bytes[0]
+    ip_addr.addr_bytes[2],
+    ip_addr.addr_bytes[3]
   );
 
   struct rte_mbuf **tx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
@@ -95,15 +135,16 @@ lcore_main(struct rte_mempool *mbuf_pool)
         if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
           TLOG() << "Non-Ethernet packet type: " << (unsigned)pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
-            TLOG() << "TODO: Handle ARP request!";
+            TLOG() << "ARP request detected!";
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+            print_arp(bufs[i_b]);
             arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             TLOG() << "TODO: Handle LLDP packet!";
             //rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
           } else {
             TLOG() << "Unidentified! Dumping...";
-            //rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+            rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
           }
           continue;
         }

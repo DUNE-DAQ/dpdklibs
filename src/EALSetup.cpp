@@ -143,6 +143,8 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     }
   }
 
+  TLOG() << "Configuring Iface " << iface << " rx rings: " << rx_rings <<", tx rings " << tx_rings;
+
   // Configure the Ethernet interface
   if ((retval = rte_eth_dev_configure(iface, rx_rings, tx_rings, &iface_conf)) != 0) {
     throw FailedToConfigureInterface(ERS_HERE, iface, "Device Configuration", retval);

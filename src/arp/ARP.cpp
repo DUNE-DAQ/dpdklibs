@@ -20,7 +20,7 @@ namespace dpdklibs {
 namespace arp {
 
 void 
-pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_address)
+pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
 {
   struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
   struct rte_arp_hdr *arp = (struct rte_arp_hdr *)&eth[1];
@@ -38,7 +38,7 @@ pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_addr
   memset(arp, 0, sizeof(struct rte_arp_hdr));
   rte_memcpy(&arp->arp_data.arp_sha, &mac_addr, 6);
   
-  uint32_t addr = htonl(binary_ip_address);
+  uint32_t addr = htonl(ip_add_bin);
   inetAddrCopy(&arp->arp_data.arp_sip, &addr);
 
   //if (likely(type == GRATUITOUS_ARP) ) {
@@ -74,7 +74,7 @@ hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ':',
 
 
 void
-pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_address)
+pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
 {
   /*port_info_t   *info = &pktgen.info[port_id];*/
   /*pkt_seq_t     *pkt;*/
@@ -94,29 +94,17 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_ad
     struct rte_ether_addr mac_addr;
     rte_eth_macaddr_get(port_id, &mac_addr);
 
-    std::ostringstream ostrs;
-    ostrs << "dst mac addr: ";
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[0]);
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[1]);
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[2]);
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[3]);
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[4]);
-    hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[5], '\n');
-    //std::cout << "DST MAC: " << ostrs.str();
-
-    /* ARP request not for this interface. */
-    //if (likely(pkt != NULL) ) {
-
-    //if (unlikely(arp->arp_data.arp_tip == mac_addr)) { //binary_ip_address)) {
-
-      
-
-      printf("ARP Received %i, local %i - I'm the target\n", ntohl(arp->arp_data.arp_tip), ntohl(binary_ip_address));
-
       std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_sip)));
-      //std::cout << "SRC IP: " << srcaddr << '\n';
+      std::cout << "SRC IP: " << srcaddr << '\n';
       std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_tip)));
-      //std::cout << "DEST IP: " << dstaddr << '\n';
+      std::cout << "DEST IP: " << dstaddr << '\n';
+      std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_add_bin)));
+      std::cout << "LOCAL IP: " << localaddr << '\n';
+      
+      // Bail out if not out ipaddress
+      if ( arp->arp_data.arp_tip != ip_add_bin) return;
+
+      printf("ARP Received %i, local %i - I'm the target\n", ntohl(arp->arp_data.arp_tip), ntohl(ip_add_bin));
 
       /* Swap the two MAC addresses */
       ethAddrSwap(&arp->arp_data.arp_sha, &arp->arp_data.arp_tha);
@@ -149,7 +137,7 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t binary_ip_ad
       /* No need to free mbuf as it was reused */
       return;
     //} else {
-    //  printf("ARP Received %i, local %i - I'm not the target\n", ntohl(arp->arp_data.arp_tip), ntohl(binary_ip_address));
+    //  printf("ARP Received %i, local %i - I'm not the target\n", ntohl(arp->arp_data.arp_tip), ntohl(ip_add_bin));
     //}
   }
 }

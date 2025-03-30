@@ -131,7 +131,12 @@ IfaceWrapper::IfaceWrapper(
   }
 
 // RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned... 
-  uint32_t core_idx(0), rx_q(1); // RS FIXME: Ensure that no RX_Q=0 is used for UDP RX, ever.
+  uint32_t core_idx(0), rx_q(0); // RS FIXME: Ensure that no RX_Q=0 is used for UDP RX, ever.
+
+  m_rx_qs.insert(rx_q);
+  m_arp_rx_queue = rx_q;
+  ++rx_q;
+
   for( const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
     m_ips.insert(tx_ip);
     m_rx_qs.insert(rx_q);
@@ -240,7 +245,7 @@ IfaceWrapper::setup_flow_steering()
   rte_flow_flush(m_iface_id, &error);
 #warning RS: FIXME -> Check for flow flush return!
 
-  TLOG() << "Create control flow rules (ARP).";
+  TLOG() << "Create control flow rules (ARP) assinged to rxq=" << m_arp_rx_queue;
 	flow = generate_arp_flow(m_iface_id, m_arp_rx_queue, &error);
   if (not flow) { // ers::fatal
         TLOG() << "ARP flow  can't be created for " << m_arp_rx_queue
