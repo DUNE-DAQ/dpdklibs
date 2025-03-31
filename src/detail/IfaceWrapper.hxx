@@ -156,8 +156,21 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
             struct rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(m_arp_bufs[arp_rx_queue][i_b], struct rte_ether_hdr *);
             struct rte_arp_hdr* arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
 
+            std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
+            std::cout << "SRC IP: " << srcaddr << '\n';
+            std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
+            std::cout << "DEST IP: " << dstaddr << '\n';
+
+            for( const auto& ip_addr_bin : m_ip_addr_bin) {
+              std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_addr_bin)));
+              std::cout << "LOCAL IP: " << localaddr << '\n';
+            }
+
+
             if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) != m_ip_addr_bin.end()) {
               arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, arp_hdr->arp_data.arp_tip);
+            } else {
+              TLOG() << "I'm not the ARP target";
             }
             // if (ip is in as const auto& ip_addr_bin : m_ip_addr_bin ) {
             //   arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, ip_addr_bin);

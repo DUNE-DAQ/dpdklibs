@@ -76,10 +76,10 @@ IfaceWrapper::IfaceWrapper(
   for( const std::string& ip_addr : m_ip_addr) {
     IpAddr ip_addr_struct(ip_addr);
     m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
-        ip_addr_struct.addr_bytes[3],
-        ip_addr_struct.addr_bytes[2],
+        ip_addr_struct.addr_bytes[0],
         ip_addr_struct.addr_bytes[1],
-        ip_addr_struct.addr_bytes[0]
+        ip_addr_struct.addr_bytes[2],
+        ip_addr_struct.addr_bytes[3]
     ));
   } 
 
@@ -311,14 +311,23 @@ IfaceWrapper::start()
   TLOG() << "Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
   
-  TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
-  int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, 0);
-  TLOG() << "  -> ARP LCore[0] launched with return code=" << ret;
+  // unsigned lcore_id;
+
+  // TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
+  // // int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, 0);
+  // RTE_LCORE_FOREACH_WORKER(lcore_id) {
+  //   // rte_eal_remote_launch(worker_fn, NULL, lcore_id);
+  //   int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, lcore_id);
+  //   TLOG() << "  -> ARP LCore[" << lcore_id << "] launched with return code=" << -ret;
+  // }
+
+  m_arp_thread = std::thread(&IfaceWrapper::IfaceWrapper::arp_response_runner, this, nullptr);
+
 
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
     int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_runner), this, lcoreid);
-    TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret;
+    TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret << "   " << (ret < 0 ? rte_strerror(-ret) : "");
   }
 }
 
@@ -331,6 +340,12 @@ IfaceWrapper::stop()
   // Stop GARP sender thread  
   if (m_garp_thread.joinable()) {
     m_garp_thread.join();
+  } else {
+    TLOG() << "GARP thrad is not joinable!";
+  }
+
+  if (m_arp_thread.joinable()) {
+    m_arp_thread.join();
   } else {
     TLOG() << "GARP thrad is not joinable!";
   }
