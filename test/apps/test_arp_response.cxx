@@ -23,6 +23,15 @@
 #include <fstream>
 #include <csignal>
 
+#include "CLI/App.hpp"
+#include "CLI/Config.hpp"
+#include "CLI/Formatter.hpp"
+
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
+#include <regex>
+
 using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
@@ -79,13 +88,13 @@ void print_arp(struct rte_mbuf *mbuf) {
 
 
 static int
-lcore_main(struct rte_mempool *mbuf_pool)
+lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
 {
   uint16_t iface = 0;
   TLOG() << "Launch lcore for interface: " << iface;
 
   // IP for ARP
-  std::string ip_addr_str{"10.73.32.129"};
+  // std::string ip_addr_str{"10.73.32.129"};
   TLOG() << "IP address for ARP responses: " << ip_addr_str;
   IpAddr ip_addr(ip_addr_str);
   rte_be32_t ip_addr_bin = ip_address_dotdecimal_to_binary(
@@ -160,13 +169,70 @@ lcore_main(struct rte_mempool *mbuf_pool)
 int
 main(int argc, char* argv[])
 {  
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0) {
-    rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+
+  uint16_t iface_id = 0;
+  std::string ip_address;
+  std::vector<std::string> pcie_addresses;
+
+  CLI::App app{"test arp responses"};
+  app.add_option("-a,--ip-address", ip_address, "IP Addresses");
+  app.add_option("-m,--pcie-mask", pcie_addresses, "PCIE Addresses device mask");
+  app.add_option("-i,--iface", iface_id, "Interface to init");
+
+  CLI11_PARSE(app, argc, argv);
+
+  // Validate arguments
+  fmt::print("ip      : {}\n", ip_address);
+  fmt::print("pcies   : {}\n", fmt::join(pcie_addresses," | "));
+
+  std::regex re_ipv4("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}");
+  std::regex re_pcie("^0{0,4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}.[0-9]$");
+
+  // bool all_ip_ok = true;
+  // for( const auto& ip: garp_ip_addresses) {
+  //     bool ip_ok = std::regex_match(ip, re_ipv4);
+  //     fmt::print("- {} {}\n", ip, ip_ok);
+  //     all_ip_ok &= ip_ok;
+  // }
+
+  bool ip_ok = std::regex_match(ip_address, re_ipv4);
+  fmt::print("IP address {} {}\n", ip_address, ip_ok);
+
+
+  fmt::print("PCIE addresses\n");
+  bool all_pcie_ok = true;
+  for( const auto& pcie: pcie_addresses) {
+      bool pcie_ok = std::regex_match(pcie, re_pcie);
+      fmt::print("- {} {}\n", pcie, pcie_ok);
+      all_pcie_ok &= pcie_ok;
   }
 
+  if (!ip_ok or !all_pcie_ok) {
+      return -1;
+  }
+
+  std::vector<std::string> eal_args;
+  eal_args.push_back("dpdklibds_test_garp");
+  for( const auto& pcie: pcie_addresses) {
+      eal_args.push_back("-a");
+      eal_args.push_back(pcie);
+  }
+  dunedaq::dpdklibs::ealutils::init_eal(eal_args);
+
+  auto n_ifaces = rte_eth_dev_count_avail();
+  fmt::print("# of available ifaces: {}\n", n_ifaces);
+  if (n_ifaces == 0){
+      std::cout << "WARNING: no available ifaces. exiting...\n";
+      rte_eal_cleanup();
+      return 1;
+  }
+
+  // int ret = rte_eal_init(argc, argv);
+  // if (ret < 0) {
+  //   rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
+  // }
+
   // Iface ID and its queue numbers
-  int iface_id = 0;
   const uint16_t rx_qs = 1;
   const uint16_t tx_qs = 1;
   const uint16_t rx_ring_size = 1024;
@@ -204,7 +270,7 @@ main(int argc, char* argv[])
   }
 
   // Launch lcores
-  lcore_main(mbuf_pools[0].get());
+  lcore_main(mbuf_pools[0].get(), ip_address);
 
   // Cleanup
   TLOG() << "EAL cleanup...";
