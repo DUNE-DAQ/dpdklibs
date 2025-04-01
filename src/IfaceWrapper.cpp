@@ -308,7 +308,7 @@ IfaceWrapper::start()
 
   m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(false);
-  TLOG() << "Launching GARP thread with garp_func...";
+  TLOG() << "Interface id=" << m_iface_id <<" Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
   
   // unsigned lcore_id;
@@ -321,6 +321,7 @@ IfaceWrapper::start()
   //   TLOG() << "  -> ARP LCore[" << lcore_id << "] launched with return code=" << -ret;
   // }
 
+  TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
   m_arp_thread = std::thread(&IfaceWrapper::IfaceWrapper::arp_response_runner, this, nullptr);
 
 
@@ -341,13 +342,13 @@ IfaceWrapper::stop()
   if (m_garp_thread.joinable()) {
     m_garp_thread.join();
   } else {
-    TLOG() << "GARP thrad is not joinable!";
+    TLOG() << "GARP thread is not joinable!";
   }
 
   if (m_arp_thread.joinable()) {
     m_arp_thread.join();
   } else {
-    TLOG() << "GARP thrad is not joinable!";
+    TLOG() << "ARP thread is not joinable!";
   }
 }
 /*

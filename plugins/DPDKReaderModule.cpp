@@ -144,7 +144,6 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   bool is_first_pcie_addr = true;
   std::vector<uint16_t> rte_cores;
 
-  // FIXME: Hardcoding core 0 for GARP. Replace with better param.
   rte_cores.push_back(0);
 
   std::vector<const confmodel::DetectorToDaqConnection*> d2d_conns;
