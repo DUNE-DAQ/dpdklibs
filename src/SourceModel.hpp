@@ -10,6 +10,7 @@
 
 #include "SourceConcept.hpp"
 
+#include "dpdklibs/Issues.hpp"
 
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
@@ -91,9 +92,6 @@ public:
         (*m_sink_callback)(std::move(target_payload));
       } else {
         if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-          //if(m_dropped_packets == 0 || m_dropped_packets%10000) {
-          //  TLOG() << "Dropped data " << m_dropped_packets;
-          //}
           ++m_dropped_packets;
         }
       }
@@ -108,6 +106,10 @@ public:
   }
 
   void generate_opmon_data() override {
+      
+    if(m_dropped_packets != 0) {
+        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_dropped_packets));
+    }
 
     opmon::SourceInfo info;
     info.set_dropped_frames( m_dropped_packets.load() ); 
