@@ -311,16 +311,6 @@ IfaceWrapper::start()
   TLOG() << "Interface id=" << m_iface_id <<" Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
   
-  // unsigned lcore_id;
-
-  // TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
-  // // int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, 0);
-  // RTE_LCORE_FOREACH_WORKER(lcore_id) {
-  //   // rte_eal_remote_launch(worker_fn, NULL, lcore_id);
-  //   int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::arp_response_runner), this, lcore_id);
-  //   TLOG() << "  -> ARP LCore[" << lcore_id << "] launched with return code=" << -ret;
-  // }
-
   TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
   m_arp_thread = std::thread(&IfaceWrapper::IfaceWrapper::arp_response_runner, this, nullptr);
 

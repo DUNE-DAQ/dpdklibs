@@ -25,11 +25,16 @@ ERS_DECLARE_ISSUE(dpdklibs,
                   ((int)ifaceid)
                 );
 
-
 ERS_DECLARE_ISSUE(dpdklibs,
                   LinkOffline,
                   "Link offline for interface [" << ifaceid << "]",
                   ((int)ifaceid)
+                );
+
+ERS_DECLARE_ISSUE(dpdklibs,
+                  MainCoreConflict,
+                  "The main core [" << main_core << "] conflicts with the worker cores list ",
+                  ((int)main_core)
                 );
 
 ERS_DECLARE_ISSUE(dpdklibs,

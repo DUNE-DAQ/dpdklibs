@@ -29,6 +29,7 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/Issues.hpp"
 #include "CreateSource.hpp"
 #include "DPDKReaderModule.hpp"
 
@@ -94,7 +95,7 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  auto mdal = mcfg->module<appmodel::DataReaderModule>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
-   auto err = dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
+   auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
    ers::fatal(err);
    throw err;
  }
@@ -102,7 +103,7 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
  for (auto con : mdal->get_outputs()) {
   auto queue = con->cast<confmodel::QueueWithSourceId>();
   if(queue == nullptr) {
-	  auto err = dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
+	  auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
 	  ers::fatal(err);
 	  throw err;
   }
@@ -142,15 +143,13 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   // Construct the pcie devices allowed mask
   std::string first_pcie_addr;
   bool is_first_pcie_addr = true;
-  std::vector<uint16_t> rte_cores;
-
-  rte_cores.push_back(0);
+  std::deque<uint16_t> rte_cores;
 
   std::vector<const confmodel::DetectorToDaqConnection*> d2d_conns;
   for (auto res : res_set) {
     auto connection = res->cast<confmodel::DetectorToDaqConnection>();
     if (connection == nullptr) {
-      dunedaq::datahandlinglibs::GenericConfigurationError err(
+      datahandlinglibs::GenericConfigurationError err(
           ERS_HERE, "DetectorToDaqConnection configuration failed due expected but unavailable connection!"
         );
       ers::fatal(err);
@@ -164,7 +163,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
 
     auto receiver = connection->get_receiver()->cast<appmodel::DPDKReceiver>();
     if (!receiver) {
-      throw dunedaq::datahandlinglibs::InitializationError(
+      throw datahandlinglibs::InitializationError(
         ERS_HERE, fmt::format("Found {} of type {} in connection {} while expecting type DPDKReceiver", receiver->class_name(), receiver->UID(), connection->UID())
       );
     }
@@ -182,6 +181,12 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       rte_cores.insert(rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
     }
   }
+
+  uint16_t main_core = rte_get_main_lcore();
+  if (std::find(rte_cores.begin(), rte_cores.end(), main_core) != rte_cores.end()) {
+    throw MainCoreConflict(ERS_HERE, main_core);
+  }
+  rte_cores.push_front(main_core);
 
   eal_params.push_back("-l");
   eal_params.push_back(fmt::format("{}", fmt::join(rte_cores,",")));
@@ -215,7 +220,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     for ( auto sender : d2d_conn->get_senders() ) {
       auto nw_sender = sender->cast<appmodel::NWDetDataSender>();
       if ( !nw_sender ) {
-        throw dunedaq::datahandlinglibs::InitializationError(
+        throw datahandlinglibs::InitializationError(
           ERS_HERE, fmt::format("Found {} of type {} in connection {} while expecting type NWDetDataSender", dpdk_receiver->class_name(), dpdk_receiver->UID(), d2d_conn->UID())
         );
       }
@@ -230,7 +235,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     
     if ((m_mac_to_id_map.count(net_device->get_mac_address()) == 0) || (m_pci_to_id_map.count(net_device->get_pcie_addr()) == 0)) {
         TLOG() << "No available interface with MAC=" << net_device->get_mac_address();
-        throw dunedaq::datahandlinglibs::InitializationError(
+        throw datahandlinglibs::InitializationError(
           ERS_HERE, "DPDKReaderModule configuration failed due expected but unavailable interface!"
         );
     }
