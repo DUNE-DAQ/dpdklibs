@@ -105,7 +105,7 @@ IfaceWrapper::IfaceWrapper(
   for( const auto* proc_res : iface_cfg->get_used_lcores()) {
     m_rte_cores.insert(m_rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
   }
-  if(std::find(m_rte_cores.begin(), m_rte_cores.end(), 0)!=m_rte_cores.end()) {
+  if(std::find(m_rte_cores.begin(), m_rte_cores.end(), rte_get_main_lcore())!=m_rte_cores.end()) {
     TLOG() << "ERROR! Throw ERS error here that LCore=0 should not be used, as it's a control RTE core!";
     throw std::runtime_error(std::string("ERROR! Throw ERS here that LCore=0 should not be used, as it's a control RTE core!"));
   }
