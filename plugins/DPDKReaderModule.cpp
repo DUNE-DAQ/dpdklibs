@@ -8,7 +8,7 @@
 //#include "dpdklibs/nicreader/Nljs.hpp"
 
 #include "appfwk/ConfigurationManager.hpp"
-#include "appfwk/ModuleConfiguration.hpp"
+#include "appfwk/ConfigurationManager.hpp"
 
 #include "confmodel/DetectorToDaqConnection.hpp"
 
@@ -90,9 +90,9 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-DPDKReaderModule::init(const std::shared_ptr<appfwk::ModuleConfiguration> mcfg )
+DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg )
 {
- auto mdal = mcfg->module<appmodel::DataReaderModule>(get_name());
+ auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
  m_cfg = mcfg;
  if (mdal->get_outputs().empty()) {
    auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
@@ -131,7 +131,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
   //auto session = appfwk::ModuleManager::get()->session();
-  auto mdal = m_cfg->module<appmodel::DataReaderModule>(get_name());
+  auto mdal = m_cfg->get_dal<appmodel::DataReaderModule>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
   // EAL setup
@@ -155,7 +155,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (connection->disabled(*(m_cfg->configuration_manager()->session()))) {
+    if (connection->disabled(*(m_cfg->session()))) {
 	    continue;
     }
 
@@ -225,7 +225,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
         );
       }
 
-      if ( nw_sender->disabled(*(m_cfg->configuration_manager()->session())) ) {
+      if ( nw_sender->disabled(*(m_cfg->session())) ) {
         continue;
       }
       nw_senders.push_back(nw_sender);

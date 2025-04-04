@@ -19,8 +19,6 @@
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 
-#include "datahandlinglibs/utils/ReusableThread.hpp"
-
 //#include "dpdklibs/nicreader/Structs.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "IfaceWrapper.hpp"
@@ -49,7 +47,7 @@ public:
   DPDKReaderModule(DPDKReaderModule&&) = delete;                 ///< DPDKReaderModule is not move-constructible
   DPDKReaderModule& operator=(DPDKReaderModule&&) = delete;      ///< DPDKReaderModule is not move-assignable
 
-  void init(const std::shared_ptr<appfwk::ModuleConfiguration> mfcg) override;
+  void init(const std::shared_ptr<appfwk::ConfigurationManager> mfcg) override;
 
 
   
@@ -64,7 +62,7 @@ private:
   void do_scrap(const data_t&);
 
   // Internals
-  std::shared_ptr<appfwk::ModuleConfiguration> m_cfg;
+  std::shared_ptr<appfwk::ConfigurationManager> m_cfg;
   
   int m_running = 0;
   std::atomic<bool> m_run_marker;
