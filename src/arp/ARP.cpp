@@ -87,9 +87,9 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
     struct rte_ether_addr mac_addr;
     rte_eth_macaddr_get(port_id, &mac_addr);
 
-      std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
+      std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_sip)));
       TLOG_DEBUG(10) << "SRC IP: " << srcaddr;
-      std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
+      std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_tip)));
       TLOG_DEBUG(10) << "DEST IP: " << dstaddr;
       std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_add_bin)));
       TLOG_DEBUG(10) << "LOCAL IP: " << localaddr;
