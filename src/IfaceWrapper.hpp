@@ -108,6 +108,7 @@ private:
 
   // CPU core ID -> [queue -> ip]
   std::map<int, std::map<int, std::string>> m_rx_core_map;
+  unsigned m_arp_rx_queue = 0; // RS TODO: make it configurable, and queue use conf check for exclusiveness!
 
   // Lcore stop signal
   std::atomic<bool> m_lcore_quit_signal{ false };
@@ -143,8 +144,16 @@ private:
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
+  // ARP
+  std::unique_ptr<rte_mempool> m_arp_mbuf_pool;
+  std::map<int, struct rte_mbuf **> m_arp_bufs;
+  std::thread m_arp_thread;
+  void arp_func();
+  std::atomic<uint64_t> m_arps_sent{0};
+
   // Lcore processor
   int rx_runner(void *arg __rte_unused);
+  int arp_response_runner(void *arg __rte_unused);
 
   // What to do with every payload
   void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);

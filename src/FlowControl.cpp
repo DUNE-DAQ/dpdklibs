@@ -6,6 +6,9 @@
 
 #include "logging/Logging.hpp"
 
+#include <rte_byteorder.h>
+#include <rte_ether.h>
+#include <rte_flow.h>
 #include <rte_ip.h>
 
 namespace dunedaq {
@@ -157,6 +160,52 @@ generate_drop_flow(uint16_t port_id, struct rte_flow_error *error)
   	flow = rte_flow_create(port_id, &attr, pattern, action, error);
   }
   
+  return flow;
+}
+
+// ARP packets to specific 
+struct rte_flow *
+generate_arp_flow(uint16_t port_id, uint16_t rx_q, struct rte_flow_error *error)
+{
+  struct rte_flow_attr attr;
+  struct rte_flow_item pattern[MAX_PATTERN_NUM];
+  struct rte_flow_action action[MAX_ACTION_NUM];
+  struct rte_flow *flow = NULL;
+  struct rte_flow_action_queue queue = { .index = rx_q };
+  int res;
+
+  memset(pattern, 0, sizeof(pattern));
+  memset(action, 0, sizeof(action));
+
+  // Set the rule attribute, only ingress packets will be checked.
+  memset(&attr, 0, sizeof(struct rte_flow_attr));
+  attr.ingress = 1;
+  attr.egress = 0;
+  attr.priority = 1; // TODO the higher the lower?
+
+  // Action -> queue steering
+  action[0].type = RTE_FLOW_ACTION_TYPE_QUEUE;
+  action[0].conf = &queue;
+  action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+  // Rule prep
+  struct rte_flow_item_eth  item_eth_mask = {};
+  struct rte_flow_item_eth  item_eth_spec = {};
+  // Rule marker
+  item_eth_spec.hdr.ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
+  item_eth_mask.hdr.ether_type = RTE_BE16(0xFFFF);
+  // Rule pattern
+  pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+  pattern[0].mask = &item_eth_mask;
+  pattern[0].spec = &item_eth_spec;
+  pattern[1].type = RTE_FLOW_ITEM_TYPE_END;
+
+    // Validate the rule and create it.
+  res = rte_flow_validate(port_id, &attr, pattern, action, error);
+  if (not res) {
+    flow = rte_flow_create(port_id, &attr, pattern, action, error);
+  }
+
   return flow;
 }
 
