@@ -76,35 +76,28 @@ hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ':',
 void
 pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
 {
-  /*port_info_t   *info = &pktgen.info[port_id];*/
-  /*pkt_seq_t     *pkt;*/
   struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
   struct rte_arp_hdr *arp = (struct rte_arp_hdr *)&eth[1];
 
-  /* Process all ARP requests if they are for us. */
-  //std::cout << "ARP code: " << (unsigned)arp->arp_opcode << '\n';
-
   if (arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
     arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
-  //}
 
-  //if (arp->arp_opcode == htons(ARP_REQUEST) ) {
 
     /* Grab the source MAC addresses */
     struct rte_ether_addr mac_addr;
     rte_eth_macaddr_get(port_id, &mac_addr);
 
-      std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_sip)));
-      std::cout << "SRC IP: " << srcaddr << '\n';
-      std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_tip)));
-      std::cout << "DEST IP: " << dstaddr << '\n';
+      std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
+      TLOG_DEBUG(10) << "SRC IP: " << srcaddr;
+      std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
+      TLOG_DEBUG(10) << "DEST IP: " << dstaddr;
       std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_add_bin)));
-      std::cout << "LOCAL IP: " << localaddr << '\n';
+      TLOG_DEBUG(10) << "LOCAL IP: " << localaddr;
       
-      // Bail out if not out ipaddress
+      // Bail out if not our ipaddress
       if ( arp->arp_data.arp_tip != ip_add_bin) return;
 
-      printf("ARP Received %i, local %i - I'm the target\n", ntohl(arp->arp_data.arp_tip), ntohl(ip_add_bin));
+      TLOG_DEBUG(10) << "ARP Received " << dstaddr << " I'm the target " << localaddr;
 
       /* Swap the two MAC addresses */
       ethAddrSwap(&arp->arp_data.arp_sha, &arp->arp_data.arp_tha);
@@ -117,28 +110,19 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
 
       /* Swap the MAC addresses */
       ethAddrSwap(&eth->dst_addr, &eth->src_addr);
-      //ethAddrSwap(&eth->dst_addr, &eth->src_addr);
 
       /* Copy in the MAC address for the reply. */
       rte_memcpy(&arp->arp_data.arp_sha, &mac_addr, 6);
-      // rte_memcpy(&eth->src_addr, &mac_addr, 6);
       rte_memcpy(&eth->src_addr, &mac_addr, 6);
-
-      //pktgen_send_mbuf(m, port_id, 0);
 
       struct rte_mbuf *arp_tx_mbuf[1];
       arp_tx_mbuf[0] = m;
 
       rte_eth_tx_burst(port_id, 0, arp_tx_mbuf, 1);
-      printf("Sending ARP reply\n");
-      /* Flush all of the packets in the queue. */
-      //pktgen_set_q_flags(info, 0, DO_TX_FLUSH);
+      TLOG_DEBUG(10)  << "Sending ARP reply";
 
       /* No need to free mbuf as it was reused */
       return;
-    //} else {
-    //  printf("ARP Received %i, local %i - I'm not the target\n", ntohl(arp->arp_data.arp_tip), ntohl(ip_add_bin));
-    //}
   }
 }
 

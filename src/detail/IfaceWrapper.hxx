@@ -152,29 +152,26 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
         if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
           //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
-            TLOG() << "TODO: Handle ARP request with IP allow-list!!!!";
+            TLOG_DEBUG(10) << "Handling ARP request";
             struct rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(m_arp_bufs[arp_rx_queue][i_b], struct rte_ether_hdr *);
             struct rte_arp_hdr* arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
 
             std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
-            std::cout << "SRC IP: " << srcaddr << '\n';
+            TLOG_DEBUG(10) << "SRC IP: " << srcaddr;
             std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
-            std::cout << "DEST IP: " << dstaddr << '\n';
+            TLOG_DEBUG(10) << "DEST IP: " << dstaddr;
 
             for( const auto& ip_addr_bin : m_ip_addr_bin) {
               std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_addr_bin)));
-              std::cout << "LOCAL IP: " << localaddr << '\n';
+              TLOG_DEBUG(10) << "LOCAL IP: " << localaddr;
             }
 
 
             if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) != m_ip_addr_bin.end()) {
               arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, arp_hdr->arp_data.arp_tip);
             } else {
-              TLOG() << "I'm not the ARP target";
+              TLOG_DEBUG(10) << "I'm not the ARP target";
             }
-            // if (ip is in as const auto& ip_addr_bin : m_ip_addr_bin ) {
-            //   arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, ip_addr_bin);
-            //
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
           } else {
