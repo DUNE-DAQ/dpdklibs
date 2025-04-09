@@ -366,6 +366,13 @@ IfaceWrapper::generate_opmon_data() {
   s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
   publish( std::move(s) );
 
+  if(m_iface_xstats.m_eth_stats.imissed > 0){
+    ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "missed", m_iface_xstats.m_eth_stats.imissed));
+  }
+  if(m_iface_xstats.m_eth_stats.ierrors > 0){
+    ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "dropped", m_iface_xstats.m_eth_stats.ierrors));
+  }
+
   // Poll stats from HW
   m_iface_xstats.poll();
 

@@ -62,6 +62,19 @@ ERS_DECLARE_ISSUE(dpdklibs,
                   ((int)ifaceid)((std::string)stage)((int)error)
                 );
 
+ERS_DECLARE_ISSUE(dpdklibs,
+                    FailedToSendData,
+                    "Sink ID [" << sink_id << "] Number of packets that failed to send: " << count,
+                    ((std::string)sink_id)((int)count)
+                  );
+
+ERS_DECLARE_ISSUE(dpdklibs,
+                    PacketErrors,
+                    "Interface [" << id << "] " << error << " packet error counts: " << count,
+                    ((std::string)id)((std::string)error)((int)count)
+                  );
+
 }
+
 
 #endif /* DPDKLIBS_INCLUDE_DPDKLIBS_DPDKISSUES_HPP_ */
