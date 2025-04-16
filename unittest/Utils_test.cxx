@@ -15,6 +15,8 @@
 #include "TRACE/trace.h"
 #include "boost/test/unit_test.hpp"
 
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -28,7 +30,7 @@ BOOST_AUTO_TEST_SUITE(Utils_test)
 BOOST_AUTO_TEST_CASE(GetEthernetPackets)
 {
 
-  const std::string tmp_filename = "/tmp/deleteme.txt";
+  const std::string tmp_filename = std::tmpnam(nullptr);
 
   // Construct a fake ethernet packet where the only contents which
   // matter are the ether_type (sanity-checked in
@@ -113,6 +115,7 @@ BOOST_AUTO_TEST_CASE(GetEthernetPackets)
   buffervec.at(6 + 6) = ether_type;
   BOOST_CHECK_NO_THROW(udp::get_ethernet_packets(buffervec)); // Just a quick check that we got things to return to normal
 
+  std::filesystem::remove(tmp_filename);
 }
-  
+
 BOOST_AUTO_TEST_SUITE_END()
