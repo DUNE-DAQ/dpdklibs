@@ -355,6 +355,9 @@ IfaceWrapper::scrap()
 void 
 IfaceWrapper::generate_opmon_data() {
 
+  // Poll stats from HW
+  m_iface_xstats.poll();
+
   opmon::EthStats s;
   s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
   s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
@@ -372,9 +375,6 @@ IfaceWrapper::generate_opmon_data() {
   if(m_iface_xstats.m_eth_stats.ierrors > 0){
     ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "dropped", m_iface_xstats.m_eth_stats.ierrors));
   }
-
-  // Poll stats from HW
-  m_iface_xstats.poll();
 
   // loop over all the xstats information
   opmon::EthXStatsInfo xinfos;
