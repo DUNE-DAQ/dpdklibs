@@ -10,7 +10,7 @@
 #include "appfwk/ConfigurationManager.hpp"
 #include "appfwk/ConfigurationManager.hpp"
 
-#include "confmodel/DetectorToDaqConnection.hpp"
+#include "appmodel/NetworkDetectorToDaqConnection.hpp"
 
 #include "appmodel/DataReaderModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
@@ -145,9 +145,9 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   bool is_first_pcie_addr = true;
   std::deque<uint16_t> rte_cores;
 
-  std::vector<const confmodel::DetectorToDaqConnection*> d2d_conns;
+  std::vector<const appmodel::NetworkDetectorToDaqConnection*> d2d_conns;
   for (auto res : res_set) {
-    auto connection = res->cast<confmodel::DetectorToDaqConnection>();
+    auto connection = res->cast<appmodel::NetworkDetectorToDaqConnection>();
     if (connection == nullptr) {
       datahandlinglibs::GenericConfigurationError err(
           ERS_HERE, "DetectorToDaqConnection configuration failed due expected but unavailable connection!"
@@ -214,24 +214,15 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   }
 
   for (auto d2d_conn : d2d_conns) {
-    auto dpdk_receiver = d2d_conn->get_receiver()->cast<appmodel::DPDKReceiver>();
-    auto senders = d2d_conn->get_senders();
+    auto dpdk_receiver = d2d_conn->get_net_receiver()->cast<appmodel::DPDKReceiver>();
     std::vector<const appmodel::NWDetDataSender*> nw_senders;
-    for ( auto sender : d2d_conn->get_senders() ) {
-      auto nw_sender = sender->cast<appmodel::NWDetDataSender>();
-      if ( !nw_sender ) {
-        throw datahandlinglibs::InitializationError(
-          ERS_HERE, fmt::format("Found {} of type {} in connection {} while expecting type NWDetDataSender", dpdk_receiver->class_name(), dpdk_receiver->UID(), d2d_conn->UID())
-        );
+    for ( auto nw_sender : d2d_conn->get_net_senders() ) {
+      if ( ! nw_sender->disabled(*(m_cfg->session())) ) {
+        nw_senders.push_back(nw_sender);
       }
-
-      if ( nw_sender->disabled(*(m_cfg->session())) ) {
-        continue;
-      }
-      nw_senders.push_back(nw_sender);
     }
 
-    auto net_device = dpdk_receiver->get_uses()->cast<confmodel::NetworkDevice>();
+    auto net_device = dpdk_receiver->get_uses();
     
     if ((m_mac_to_id_map.count(net_device->get_mac_address()) == 0) || (m_pci_to_id_map.count(net_device->get_pcie_addr()) == 0)) {
         TLOG() << "No available interface with MAC=" << net_device->get_mac_address();
@@ -259,8 +250,6 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
   } else {
     TLOG_DEBUG(5) << "iface wrappers are already running!";
   }
-
-  return;
 
 }
 
