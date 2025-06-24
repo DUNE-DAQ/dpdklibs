@@ -155,13 +155,13 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (connection->disabled(*(m_cfg->session()))) {
+    if (connection->is_disabled(*(m_cfg->session()))) {
 	    continue;
     }
 
     d2d_conns.push_back(connection);
 
-    auto receiver = connection->get_receiver()->cast<appmodel::DPDKReceiver>();
+    auto receiver = connection->receiver()->cast<appmodel::DPDKReceiver>();
     if (!receiver) {
       throw datahandlinglibs::InitializationError(
         ERS_HERE, fmt::format("Found {} of type {} in connection {} while expecting type DPDKReceiver", receiver->class_name(), receiver->UID(), connection->UID())
@@ -217,7 +217,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     auto dpdk_receiver = d2d_conn->get_net_receiver()->cast<appmodel::DPDKReceiver>();
     std::vector<const appmodel::NWDetDataSender*> nw_senders;
     for ( auto nw_sender : d2d_conn->get_net_senders() ) {
-      if ( ! nw_sender->disabled(*(m_cfg->session())) ) {
+      if ( ! nw_sender->is_disabled(*(m_cfg->session())) ) {
         nw_senders.push_back(nw_sender);
       }
     }
