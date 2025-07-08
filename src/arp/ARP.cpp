@@ -65,7 +65,6 @@ pktgen_send_garp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
   TLOG_DEBUG(10) << "LOCAL IP: " << localaddr;
 
   rte_eth_tx_burst(port_id, 0, arp_tx_mbuf, 1);
-  printf("Sending GARP\n");
 }
 
 
@@ -93,14 +92,14 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
       std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp->arp_data.arp_tip)));
       std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_add_bin)));
       
-      TLOG() << "ARP SRC IP: " << srcaddr;
-      TLOG() << "ARP DEST IP: " << dstaddr;
-      TLOG() << "ARP LOCAL IP: " << localaddr;
-      
+      TLOG_DEBUG(10) << "ARP SRC IP: " << srcaddr;
+      TLOG_DEBUG(10) << "ARP DEST IP: " << dstaddr;
+      TLOG_DEBUG(10) << "ARP LOCAL IP: " << localaddr;
+
       // Bail out if not our ipaddress
       if ( arp->arp_data.arp_tip != ip_add_bin) return;
 
-      TLOG() << "ARP Received " << dstaddr << " I'm the target " << localaddr;
+      TLOG_DEBUG(10) << "ARP Received " << dstaddr << " I'm the target " << localaddr;
 
       /* Swap the two MAC addresses */
       ethAddrSwap(&arp->arp_data.arp_sha, &arp->arp_data.arp_tha);
