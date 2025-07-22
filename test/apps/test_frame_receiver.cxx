@@ -280,10 +280,10 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
     TLOG() << "IP address for ARP responses: " << ip_addr_str;
         IpAddr ip_addr(ip_addr_str);
         rte_be32_t ip_addr_bin = ip_address_dotdecimal_to_binary(
-        ip_addr.addr_bytes[3],
-        ip_addr.addr_bytes[2],
-        ip_addr.addr_bytes[1],
-        ip_addr.addr_bytes[0]
+            ip_addr.addr_bytes[0],
+            ip_addr.addr_bytes[1],
+            ip_addr.addr_bytes[2],
+            ip_addr.addr_bytes[3]
         );
         ip_addr_bin_vector.push_back(ip_addr_bin);
     }
