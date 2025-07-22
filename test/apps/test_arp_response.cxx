@@ -145,8 +145,13 @@ lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
           TLOG() << "Non-Ethernet packet type: " << (unsigned)pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG() << "ARP request detected!";
+            
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
-            print_arp(bufs[i_b]);
+            // print_arp(bufs[i_b]);
+
+
+
+
             arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             TLOG() << "TODO: Handle LLDP packet!";

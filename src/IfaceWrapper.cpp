@@ -67,7 +67,7 @@ IfaceWrapper::IfaceWrapper(
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
-  auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
+  auto net_device = receiver->get_uses();
 
   m_iface_id = iface_id;
   m_mac_addr = net_device->get_mac_address();
@@ -120,9 +120,8 @@ IfaceWrapper::IfaceWrapper(
 
     std::string tx_ip = sender_ni->get_ip_address().at(0);
 
-    for ( auto res : nw_sender->get_contains() ) {
+    for ( auto det_stream : nw_sender->get_streams() ) {
 
-      auto det_stream = res->cast<confmodel::DetectorStream>();
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
 
