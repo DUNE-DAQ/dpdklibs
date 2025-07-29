@@ -74,8 +74,6 @@ DPDKReaderModule::DPDKReaderModule(const std::string& name)
 
 DPDKReaderModule::~DPDKReaderModule()
 {
-  TLOG() << get_name() << ": Destructor called. Tearing down EAL.";
-  ealutils::finish_eal();
 }
 
 inline void
@@ -292,6 +290,8 @@ DPDKReaderModule::do_scrap(const data_t&)
   } else {
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
+  TLOG() << get_name() << ": do_scrap called. Tearing down EAL.";
+  ealutils::finish_eal();
 }
 
 
