@@ -2,14 +2,15 @@
 import socket
 import sys
 import binascii
+import detdataformats
 import fddetdataformats
 import time
 import click
 
 N_STREAM = 128
 FRAME_SIZE = 7200
-FRAME_TS_GAP = 2048
-FRAME_TS_GAP = 2000
+FRAME_TS_GAP_BDE = 2048
+FRAME_TS_GAP_TDE = 2000
 
 def print_header(wib_frame,prefix="\t"):
     header = wib_frame.get_daqheader()
@@ -21,25 +22,21 @@ def print_header(wib_frame,prefix="\t"):
     print(f'{prefix}Block length: 0x{header.block_length:x}')
 
 def dump_data(data):
-    print(f'Size of the message received: {len(data)}')
     data2=data
 
-
-    # if len(data)%2 ==1:
-        # data2=data[0:-1]
-    # print("\n".join(str(binascii.hexlify(data2,' ', bytes_per_sep=8)).split(' ')))
     n_word = (len(data) // 8) +len(data) % 8
     for i in range(n_word):
         w = int.from_bytes(data[i*8:(i+1)*8], byteorder='little', signed=False)
-        print(f"0x{w:016x}")
+        print(f"{i:04d} 0x{w:016x}")
 
 @click.command()
-@click.option('-d', '--dump', is_flag=True, default=False)
+@click.option('-d', '--dump-packet', is_flag=True, default=False)
+@click.option('-w', '--words', type=int, default=8)
 @click.option('-c', '--count', type=int, default=None)
 @click.option('-p', '--port', type=int, default=0x4444)
 @click.option('-g', '--gap', type=int, default=None)
-@click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde']), default='wib')
-def main(dump, count, port, gap, frame_type):
+@click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde','daphne']), default=None)
+def main(dump_packet, words, count, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
     s.bind(('', port))
@@ -53,19 +50,53 @@ def main(dump, count, port, gap, frame_type):
         case 'wib':
             frame_class = fddetdataformats.WIBEthFrame
             port = port if not port is None else 0x4444
-            gap = gap if not gap is None else 2048
+            gap = gap if not gap is None else FRAME_TS_GAP_BDE
         case 'tde':
             frame_class = fddetdataformats.TDEEthFrame
             port = port if not port is None else 54323
-            gap = gap if not gap is None else 2000
+            gap = gap if not gap is None else FRAME_TS_GAP_TDE
+        case 'daphne':
+            frame_class = fddetdataformats.DAPHNEEthFrame
+            port = port if not port is None else 0x4444
+            # gap = gap if not gap is None else 2048
+
             
-    print('Starting receiver')
+    print('Receiver started')
     while (count==None or i<count):
     # while i<10:
         data, address = s.recvfrom(20000)
-        wf = frame_class(data)
-        header = wf.get_daqheader()
 
+
+        if unpack_frames:
+
+            print()
+            l = 0
+            l_pkt = len(data)
+            frames = []
+            while l < l_pkt:
+
+                d_blk = data[l:]
+                # dump_data(d_blk[0:4*8])
+                h = detdataformats.DAQEthHeader(d_blk)
+                print(f"len(data) = {l_pkt} block_len = {h.block_length*8:d} 0x({h.block_length:x}) [l = {l}]")
+                l_frm = (h.block_length+1)*8
+                frames += [d_blk[:l_frm]]
+                
+                l += l_frm # +1 for the header
+
+            print(f"Scanning complete (scanned {l} over {l_pkt} bytes)")
+
+
+            for i,f in enumerate(frames):
+                print(f"Frame {i}")
+                dump_data(f[:4*8])
+
+
+
+
+
+
+        header = detdataformats.DAQEthHeader(data)
 
         # hdr_id = header.stream_id
         hdr_id = (header.det_id, header.crate_id, header.slot_id, header.stream_id)
@@ -73,14 +104,22 @@ def main(dump, count, port, gap, frame_type):
         # if hdr_id < N_STREAM:
         stream_ts = header.timestamp
         # print(hdr_id, header.seq_id, hex(stream_ts))
-        if dump:
-            dump_data(data[0:32])
+        if dump_packet:
+
+            print('----')
+            print(f'Frame (size {len(data)}) from (DetID, Crate, Slot, Stream) = (0x{header.det_id}, 0x{header.crate_id:x}, 0x{header.slot_id:x}, 0x{header.stream_id:x})')
+            print(f'  Timestamp: 0x{header.timestamp:x}')
+            print(f'  Seq ID: {header.seq_id}, Block length: {header.block_length*8:d} (0x{header.block_length:x})')
+
+            print()
+            dump_data(data[0:words*8])
+            print()
 
         if hdr_id not in prev_stream:
             pass
         else:
             prev_strm_ts = prev_stream[hdr_id]
-            if (stream_ts - prev_strm_ts) != FRAME_TS_GAP:
+            if (not gap is None) and (stream_ts - prev_strm_ts) != gap:
                 print(f'delta_ts {stream_ts-prev_strm_ts} for {hdr_id} ')
 
         
