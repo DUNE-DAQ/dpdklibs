@@ -80,7 +80,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           // Check for UDP frames
           //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
           // Check for JUMBO frames
-          if (q_bufs[i_b]->pkt_len > 7000) [[likely]] { // RS FIXME: do proper check on data length later
+          if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
             // Handle them!
             std::size_t data_len = q_bufs[i_b]->data_len;
 
