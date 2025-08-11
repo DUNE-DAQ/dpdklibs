@@ -158,6 +158,13 @@ iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
     TLOG() << "Interface: " << iface << " MTU: " << mtu;
   }
 
+  // Set PTYPE parsing. RS FIXME: This function needs to be factorized, with overall better offloading control.
+  // On most Intel and Mellanox drivers, packet_type will automatically be set if:
+  //   - the hardware supports RTE_ETH_RX_OFFLOAD_*PTYPE
+  //   - and ptype RX parsing is enabled in the PMD
+  // Some PMDs require calling:
+  rte_eth_dev_set_ptypes(iface, RTE_PTYPE_L2_MASK | RTE_PTYPE_L3_MASK | RTE_PTYPE_L4_MASK, NULL, 0);
+
   // // Adjust RX/TX ring sizes
   // retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
   // if (retval != 0)
