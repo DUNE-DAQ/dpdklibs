@@ -31,12 +31,13 @@ def dump_data(data):
 
 @click.command()
 @click.option('-d', '--dump-packet', is_flag=True, default=False)
+@click.option('-u', '--unpack-frames', is_flag=True, default=False)
 @click.option('-w', '--words', type=int, default=8)
 @click.option('-c', '--count', type=int, default=None)
 @click.option('-p', '--port', type=int, default=0x4444)
 @click.option('-g', '--gap', type=int, default=None)
 @click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde','daphne']), default=None)
-def main(dump_packet, words, count, port, gap, frame_type):
+def main(dump_packet, unpack_frames, words, count, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
     s.bind(('', port))
@@ -63,37 +64,8 @@ def main(dump_packet, words, count, port, gap, frame_type):
             
     print('Receiver started')
     while (count==None or i<count):
-    # while i<10:
+        print(count, i)
         data, address = s.recvfrom(20000)
-
-
-        if unpack_frames:
-
-            print()
-            l = 0
-            l_pkt = len(data)
-            frames = []
-            while l < l_pkt:
-
-                d_blk = data[l:]
-                # dump_data(d_blk[0:4*8])
-                h = detdataformats.DAQEthHeader(d_blk)
-                print(f"len(data) = {l_pkt} block_len = {h.block_length*8:d} 0x({h.block_length:x}) [l = {l}]")
-                l_frm = (h.block_length+1)*8
-                frames += [d_blk[:l_frm]]
-                
-                l += l_frm # +1 for the header
-
-            print(f"Scanning complete (scanned {l} over {l_pkt} bytes)")
-
-
-            for i,f in enumerate(frames):
-                print(f"Frame {i}")
-                dump_data(f[:4*8])
-
-
-
-
 
 
         header = detdataformats.DAQEthHeader(data)
@@ -123,10 +95,36 @@ def main(dump_packet, words, count, port, gap, frame_type):
                 print(f'delta_ts {stream_ts-prev_strm_ts} for {hdr_id} ')
 
         
-        # if prev_stream[hdr_id] is None:
-            # pass
-        # elif (stream_ts-prev_stream[hdr_id]) != 2048:
-            # print(f'delta_ts {stream_ts-prev_stream[hdr_id]} for det {header.det_id} strm {hdr_id} ')
+
+
+
+        if unpack_frames:
+            print('----')
+            print(f'Packet {i}')
+
+            max_unpack = 512
+            print()
+            l = 0
+            l_pkt = len(data)
+            frames = []
+            while l < l_pkt:
+                
+                d_blk = data[l:]
+                # dump_data(d_blk[0:4*8])
+                h = detdataformats.DAQEthHeader(d_blk)
+                print(f"len(data) = {l_pkt} block_len = {h.block_length*8:d} 0x{h.block_length:x} [l = {l}]")
+                l_frm = (h.block_length+1)*8
+                frames += [d_blk[:l_frm]]
+                
+                l += l_frm # +1 for the header
+
+            print(f"Scanning complete (scanned {l} over {l_pkt} bytes)")
+
+
+            for j,f in enumerate(frames):
+                print(f"Frame {j}")
+                dump_data(f[:max_unpack*8])
+
         prev_stream[hdr_id] = stream_ts
 
 
