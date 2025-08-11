@@ -81,28 +81,71 @@ public:
 
   std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
 
-  bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
+  // Process an incoming raw byte buffer and extract complete payloads of type TargetPayloadType.
+  bool handle_payload(char* message, std::size_t size)
   {
-    bool push_out = true;
-    if (push_out) {
-
-      TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
+      // Determine the exact size in bytes of one complete and payload.
+      const std::size_t payload_size = sizeof(TargetPayloadType);
   
-      if (m_callback_mode) {
-        (*m_sink_callback)(std::move(target_payload));
-      } else {
-        if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-          ++m_dropped_packets;
+      // Calculate how many full payloads fit in the incoming message buffer.
+      std::size_t full_payloads = size / payload_size;
+  
+      // Calculate leftover bytes that don't form a complete payload.
+      std::size_t leftover_bytes = size % payload_size;
+
+      // RS FIXME - 0cpy variant:
+      for (std::size_t i = 0; i < full_payloads; ++i) {
+        // Calculate pointer to the i-th payload chunk inside the message buffer.
+        // This is a raw reinterpret_cast from char* to TargetPayloadType*,
+        // effectively creating a reference directly into the input buffer (zero-copy).
+        TargetPayloadType& payload = 
+          *reinterpret_cast<TargetPayloadType*>(message + i * payload_size);
+
+        if (m_callback_mode) {
+          (*m_sink_callback)(std::move(payload));
+        } else {
+          if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
+             ++m_dropped_packets;
+          }
         }
+      } 
+
+/*
+      // RS FIXME - MEMCPY variant:
+      // Iterate through each full payload in the buffer.
+      for (std::size_t i = 0; i < full_payloads; ++i) [[likely]] {{
+          // Create a local instance to hold the extracted payload.
+          TargetPayloadType payload;
+  
+          // Copy the raw bytes into our strongly typed payload object.
+          // This assumes payload is trivially copyable or POD-like. 
+          //   - RS FIXME: TBD to ensure or ommit type safety in the plugin's design 
+          // Note: Using std::memcpy avoids undefined behavior from strict aliasing.
+          std::memcpy(&payload, message + i * payload_size, payload_size);
+  
+          if (m_callback_mode) {
+              // Callback mode: directly pass the payload to a sink callback.
+              // Using std::move allows for efficient transfer if payload supports move semantics.
+              (*m_sink_callback)(std::move(payload));
+          } else {
+              // Queue mode: attempt to enqueue the payload in a non-blocking way.
+              if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
+                  // Queue is full or unavailable: record a dropped packet.
+                  ++m_dropped_packets;  // total drop counter
+              }
+          }
       }
+*/  
 
-    } else {
-      TargetPayloadType target_payload;
-      uint32_t bytes_copied = 0;
-      datahandlinglibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
-    }
-
-    return true;
+      // If we received bytes that don't form a complete payload...
+      if (leftover_bytes > 0) {
+          // RS FIXME: Record this as a bad DAQ stream payload for monitoring/statistics purposes.
+          //++m_bad_daq_stream_payload_count;
+      }
+  
+      // Function result: true only if:
+      // - No leftover bytes remained (i.e., input perfectly aligned to payload size)
+      return leftover_bytes == 0;
   }
 
   void generate_opmon_data() override {
