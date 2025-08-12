@@ -58,9 +58,9 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
           // Check if packet is segmented. Implement support for it if needed.
           //if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
-	        //  TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
+          //  TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
           //                 << " there's currently no logic in this program to handle this";
-	        //}
+	  //}
 
           // Check packet type, decide their fate: ignore unexpected ones, FIXME: monitor occurrences
           auto pkt_type = q_bufs[i_b]->packet_type;
@@ -84,7 +84,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           }
 
           // Check for JUMBO frames (bigger than 1500 Bytes)
-					if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
+	  if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
 
             // Get length of user payload. (Ethernet headers excluded.)
             std::size_t data_len = q_bufs[i_b]->data_len;
