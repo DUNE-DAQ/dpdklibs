@@ -75,11 +75,13 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
               //TLOG_DEBUG(10) << "Unidentified! Dumping...";
               //rte_pktmbuf_dump(stdout, q_bufs[i_b], m_bufs[src_rx_q][i_b]->pkt_len);
             }
+            ++m_num_unhandled_non_ipv4[lid];
             continue;
           }
 
           // Check if frame is non UDP: in that case, ignore it.
           if ((pkt_type & RTE_PTYPE_L4_MASK) != RTE_PTYPE_L4_UDP) [[unlikely]] {
+            ++m_num_unhandled_non_udp[lid];
             continue; // ommit it
           }
 
@@ -98,6 +100,8 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
             // Update metrics of queue: frame and Byte counters
             ++m_num_frames_rxq[src_rx_q];
             m_num_bytes_rxq[src_rx_q] += data_len;
+          } else {
+            ++m_num_unhandled_non_jumbo_udp[lid];
           }
         }
 

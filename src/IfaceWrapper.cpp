@@ -298,11 +298,19 @@ IfaceWrapper::setup_xstats()
 void
 IfaceWrapper::start()
 {
+  // Reset counters for RX queues
   for (auto const& [rx_q, _] : m_num_frames_rxq ) {
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
     m_num_full_bursts[rx_q] = { 0 };
     m_max_burst_size[rx_q] = { 0 };
+  }
+
+  // Reset counters for rte_workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    m_num_unhandled_non_ipv4[lcore] = { 0 };
+    m_num_unhandled_non_udp[lcore] = { 0 };
+    m_num_unhandled_non_jumbo_udp[lcore] = { 0 };
   }
 
   m_lcore_enable_flow.store(false);
