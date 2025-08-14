@@ -44,7 +44,7 @@ namespace dunedaq {
       //  virtual void stop(const nlohmann::json& args) = 0;
 
       // Meant to process an incoming raw byte buffer and extract complete payloads of arbitrary types in specialized models.
-      virtual bool handle_payload(char* message, std::size_t size) = 0;
+      virtual void handle_payload(char* message, std::size_t size) = 0;
 
       void set_sink_name(const std::string& sink_name) 
       { 

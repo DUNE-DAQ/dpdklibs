@@ -79,88 +79,58 @@ public:
     }
   }
 
+  // Exposes sink via returning a pointer to it. 
   std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
 
   // Process an incoming raw byte buffer and extract complete payloads of type TargetPayloadType.
-  bool handle_payload(char* message, std::size_t size)
+  void handle_payload(char* message, std::size_t size)
   {
-      // Determine the exact size in bytes of one complete and payload.
-      const std::size_t payload_size = sizeof(TargetPayloadType);
-  
-      // Calculate how many full payloads fit in the incoming message buffer.
-      std::size_t full_payloads = size / payload_size;
-  
-      // Calculate leftover bytes that don't form a complete payload.
-      std::size_t leftover_bytes = size % payload_size;
-
-      // RS FIXME - 0cpy variant:
-      for (std::size_t i = 0; i < full_payloads; ++i) {
-        // Calculate pointer to the i-th payload chunk inside the message buffer.
-        // This is a raw reinterpret_cast from char* to TargetPayloadType*,
-        // effectively creating a reference directly into the input buffer (zero-copy).
-        TargetPayloadType& payload = 
-          *reinterpret_cast<TargetPayloadType*>(message + i * payload_size);
-
-        if (m_callback_mode) {
-          (*m_sink_callback)(std::move(payload));
-        } else {
-          if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
-             ++m_dropped_packets;
-          }
+    // Calculate how many full payloads fit in the incoming message buffer.
+    std::size_t full_payloads = size / m_expected_payload_size;
+    
+    // Calculate leftover bytes that don't form a complete payload.
+    if (size % m_expected_payload_size > 0) [[unlikely]] {
+      ++m_leftover_bytes_encountered;
+    }
+    
+    // Handle full target payloads
+    for (std::size_t i = 0; i < full_payloads; ++i) {
+      // Calculate pointer to the i-th payload chunk inside the message buffer.
+      // This is a raw reinterpret_cast from char* to TargetPayloadType*,
+      // effectively creating a reference directly into the input buffer (zero-copy).
+      TargetPayloadType& payload = 
+        *reinterpret_cast<TargetPayloadType*>(message + i * m_expected_payload_size);
+    
+      if (m_callback_mode) {
+        // Callback mode: directly pass the payload to a sink callback.
+        (*m_sink_callback)(std::move(payload));
+      } else {
+        // Queue mode: attempt to enqueue the payload in a non-blocking way.
+        if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
+           ++m_failed_to_send_daq_payloads;
         }
-      } 
-
-/*
-      // RS FIXME - MEMCPY variant:
-      // Iterate through each full payload in the buffer.
-      for (std::size_t i = 0; i < full_payloads; ++i) [[likely]] {{
-          // Create a local instance to hold the extracted payload.
-          TargetPayloadType payload;
-  
-          // Copy the raw bytes into our strongly typed payload object.
-          // This assumes payload is trivially copyable or POD-like. 
-          //   - RS FIXME: TBD to ensure or ommit type safety in the plugin's design 
-          // Note: Using std::memcpy avoids undefined behavior from strict aliasing.
-          std::memcpy(&payload, message + i * payload_size, payload_size);
-  
-          if (m_callback_mode) {
-              // Callback mode: directly pass the payload to a sink callback.
-              // Using std::move allows for efficient transfer if payload supports move semantics.
-              (*m_sink_callback)(std::move(payload));
-          } else {
-              // Queue mode: attempt to enqueue the payload in a non-blocking way.
-              if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
-                  // Queue is full or unavailable: record a dropped packet.
-                  ++m_dropped_packets;  // total drop counter
-              }
-          }
       }
-*/  
-
-      // If we received bytes that don't form a complete payload...
-      if (leftover_bytes > 0) {
-          // RS FIXME: Record this as a bad DAQ stream payload for monitoring/statistics purposes.
-          //++m_bad_daq_stream_payload_count;
-      }
-  
-      // Function result: true only if:
-      // - No leftover bytes remained (i.e., input perfectly aligned to payload size)
-      return leftover_bytes == 0;
+    } 
+    
   }
 
   void generate_opmon_data() override {
       
-    if(m_dropped_packets != 0) {
-        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_dropped_packets));
+    if(m_failed_to_send_daq_payloads != 0) {
+        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_failed_to_send_daq_payloads));
     }
 
     opmon::SourceInfo info;
-    info.set_dropped_frames( m_dropped_packets.load() ); 
+    // RS FIXME: These are NOT dropped frames!!! Rename on opmon is needed
+    info.set_dropped_frames( m_failed_to_send_daq_payloads.exchange(0) ); 
 
     publish( std::move(info) );
   }
   
 private:
+  // Constants
+  const std::size_t m_expected_payload_size = sizeof(TargetPayloadType);
+
   // Sink internals
   std::string m_sink_id;
   bool m_sink_is_set{ false };
@@ -172,7 +142,9 @@ private:
   using sink_cb_t = std::shared_ptr<std::function<void(TargetPayloadType&&)>>;
   sink_cb_t m_sink_callback;
 
-  std::atomic<uint64_t> m_dropped_packets{0};
+  // Stats
+  std::atomic<uint64_t> m_leftover_bytes_encountered{0};
+  std::atomic<uint64_t> m_failed_to_send_daq_payloads{0};
 
 };
 
