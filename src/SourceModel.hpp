@@ -93,16 +93,20 @@ public:
       ++m_leftover_bytes_encountered;
     }
     
-    // Handle full target payloads
+    // Process each full payload
     for (std::size_t i = 0; i < full_payloads; ++i) {
       // Calculate pointer to the i-th payload chunk inside the message buffer.
-      // This is a raw reinterpret_cast from char* to TargetPayloadType*,
-      // effectively creating a reference directly into the input buffer (zero-copy).
-      TargetPayloadType& payload = 
-        *reinterpret_cast<TargetPayloadType*>(message + i * m_expected_payload_size);
+      const char* src = message + i * m_expected_payload_size;
     
+      // Materialize a real TargetPayloadType object by copying bytes from the buffer.
+      // This is defined behavior, alignment-safe, and fast, without pointer vodoo
+      // Previously reinterpret_cast to TargetPayloadType* introduced alignment traps 
+      // “pretend there’s a constructed object there” UB. Scatter won't work like that.
+      TargetPayloadType payload;
+      std::memcpy(&payload, src, m_expected_payload_size);
+
       if (m_callback_mode) {
-        // Callback mode: directly pass the payload to a sink callback.
+        // Pass by value (moved); no references into 'message', so no UAF.
         (*m_sink_callback)(std::move(payload));
       } else {
         // Queue mode: attempt to enqueue the payload in a non-blocking way.
@@ -110,8 +114,7 @@ public:
            ++m_failed_to_send_daq_payloads;
         }
       }
-    } 
-    
+    }
   }
 
   void generate_opmon_data() override {
@@ -130,6 +133,7 @@ public:
 private:
   // Constants
   const std::size_t m_expected_payload_size = sizeof(TargetPayloadType);
+
 
   // Sink internals
   std::string m_sink_id;
