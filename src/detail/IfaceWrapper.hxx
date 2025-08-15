@@ -1,5 +1,6 @@
 #include <time.h>
 #include <rte_arp.h>
+#include <rte_ethdev.h>
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -10,7 +11,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
   // Timespec for opportunistic sleep. Nanoseconds configured in conf.
 	struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
 
-  bool once = true; // One shot action variable.
+  //bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
 
   const uint16_t lid = rte_lcore_id();
@@ -48,21 +49,22 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       // We got packets from burst on this queue
       if (nb_rx != 0) [[likely]] {
 
+        // Update max burst size counter of this queue
         m_max_burst_size[src_rx_q] = std::max(nb_rx, m_max_burst_size[src_rx_q].load());
+
         // -------
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
 
-/*
           // Check if packet is segmented. Implement support for it if needed.
-          if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
-	          //TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
-            //               << " there's currently no logic in this program to handle this";
-	        }
+          //if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
+          //  TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
+          //                 << " there's currently no logic in this program to handle this";
+          //}
 
-          // Check packet type, ommit/drop unexpected ones.
+          // Check packet type, decide their fate: ignore unexpected ones, FIXME: monitor occurrences
           auto pkt_type = q_bufs[i_b]->packet_type;
-          //// Handle non IPV4 packets
+          // Handle non IPV4 frames.
           if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) [[unlikely]] {
             //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
             if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
@@ -73,32 +75,41 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
               //TLOG_DEBUG(10) << "Unidentified! Dumping...";
               //rte_pktmbuf_dump(stdout, q_bufs[i_b], m_bufs[src_rx_q][i_b]->pkt_len);
             }
+            ++m_num_unhandled_non_ipv4[lid];
             continue;
           }
-*/
 
-          // Check for UDP frames
-          //if (pkt_type == RTE_PTYPE_L4_UDP) { // RS FIXME: doesn't work. Why? What is the PKT_TYPE in our ETH frames?
-          // Check for JUMBO frames
-          if (q_bufs[i_b]->pkt_len > 7000) [[likely]] { // RS FIXME: do proper check on data length later
-            // Handle them!
+          // Check if frame is non UDP: in that case, ignore it.
+          if ((pkt_type & RTE_PTYPE_L4_MASK) != RTE_PTYPE_L4_UDP) [[unlikely]] {
+            ++m_num_unhandled_non_udp[lid];
+            continue; // ommit it
+          }
+
+          // Check for JUMBO frames (bigger than 1500 Bytes)
+          if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
+
+            // Get length of user payload. (Ethernet headers excluded.)
             std::size_t data_len = q_bufs[i_b]->data_len;
 
+            // If flow enabled, handle the payload.
             if ( m_lcore_enable_flow.load() ) [[likely]] {
               char* message = udp::get_udp_payload(q_bufs[i_b]);
               handle_eth_payload(src_rx_q, message, data_len);
             }
+
+            // Update metrics of queue: frame and Byte counters
             ++m_num_frames_rxq[src_rx_q];
             m_num_bytes_rxq[src_rx_q] += data_len;
+          } else {
+            ++m_num_unhandled_non_jumbo_udp[lid];
           }
         }
 
         // Bulk free of mbufs
         rte_pktmbuf_free_bulk(q_bufs, nb_rx);
 
-        // -------
-        
       } // per burst
+      // -----------
 
       // Full burst counter
       if (nb_rx == m_burst_size) {
@@ -128,7 +139,7 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
   // Timespec for opportunistic sleep. Nanoseconds configured in conf.
   struct timespec sleep_request = { 0, (long)900000 };
 
-  bool once = true; // One shot action variable.
+  //bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
 
   const uint16_t lid = rte_lcore_id();

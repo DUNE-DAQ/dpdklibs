@@ -79,45 +79,62 @@ public:
     }
   }
 
+  // Exposes sink via returning a pointer to it. 
   std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
 
-  bool handle_payload(char* message, std::size_t size) // NOLINT(build/unsigned)
+  // Process an incoming raw byte buffer and extract complete payloads of type TargetPayloadType.
+  void handle_payload(char* message, std::size_t size)
   {
-    bool push_out = true;
-    if (push_out) {
+    // Calculate how many full payloads fit in the incoming message buffer.
+    std::size_t full_payloads = size / m_expected_payload_size;
+    
+    // Calculate leftover bytes that don't form a complete payload.
+    if (size % m_expected_payload_size > 0) [[unlikely]] {
+      ++m_leftover_bytes_encountered;
+    }
+    
+    // Process each full payload
+    for (std::size_t i = 0; i < full_payloads; ++i) {
+      // Calculate pointer to the i-th payload chunk inside the message buffer.
+      const char* src = message + i * m_expected_payload_size;
+    
+      // Materialize a real TargetPayloadType object by copying bytes from the buffer.
+      // This is defined behavior, alignment-safe, and fast, without pointer vodoo
+      // Previously reinterpret_cast to TargetPayloadType* introduced alignment traps 
+      // “pretend there’s a constructed object there” UB. Scatter won't work like that.
+      TargetPayloadType payload;
+      std::memcpy(&payload, src, m_expected_payload_size);
 
-      TargetPayloadType& target_payload = *reinterpret_cast<TargetPayloadType*>(message);
-  
       if (m_callback_mode) {
-        (*m_sink_callback)(std::move(target_payload));
+        // Pass by value (moved); no references into 'message', so no UAF.
+        (*m_sink_callback)(std::move(payload));
       } else {
-        if (!m_sink_queue->try_send(std::move(target_payload), iomanager::Sender::s_no_block)) {
-          ++m_dropped_packets;
+        // Queue mode: attempt to enqueue the payload in a non-blocking way.
+        if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
+           ++m_failed_to_send_daq_payloads;
         }
       }
-
-    } else {
-      TargetPayloadType target_payload;
-      uint32_t bytes_copied = 0;
-      datahandlinglibs::buffer_copy(message, size, static_cast<void*>(&target_payload), bytes_copied, sizeof(target_payload));
     }
-
-    return true;
   }
 
   void generate_opmon_data() override {
       
-    if(m_dropped_packets != 0) {
-        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_dropped_packets));
+    if(m_failed_to_send_daq_payloads != 0) {
+        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_failed_to_send_daq_payloads));
     }
 
     opmon::SourceInfo info;
-    info.set_dropped_frames( m_dropped_packets.load() ); 
+    // RS FIXME: These are NOT dropped frames!!! Rename on opmon is needed
+    info.set_dropped_frames( m_failed_to_send_daq_payloads.exchange(0) ); 
 
     publish( std::move(info) );
   }
   
 private:
+  // Constants
+  const std::size_t m_expected_payload_size = sizeof(TargetPayloadType);
+
+
   // Sink internals
   std::string m_sink_id;
   bool m_sink_is_set{ false };
@@ -129,7 +146,9 @@ private:
   using sink_cb_t = std::shared_ptr<std::function<void(TargetPayloadType&&)>>;
   sink_cb_t m_sink_callback;
 
-  std::atomic<uint64_t> m_dropped_packets{0};
+  // Stats
+  std::atomic<uint64_t> m_leftover_bytes_encountered{0};
+  std::atomic<uint64_t> m_failed_to_send_daq_payloads{0};
 
 };
 
