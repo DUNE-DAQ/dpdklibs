@@ -48,7 +48,7 @@ public:
   NICSender& operator=(NICSender&&) =
     delete; ///< NICSender is not move-assignable
 
-  void init(const nlohmann::json& iniobj) override;
+  void init(std::shared_ptr<ConfigurationManager> mcfg) override;
 
   // Map Core ID (LID) -> IP
   std::map<int, std::vector<std::string>> m_core_map;
@@ -62,10 +62,10 @@ public:
 private:
   using module_conf_t = dunedaq::dpdklibs::nicsender::Conf;
 
-  void do_configure(const data_t&);
-  void do_start(const data_t&); 
-  void do_stop(const data_t&);
-  void do_scrap(const data_t&);
+  void do_configure(const CommandData_t&);
+  void do_start(const CommandData_t&); 
+  void do_stop(const CommandData_t&);
+  void do_scrap(const CommandData_t&);
   void get_info(opmonlib::InfoCollector& ci, int level);
 
   void dpdk_configure();
