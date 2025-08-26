@@ -439,6 +439,16 @@ IfaceWrapper::generate_opmon_data() {
     
     publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
   }
+
+  // RTE Workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    opmon::RTEWorkerInfo info;
+    info.set_num_unhandled_non_ipv4( m_num_unhandled_non_ipv4[lcore].exchange(0) );
+    info.set_num_unhandled_non_udp( m_num_unhandled_non_udp[lcore].exchange(0) ); 
+    info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
+    publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
+  }
+  
 }
 
 //-----------------------------------------------------------------------------
