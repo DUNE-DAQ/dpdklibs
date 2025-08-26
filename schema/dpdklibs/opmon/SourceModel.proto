@@ -4,6 +4,8 @@ package dunedaq.dpdklibs.opmon;
 
 message SourceInfo {
 
-  uint32 failed_to_send_daq_payloads = 1;
+  uint64 failed_to_send_daq_payloads = 1;
+  uint64 leftover_bytes_encountered  = 2;
+  
   
 }
