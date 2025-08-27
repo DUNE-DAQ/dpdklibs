@@ -448,7 +448,13 @@ IfaceWrapper::generate_opmon_data() {
     info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
     publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
   }
-  
+
+  for ( auto & [id, counter] : m_num_unexid_frames ) {
+    auto val = counter.exchange(0);
+    if ( val > 0 ) {
+      ers::warning( UnexpectedStreamID( ERS_HERE, id, counter ) );
+    }
+  }
 }
 
 //-----------------------------------------------------------------------------
