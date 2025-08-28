@@ -33,6 +33,8 @@ namespace {
   std::atomic<uint64_t> num_bytes = 0;
   std::atomic<uint64_t> num_errors = 0;
   std::atomic<uint64_t> num_missed = 0; 
+  std::atomic<uint64_t> num_udp_frames = 0;
+  std::atomic<uint64_t> num_jumbo_frames = 0;
 
 } // namespace ""
 
@@ -103,7 +105,9 @@ lcore_main(struct rte_mempool *mbuf_pool)
       TLOG() << " Total packets: " << num_packets
              << " Total bytes: " << num_bytes
              << " Total missed: " << num_missed
-             << " Total errors: " << num_errors;
+             << " Total errors: " << num_errors
+             << " Total UDP frames: " << num_udp_frames.exchange(0)
+             << " Total JUMBO frames: " << num_jumbo_frames.exchange(0);
       // Queue based counters doesn't seem to work neither here neither in module... :((((((
       for( unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++ ){
         TLOG() << "HW iface queue[" << i << "] received: " << (uint64_t)iface_stats.q_ipackets[i];
@@ -163,6 +167,17 @@ lcore_main(struct rte_mempool *mbuf_pool)
           }
           continue;
         }
+
+        // Check if frame is UDP. Count them.
+        if ((pkt_type & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP) {
+          ++num_udp_frames;
+        }
+
+        // Check for JUMBO frames (bigger than 1500 Bytes)
+        if (bufs[i_b]->pkt_len > 1500) { // RS FIXME: do proper check on data length later 
+          ++num_jumbo_frames;
+        }
+
       }
       rte_pktmbuf_free_bulk(bufs, nb_rx);
     }

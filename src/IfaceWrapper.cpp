@@ -67,7 +67,7 @@ IfaceWrapper::IfaceWrapper(
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
-  auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
+  auto net_device = receiver->get_uses();
 
   m_iface_id = iface_id;
   m_mac_addr = net_device->get_mac_address();
@@ -129,9 +129,8 @@ IfaceWrapper::IfaceWrapper(
 
     std::string tx_ip = sender_ni->get_ip_address().at(0);
 
-    for ( auto res : nw_sender->get_contains() ) {
+    for ( auto det_stream : nw_sender->get_streams() ) {
 
-      auto det_stream = res->cast<confmodel::DetectorStream>();
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
 
@@ -308,11 +307,19 @@ IfaceWrapper::setup_xstats()
 void
 IfaceWrapper::start()
 {
+  // Reset counters for RX queues
   for (auto const& [rx_q, _] : m_num_frames_rxq ) {
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
     m_num_full_bursts[rx_q] = { 0 };
     m_max_burst_size[rx_q] = { 0 };
+  }
+
+  // Reset counters for rte_workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    m_num_unhandled_non_ipv4[lcore] = { 0 };
+    m_num_unhandled_non_udp[lcore] = { 0 };
+    m_num_unhandled_non_jumbo_udp[lcore] = { 0 };
   }
 
   m_lcore_enable_flow.store(false);
@@ -440,6 +447,22 @@ IfaceWrapper::generate_opmon_data() {
     i.set_max_burst_size( m_max_burst_size[src_rx_q].exchange(0) );
     
     publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
+  }
+
+  // RTE Workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    opmon::RTEWorkerInfo info;
+    info.set_num_unhandled_non_ipv4( m_num_unhandled_non_ipv4[lcore].exchange(0) );
+    info.set_num_unhandled_non_udp( m_num_unhandled_non_udp[lcore].exchange(0) ); 
+    info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
+    publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
+  }
+
+  for ( auto & [id, counter] : m_num_unexid_frames ) {
+    auto val = counter.exchange(0);
+    if ( val > 0 ) {
+      ers::warning( UnexpectedStreamID( ERS_HERE, id, counter ) );
+    }
   }
 }
 

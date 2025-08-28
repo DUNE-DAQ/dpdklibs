@@ -96,3 +96,12 @@ message EthXStatsErrors {
   uint64 tx_errors          = 100;
 
 }
+
+
+message RTEWorkerInfo {
+
+  uint32 num_unhandled_non_ipv4 = 1;
+  uint32 num_unhandled_non_udp  = 2;
+  uint32 num_unhandled_non_jumbo_udp = 3;
+
+}
