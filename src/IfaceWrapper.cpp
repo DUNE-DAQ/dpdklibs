@@ -73,6 +73,15 @@ IfaceWrapper::IfaceWrapper(
   m_mac_addr = net_device->get_mac_address();
   m_ip_addr = net_device->get_ip_address();
 
+  TLOG() << "Building IfaceWrapper " << m_iface_id;
+  std::stringstream s;
+  s << 'IfaceWrapper (port ' << m_iface_id << ") responding to : ";
+  for( const std::string& ip_addr : m_ip_addr) {
+      s << ip_addr << " ";
+  }
+
+  TLOG() << s.str();
+
   for( const std::string& ip_addr : m_ip_addr) {
     IpAddr ip_addr_struct(ip_addr);
     m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
