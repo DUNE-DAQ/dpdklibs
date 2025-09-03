@@ -44,7 +44,13 @@ namespace dunedaq {
 		     "Field " << field << " was not reported",
 		     ((std::string)field)
 		     )
-  
+
+  ERS_DECLARE_ISSUE( dpdklibs,
+		     UnexpectedStreamID,
+		     "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
+		     ((int)src_id)((size_t)counter)
+		     )
+
 namespace dpdklibs {
 
   class IfaceWrapper : public opmonlib::MonitorableObject

@@ -99,7 +99,7 @@ pktgen_process_arp(struct rte_mbuf *m, uint32_t port_id, rte_be32_t ip_add_bin)
       // Bail out if not our ipaddress
       if ( arp->arp_data.arp_tip != ip_add_bin) return;
 
-      TLOG_DEBUG(10) << "ARP Received " << dstaddr << " I'm the target " << localaddr;
+      TLOG_DEBUG(10) << "ARP Received " << dstaddr << " I'm the target " << localaddr << " (port id = " << port_id << ")";
 
       /* Swap the two MAC addresses */
       ethAddrSwap(&arp->arp_data.arp_sha, &arp->arp_data.arp_tha);

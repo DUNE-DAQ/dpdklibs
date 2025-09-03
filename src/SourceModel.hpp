@@ -124,8 +124,8 @@ public:
     }
 
     opmon::SourceInfo info;
-    // RS FIXME: These are NOT dropped frames!!! Rename on opmon is needed
-    info.set_dropped_frames( m_failed_to_send_daq_payloads.exchange(0) ); 
+    info.set_failed_to_send_daq_payloads( m_failed_to_send_daq_payloads.exchange(0) );
+    info.set_leftover_bytes_encountered( m_leftover_bytes_encountered.exchange(0) );
 
     publish( std::move(info) );
   }
