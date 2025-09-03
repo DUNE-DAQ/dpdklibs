@@ -179,7 +179,7 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
 
 
             if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) != m_ip_addr_bin.end()) {
-              arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], 0, arp_hdr->arp_data.arp_tip);
+              arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], m_iface_id, arp_hdr->arp_data.arp_tip);
             } else {
               TLOG_DEBUG(10) << "I'm not the ARP target";
             }
