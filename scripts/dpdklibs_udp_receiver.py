@@ -6,14 +6,14 @@ import detdataformats
 import fddetdataformats
 import time
 import click
+import ipaddress
 
 N_STREAM = 128
 FRAME_SIZE = 7200
 FRAME_TS_GAP_BDE = 2048
 FRAME_TS_GAP_TDE = 2000
 
-def print_header(wib_frame,prefix="\t"):
-    header = wib_frame.get_daqheader()
+def print_header(header,prefix="\t"):
     print(f'{prefix}Version: 0x{header.version:x}')
     print(f'{prefix}Detector ID: 0x{header.det_id:x}')
     print(f'{prefix}(Crate,Slot,Stream): (0x{header.crate_id:x},0x{header.slot_id:x},0x{header.stream_id:x})')
@@ -29,18 +29,34 @@ def dump_data(data):
         w = int.from_bytes(data[i*8:(i+1)*8], byteorder='little', signed=False)
         print(f"{i:04d} 0x{w:016x}")
 
+
+def validate_ip(ctx, param, value):
+    if value is None:
+        return ''
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        raise click.BadParameter(f"{value} is not a valid IP address.")
+
+
 @click.command()
 @click.option('-d', '--dump-packet', is_flag=True, default=False)
 @click.option('-u', '--unpack-frames', is_flag=True, default=False)
 @click.option('-w', '--words', type=int, default=8)
 @click.option('-c', '--count', type=int, default=None)
+@click.option(
+    "--ip",
+    default=None,
+    help="IP address of the network interface host",
+    callback=validate_ip,
+)
 @click.option('-p', '--port', type=int, default=0x4444)
 @click.option('-g', '--gap', type=int, default=None)
 @click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde','daphne']), default=None)
-def main(dump_packet, unpack_frames, words, count, port, gap, frame_type):
+def main(dump_packet, unpack_frames, words, count, ip, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
-    s.bind(('', port))
+    s.bind((ip, port))
 
     prev_stream = {}
     i=0
@@ -52,19 +68,25 @@ def main(dump_packet, unpack_frames, words, count, port, gap, frame_type):
             frame_class = fddetdataformats.WIBEthFrame
             port = port if not port is None else 0x4444
             gap = gap if not gap is None else FRAME_TS_GAP_BDE
+            FRAME_SIZE = 7200
         case 'tde':
             frame_class = fddetdataformats.TDEEthFrame
             port = port if not port is None else 54323
             gap = gap if not gap is None else FRAME_TS_GAP_TDE
+            FRAME_SIZE = 7200
         case 'daphne':
             frame_class = fddetdataformats.DAPHNEEthFrame
             port = port if not port is None else 0x4444
             # gap = gap if not gap is None else 2048
+            FRAME_SIZE = 7456
+
 
             
     print('Receiver started')
+    dtnow = time.time()
+
     while (count==None or i<count):
-        print(count, i)
+        # print(count, i)
         data, address = s.recvfrom(20000)
 
 
@@ -129,13 +151,15 @@ def main(dump_packet, unpack_frames, words, count, port, gap, frame_type):
 
 
         i+=1;
-        if i%100000 ==0:
+        if i%sampling ==0:
+            dtlast=dtnow
             dtnow = time.time()
             avg_throughput = FRAME_SIZE*i/(1000000*(dtnow-dtstart))
             throughput = FRAME_SIZE*sampling/(1000000*(dtnow-dtlast))
-            print(f'Received {i} packets; throughput = {throughput:.3f} MB/s [avg = {avg_throughput:.3f} MB/s]')
+
+            print(f'Received {i} packets ({sampling/(dtnow-dtlast):.2f} pps over {dtnow-dtlast:.2f}); throughput = {throughput:.3f} MB/s [avg = {avg_throughput:.3f} MB/s]')
             dtlast = dtnow
-            print_header(wf)
+            print_header(header)
             for k,ts in prev_stream.items():
                 if ts is None:
                     continue
