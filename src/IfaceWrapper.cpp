@@ -483,23 +483,49 @@ IfaceWrapper::garp_func()
 
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
-{  
-  // Get DAQ Header and its StreamID
-  auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
+IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
+{
+  // Ptrs for beginning and end of UDP payload.
+  const char* ptr = payload;
+  const char* end = payload + size;
 
-  if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
-    src_it->second->handle_payload(payload, size);
-  } else {
-    // Really bad -> unexpeced StreamID in UDP Payload.
-    // This check is needed in order to avoid dynamically add thousands
-    // of Sources on the fly, in case the data corruption is extremely severe.
-    if (m_num_unexid_frames.count(src_id) == 0) {
-      m_num_unexid_frames[src_id] = 0;
+  // Process every DAQ payload within UDP payload
+  while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) <= end) { // Scatter loop start
+    // Reinterpret directly to DAQEthHeader
+    auto hdrp = reinterpret_cast<const dunedaq::detdataformats::DAQEthHeader*>(ptr);
+
+    // Calculate data bytes after DAQEthHeader
+    unsigned block_words = unsigned(hdrp->block_length);
+    std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
+
+    // Check if full payload fits
+    if (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes > end) {
+      // truncated payload -> stop, add opmon counter or warning
+      return;
     }
-    m_num_unexid_frames[src_id]++;
-  }
+
+    // Calculate frame size (used both for handling and advancing)
+    std::size_t frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
+
+    // Check Source/Stream ID and if its an expected one
+    auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(hdrp->stream_id)];
+    if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
+      src_it->second->handle_payload(hdrp, frame_size);
+    } else {
+      // Really bad -> unexpeced StreamID in UDP Payload.
+      // This check is needed in order to avoid dynamically add thousands
+      // of Sources on the fly, in case the data corruption is extremely severe.
+      if (m_num_unexid_frames.count(src_id) == 0) {
+        m_num_unexid_frames[src_id] = 0;
+      }
+      m_num_unexid_frames[src_id]++;
+    }
+      
+    // Advance to next payload
+    ptr += frame_size;
+
+  } // Scatter loop end
+
 }
 
 } // namespace dpdklibs

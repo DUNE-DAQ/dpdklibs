@@ -94,7 +94,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
             // If flow enabled, handle the payload.
             if ( m_lcore_enable_flow.load() ) [[likely]] {
               char* message = udp::get_udp_payload(q_bufs[i_b]);
-              handle_eth_payload(src_rx_q, message, data_len);
+              handle_udp_payload(src_rx_q, message, data_len);
             }
 
             // Update metrics of queue: frame and Byte counters
