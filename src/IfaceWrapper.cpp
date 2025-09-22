@@ -510,7 +510,7 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Check Source/Stream ID and if its an expected one
     auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(hdrp->stream_id)];
     if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
-      src_it->second->handle_daq_frame(hdrp, frame_size);
+      src_it->second->handle_daq_frame((char*)hdrp, frame_size);
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands

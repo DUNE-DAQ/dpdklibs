@@ -96,7 +96,7 @@ public:
     // Process each full frames
     for (std::size_t i = 0; i < full_frames; ++i) {
       // Calculate pointer to the i-th frame chunk inside the message buffer.
-      const char* src = message + i * m_expected_frame_size;
+      const char* src = buffer + i * m_expected_frame_size;
     
       // Materialize a real TargetPayloadType object by copying bytes from the buffer.
       // This is defined behavior, alignment-safe, and fast, without pointer vodoo
@@ -106,7 +106,7 @@ public:
       std::memcpy(&frame, src, m_expected_frame_size);
 
       if (m_callback_mode) {
-        // Pass by value (moved); no references into 'message', so no UAF.
+        // Pass by value (moved); no references into 'buffer', so no UAF.
         (*m_sink_callback)(std::move(frame));
       } else {
         // Queue mode: attempt to enqueue the frame in a non-blocking way.
