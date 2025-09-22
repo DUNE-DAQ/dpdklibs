@@ -170,7 +170,7 @@ private:
   int arp_response_runner(void *arg __rte_unused);
 
   // What to do with every payload
-  void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
+  void handle_udp_payload(int src_rx_q, char* payload, std::size_t size);
 
 };
 
