@@ -486,13 +486,13 @@ void
 IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
 {
   // Ptrs for beginning and end of UDP payload.
-  const char* ptr = payload;
+  char* ptr = payload;
   const char* end = payload + size;
 
   // Process every DAQ payload within UDP payload
   while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) <= end) { // Scatter loop start
     // Reinterpret directly to DAQEthHeader
-    auto hdrp = reinterpret_cast<const dunedaq::detdataformats::DAQEthHeader*>(ptr);
+    auto hdrp = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(ptr);
 
     // Calculate data bytes after DAQEthHeader
     unsigned block_words = unsigned(hdrp->block_length);
