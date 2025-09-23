@@ -97,6 +97,7 @@ protected:
   std::string m_mac_addr;
   int m_socket_id;
   int m_mtu;
+  unsigned m_max_block_words;
   uint16_t m_rx_ring_size;
   uint16_t m_tx_ring_size;
   int m_num_mbufs;
