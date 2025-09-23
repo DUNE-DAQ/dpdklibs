@@ -98,6 +98,7 @@ IfaceWrapper::IfaceWrapper(
   m_with_flow = iface_cfg->get_flow_control();
   m_prom_mode = iface_cfg->get_promiscuous_mode();;
   m_mtu = iface_cfg->get_mtu();
+  m_max_block_words = unsigned(m_mtu) / sizeof(uint64_t);
   m_rx_ring_size = iface_cfg->get_rx_ring_size();
   m_tx_ring_size = iface_cfg->get_tx_ring_size();
   m_num_mbufs = iface_cfg->get_num_bufs();
@@ -494,8 +495,14 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Reinterpret directly to DAQEthHeader
     auto hdrp = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(ptr);
 
-    // Calculate data bytes after DAQEthHeader
+    // Check number of block words and do corrupt length check
     unsigned block_words = unsigned(hdrp->block_length);
+    if (block_words == 0 || block_words > m_max_block_words) {
+      // corrupted length -> stop
+      return;
+    }
+
+    // Calculate data bytes after DAQEthHeader
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
 
     // Check if full payload fits
