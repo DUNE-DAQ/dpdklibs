@@ -2,17 +2,18 @@
 import socket
 import sys
 import binascii
+import detdataformats
 import fddetdataformats
 import time
 import click
+import ipaddress
 
 N_STREAM = 128
 FRAME_SIZE = 7200
-FRAME_TS_GAP = 2048
-FRAME_TS_GAP = 2000
+FRAME_TS_GAP_BDE = 2048
+FRAME_TS_GAP_TDE = 2000
 
-def print_header(wib_frame,prefix="\t"):
-    header = wib_frame.get_daqheader()
+def print_header(header,prefix="\t"):
     print(f'{prefix}Version: 0x{header.version:x}')
     print(f'{prefix}Detector ID: 0x{header.det_id:x}')
     print(f'{prefix}(Crate,Slot,Stream): (0x{header.crate_id:x},0x{header.slot_id:x},0x{header.stream_id:x})')
@@ -21,28 +22,41 @@ def print_header(wib_frame,prefix="\t"):
     print(f'{prefix}Block length: 0x{header.block_length:x}')
 
 def dump_data(data):
-    print(f'Size of the message received: {len(data)}')
     data2=data
 
-
-    # if len(data)%2 ==1:
-        # data2=data[0:-1]
-    # print("\n".join(str(binascii.hexlify(data2,' ', bytes_per_sep=8)).split(' ')))
     n_word = (len(data) // 8) +len(data) % 8
     for i in range(n_word):
         w = int.from_bytes(data[i*8:(i+1)*8], byteorder='little', signed=False)
-        print(f"0x{w:016x}")
+        print(f"{i:04d} 0x{w:016x}")
+
+
+def validate_ip(ctx, param, value):
+    if value is None:
+        return ''
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        raise click.BadParameter(f"{value} is not a valid IP address.")
+
 
 @click.command()
-@click.option('-d', '--dump', is_flag=True, default=False)
+@click.option('-d', '--dump-packet', is_flag=True, default=False)
+@click.option('-u', '--unpack-frames', is_flag=True, default=False)
+@click.option('-w', '--words', type=int, default=8)
 @click.option('-c', '--count', type=int, default=None)
+@click.option(
+    "--ip",
+    default=None,
+    help="IP address of the network interface host",
+    callback=validate_ip,
+)
 @click.option('-p', '--port', type=int, default=0x4444)
 @click.option('-g', '--gap', type=int, default=None)
-@click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde']), default='wib')
-def main(dump, count, port, gap, frame_type):
+@click.option('-f', '--frame-type', type=click.Choice(['wib', 'tde','daphne']), default=None)
+def main(dump_packet, unpack_frames, words, count, ip, port, gap, frame_type):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
-    s.bind(('', port))
+    s.bind((ip, port))
 
     prev_stream = {}
     i=0
@@ -53,19 +67,30 @@ def main(dump, count, port, gap, frame_type):
         case 'wib':
             frame_class = fddetdataformats.WIBEthFrame
             port = port if not port is None else 0x4444
-            gap = gap if not gap is None else 2048
+            gap = gap if not gap is None else FRAME_TS_GAP_BDE
+            FRAME_SIZE = 7200
         case 'tde':
             frame_class = fddetdataformats.TDEEthFrame
             port = port if not port is None else 54323
-            gap = gap if not gap is None else 2000
-            
-    print('Starting receiver')
-    while (count==None or i<count):
-    # while i<10:
-        data, address = s.recvfrom(20000)
-        wf = frame_class(data)
-        header = wf.get_daqheader()
+            gap = gap if not gap is None else FRAME_TS_GAP_TDE
+            FRAME_SIZE = 7200
+        case 'daphne':
+            frame_class = fddetdataformats.DAPHNEEthFrame
+            port = port if not port is None else 0x4444
+            # gap = gap if not gap is None else 2048
+            FRAME_SIZE = 7456
 
+
+            
+    print('Receiver started')
+    dtnow = time.time()
+
+    while (count==None or i<count):
+        # print(count, i)
+        data, address = s.recvfrom(20000)
+
+
+        header = detdataformats.DAQEthHeader(data)
 
         # hdr_id = header.stream_id
         hdr_id = (header.det_id, header.crate_id, header.slot_id, header.stream_id)
@@ -73,32 +98,68 @@ def main(dump, count, port, gap, frame_type):
         # if hdr_id < N_STREAM:
         stream_ts = header.timestamp
         # print(hdr_id, header.seq_id, hex(stream_ts))
-        if dump:
-            dump_data(data[0:32])
+        if dump_packet:
+
+            print('----')
+            print(f'Frame (size {len(data)}) from (DetID, Crate, Slot, Stream) = (0x{header.det_id}, 0x{header.crate_id:x}, 0x{header.slot_id:x}, 0x{header.stream_id:x})')
+            print(f'  Timestamp: 0x{header.timestamp:x}')
+            print(f'  Seq ID: {header.seq_id}, Block length: {header.block_length*8:d} (0x{header.block_length:x})')
+
+            print()
+            dump_data(data[0:words*8])
+            print()
 
         if hdr_id not in prev_stream:
             pass
         else:
             prev_strm_ts = prev_stream[hdr_id]
-            if (stream_ts - prev_strm_ts) != FRAME_TS_GAP:
+            if (not gap is None) and (stream_ts - prev_strm_ts) != gap:
                 print(f'delta_ts {stream_ts-prev_strm_ts} for {hdr_id} ')
 
         
-        # if prev_stream[hdr_id] is None:
-            # pass
-        # elif (stream_ts-prev_stream[hdr_id]) != 2048:
-            # print(f'delta_ts {stream_ts-prev_stream[hdr_id]} for det {header.det_id} strm {hdr_id} ')
+
+
+
+        if unpack_frames:
+            print('----')
+            print(f'Packet {i}')
+
+            max_unpack = 512
+            print()
+            l = 0
+            l_pkt = len(data)
+            frames = []
+            while l < l_pkt:
+                
+                d_blk = data[l:]
+                # dump_data(d_blk[0:4*8])
+                h = detdataformats.DAQEthHeader(d_blk)
+                print(f"len(data) = {l_pkt} block_len = {h.block_length*8:d} 0x{h.block_length:x} [l = {l}]")
+                l_frm = (h.block_length+1)*8
+                frames += [d_blk[:l_frm]]
+                
+                l += l_frm # +1 for the header
+
+            print(f"Scanning complete (scanned {l} over {l_pkt} bytes)")
+
+
+            for j,f in enumerate(frames):
+                print(f"Frame {j}")
+                dump_data(f[:max_unpack*8])
+
         prev_stream[hdr_id] = stream_ts
 
 
         i+=1;
-        if i%100000 ==0:
+        if i%sampling ==0:
+            dtlast=dtnow
             dtnow = time.time()
             avg_throughput = FRAME_SIZE*i/(1000000*(dtnow-dtstart))
             throughput = FRAME_SIZE*sampling/(1000000*(dtnow-dtlast))
-            print(f'Received {i} packets; throughput = {throughput:.3f} MB/s [avg = {avg_throughput:.3f} MB/s]')
+
+            print(f'Received {i} packets ({sampling/(dtnow-dtlast):.2f} pps over {dtnow-dtlast:.2f}); throughput = {throughput:.3f} MB/s [avg = {avg_throughput:.3f} MB/s]')
             dtlast = dtnow
-            print_header(wf)
+            print_header(header)
             for k,ts in prev_stream.items():
                 if ts is None:
                     continue
