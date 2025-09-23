@@ -462,7 +462,7 @@ IfaceWrapper::generate_opmon_data() {
   for ( auto & [id, counter] : m_num_unexid_frames ) {
     auto val = counter.exchange(0);
     if ( val > 0 ) {
-      ers::warning( UnexpectedStreamID( ERS_HERE, id, counter ) );
+      ers::warning( UnexpectedStreamID( ERS_HERE, id, val ) );
     }
   }
 }
@@ -491,7 +491,7 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
   const char* end = payload + size;
 
   // Process every DAQ payload within UDP payload
-  while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) <= end) { // Scatter loop start
+  while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < end) { // Scatter loop start
     // Reinterpret directly to DAQEthHeader
     auto hdrp = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(ptr);
 
