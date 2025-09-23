@@ -1,6 +1,7 @@
 #include <time.h>
 #include <rte_arp.h>
 #include <rte_ethdev.h>
+#include "dpdklibs/udp/IPV4UDPPacket.hpp"
 
 namespace dunedaq {
 namespace dpdklibs {
@@ -89,7 +90,8 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
 
             // Get length of user payload. (Ethernet headers excluded.)
-            std::size_t data_len = q_bufs[i_b]->data_len;
+            struct udp::ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
+            std::size_t data_len = udp::get_payload_size_udp_hdr(&udp_packet->udp_hdr);
 
             // If flow enabled, handle the payload.
             if ( m_lcore_enable_flow.load() ) [[likely]] {
