@@ -44,7 +44,13 @@ namespace dunedaq {
 		     "Field " << field << " was not reported",
 		     ((std::string)field)
 		     )
-  
+
+  ERS_DECLARE_ISSUE( dpdklibs,
+		     UnexpectedStreamID,
+		     "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
+		     ((int)src_id)((size_t)counter)
+		     )
+
 namespace dpdklibs {
 
   class IfaceWrapper : public opmonlib::MonitorableObject
@@ -122,9 +128,17 @@ private:
   // Stats by queues
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
-  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
   std::map<int, std::atomic<std::size_t>> m_num_full_bursts;
   std::map<int, std::atomic<uint16_t>> m_max_burst_size;
+
+  // Stats by rte_workers
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_ipv4;
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_udp;
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_jumbo_udp;
+
+  // Unexpected stream ID count
+  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
+
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;

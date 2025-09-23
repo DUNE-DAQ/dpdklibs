@@ -73,6 +73,15 @@ IfaceWrapper::IfaceWrapper(
   m_mac_addr = net_device->get_mac_address();
   m_ip_addr = net_device->get_ip_address();
 
+  TLOG() << "Building IfaceWrapper " << m_iface_id;
+  std::stringstream s;
+  s << 'IfaceWrapper (port ' << m_iface_id << ") responding to : ";
+  for( const std::string& ip_addr : m_ip_addr) {
+      s << ip_addr << " ";
+  }
+
+  TLOG() << s.str();
+
   for( const std::string& ip_addr : m_ip_addr) {
     IpAddr ip_addr_struct(ip_addr);
     m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
@@ -298,11 +307,19 @@ IfaceWrapper::setup_xstats()
 void
 IfaceWrapper::start()
 {
+  // Reset counters for RX queues
   for (auto const& [rx_q, _] : m_num_frames_rxq ) {
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
     m_num_full_bursts[rx_q] = { 0 };
     m_max_burst_size[rx_q] = { 0 };
+  }
+
+  // Reset counters for rte_workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    m_num_unhandled_non_ipv4[lcore] = { 0 };
+    m_num_unhandled_non_udp[lcore] = { 0 };
+    m_num_unhandled_non_jumbo_udp[lcore] = { 0 };
   }
 
   m_lcore_enable_flow.store(false);
@@ -430,6 +447,22 @@ IfaceWrapper::generate_opmon_data() {
     i.set_max_burst_size( m_max_burst_size[src_rx_q].exchange(0) );
     
     publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
+  }
+
+  // RTE Workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    opmon::RTEWorkerInfo info;
+    info.set_num_unhandled_non_ipv4( m_num_unhandled_non_ipv4[lcore].exchange(0) );
+    info.set_num_unhandled_non_udp( m_num_unhandled_non_udp[lcore].exchange(0) ); 
+    info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
+    publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
+  }
+
+  for ( auto & [id, counter] : m_num_unexid_frames ) {
+    auto val = counter.exchange(0);
+    if ( val > 0 ) {
+      ers::warning( UnexpectedStreamID( ERS_HERE, id, counter ) );
+    }
   }
 }
 
