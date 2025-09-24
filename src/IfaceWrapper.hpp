@@ -172,7 +172,6 @@ private:
 
   // What to do with every payload
   void handle_udp_payload(int src_rx_q, char* payload, std::size_t size);
-  bool printout_loop = true;
 };
 
 } // namespace dpdklibs
