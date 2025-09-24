@@ -486,43 +486,44 @@ IfaceWrapper::garp_func()
 void
 IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
 {
-  // Ptrs for beginning and end of UDP payload.
-  char* ptr = payload;
-  const char* end = payload + size;
+  // Pointers for parsing and to the end of the UDP payload.
+  char* plptr = payload;
+  const char* plendptr = payload + size;
 
-  // Process every DAQ payload within UDP payload
-  while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < end) { // Scatter loop start
+  // Process every DAQEth frame within UDP payload
+  while ( plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < plendptr ) { // Scatter loop start
+
     // Reinterpret directly to DAQEthHeader
-    auto hdrp = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(ptr);
-    // Check number of block words and do corrupt length check
-    unsigned block_words = unsigned(hdrp->block_length) - 1; // removing timestamp word from the block length.
-    if (block_words == 0 || block_words > m_max_block_words) {
-      // corrupted length -> stop
+    auto daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(plptr);
+
+    // Check number of DAQEth block_words 
+    unsigned block_words = unsigned(daqhdrptr->block_length) - 1; // removing timestamp word from the block length.
+
+    // Check for corrupted DAQEth frame length   
+    if ( block_words == 0 || block_words > m_max_block_words ) {
+      // RS FIXME: corrupted length -> stop, add opmon counter or warning
       return;
     }    
-    // Calculate data bytes after DAQEthHeader
+
+    // Calculate data bytes after DAQEthHeader based on block_words
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
-    char* end_ptr = ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
-    if (printout_loop)
-    {
-      TLOG() << "Payload information (start pointer : " << (void*)ptr << "| end pointer : " << (void*)end_ptr << "| end : " << (void*)end << "| data bytes : " << data_bytes << "| block words : " << block_words << "| original size : " << size << ")";
-      printout_loop = false;
-    }
+    // Grab end pointer of DAQEth frame
+    char* end_ptr = plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
-    // Check if full payload fits
-    if (end_ptr > end) {
-      // truncated payload -> stop, add opmon counter or warning
+    // Check if full DAQEth frame fits
+    if ( end_ptr > plendptr ) {
+      // RS FIXME: truncated payload -> stop, add opmon counter or warning
       return;
     }
 
-    // Calculate frame size (used both for handling and advancing)
-    std::size_t frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
+    // Calculate DAQEth frame size (used both for handling and advancing)
+    std::size_t daq_frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
     // Check Source/Stream ID and if its an expected one
-    auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(hdrp->stream_id)];
-    if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
-      src_it->second->handle_daq_frame((char*)hdrp, frame_size);
+    auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(daqhdrptr->stream_id)];
+    if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end() ) {
+      src_it->second->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands
@@ -534,7 +535,7 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
     }
       
     // Advance to next payload
-    ptr += frame_size;
+    plptr += daq_frame_size;
 
   } // Scatter loop end
 
