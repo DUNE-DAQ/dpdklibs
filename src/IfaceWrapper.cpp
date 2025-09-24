@@ -509,10 +509,10 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
 
     // Grab end pointer of DAQEth frame
-    char* end_ptr = plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
+    char* daqframe_endptr = plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
     // Check if full DAQEth frame fits
-    if ( end_ptr > plendptr ) {
+    if ( daqframe_endptr > plendptr ) {
       // RS FIXME: truncated payload -> stop, add opmon counter or warning
       return;
     }
