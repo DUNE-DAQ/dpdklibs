@@ -504,6 +504,12 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
     char* end_ptr = ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
+    if (printout_loop)
+    {
+      TLOG() << "Payload information (start pointer : " << (void*)ptr << "| end pointer : " << (void*)end_ptr << "| end : " << (void*)end << "| data bytes : " << data_bytes << "| block words : " << block_words << "| original size : " << size << ")";
+      printout_loop = false;
+    }
+
     // Check if full payload fits
     if (end_ptr > end) {
       // truncated payload -> stop, add opmon counter or warning
