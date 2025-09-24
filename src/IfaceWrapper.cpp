@@ -494,17 +494,15 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
   while (ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < end) { // Scatter loop start
     // Reinterpret directly to DAQEthHeader
     auto hdrp = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(ptr);
-    char* end_ptr = ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
-
     // Check number of block words and do corrupt length check
     unsigned block_words = unsigned(hdrp->block_length) - 1; // removing timestamp word from the block length.
     if (block_words == 0 || block_words > m_max_block_words) {
       // corrupted length -> stop
       return;
-    }
-
+    }    
     // Calculate data bytes after DAQEthHeader
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
+    char* end_ptr = ptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
     // Check if full payload fits
     if (end_ptr > end) {
