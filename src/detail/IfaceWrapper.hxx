@@ -89,18 +89,18 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           // Check for JUMBO frames (bigger than 1500 Bytes)
           if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
 
-            // Get length of user payload. (Ethernet headers excluded.)
-            struct udp::ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
-            std::size_t data_len = udp::get_payload_size_udp_hdr(&udp_packet->udp_hdr);
-
             // If flow enabled, handle the payload.
             if ( m_lcore_enable_flow.load() ) [[likely]] {
+              // Get length of user payload. (Ethernet headers excluded.)
+              struct udp::ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
               char* message = udp::get_udp_payload(q_bufs[i_b]);
-              handle_udp_payload(src_rx_q, message, data_len);
+              std::size_t udp_payload_len = udp::get_payload_size_udp_hdr(&udp_packet->udp_hdr);
+              handle_udp_payload(src_rx_q, message, udp_payload_len);
             }
 
             // Update metrics of queue: frame and Byte counters
             ++m_num_frames_rxq[src_rx_q];
+            std::size_t data_len = q_bufs[i_b]->data_len;
             m_num_bytes_rxq[src_rx_q] += data_len;
           } else {
             ++m_num_unhandled_non_jumbo_udp[lid];
