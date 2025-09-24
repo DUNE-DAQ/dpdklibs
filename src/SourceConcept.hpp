@@ -48,10 +48,20 @@ namespace dunedaq {
 
       void set_sink_name(const std::string& sink_name) 
       { 
-	m_sink_name = sink_name; 
+        m_sink_name = sink_name; 
       }
 
+      // Disables DAQEth protocol on this source 
+      void disable_daq_protocol_checks() {
+        m_daq_protocol_ensured = false;   
+      }
+
+      // Sink or destination related
       std::string m_sink_name;
+
+      // Features
+      bool m_daq_protocol_ensured { true };
+
     };
 
   } // namespace dpdklibs

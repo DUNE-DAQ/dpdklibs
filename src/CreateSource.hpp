@@ -58,6 +58,9 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     // WIB2 specific char arrays
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::TDEEthTypeAdapter>>();
 
+    // Set conforming DAQ protocol checks OFF
+    source_model->disable_daq_protocol_checks();
+
     // For callback acquisition later (lazy)
     source_model->set_sink_name(conn_uid);
   
