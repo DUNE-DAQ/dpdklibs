@@ -148,6 +148,7 @@ private:
   // queue -> [stream_id -> sid]
   std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
   sid_to_source_map_t& m_sources;
+  bool m_strict_parsing {true};
 
   // Run marker
   std::atomic<bool>& m_run_marker;
@@ -170,8 +171,12 @@ private:
   int rx_runner(void *arg __rte_unused);
   int arp_response_runner(void *arg __rte_unused);
 
-  // What to do with every payload
-  void handle_udp_payload(int src_rx_q, char* payload, std::size_t size);
+  // Parse UDP payloads as DAQ frames
+  void parse_udp_payload(int src_rx_q, char* payload, std::size_t size);
+
+  // Pass through UDP payloads as is
+  void passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size);
+
 };
 
 } // namespace dpdklibs
