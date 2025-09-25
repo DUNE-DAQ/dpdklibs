@@ -95,7 +95,12 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
               struct udp::ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
               char* message = udp::get_udp_payload(q_bufs[i_b]);
               std::size_t udp_payload_len = udp::get_payload_size_udp_hdr(&udp_packet->udp_hdr);
-              handle_udp_payload(src_rx_q, message, udp_payload_len);
+
+              if ( m_strict_parsing ) { // all sources maintain DAQ protocol
+                parse_udp_payload(src_rx_q, message, udp_payload_len);
+              } else { // avoid size checks and scattering
+                passthrough_udp_payload(src_rx_q, message, udp_payload_len);
+              }
             }
 
             // Update metrics of queue: frame and Byte counters

@@ -173,6 +173,13 @@ IfaceWrapper::IfaceWrapper(
   TLOG() << "Append TX_Q=0 for ARP responses.";
   m_tx_qs.insert(0);
 
+  // Strict parsing (DAQ protocol) or pass through of UDP payloads to SourceModels
+  for (auto const& [sid, src_concept] : m_sources) {
+    if (!src_concept->m_daq_protocol_ensured) {
+      m_strict_parsing = false;
+    }
+  }
+
 }
 
 
@@ -484,7 +491,7 @@ IfaceWrapper::garp_func()
 
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
+IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
 {
   // Pointers for parsing and to the end of the UDP payload.
   char* plptr = payload;
@@ -539,6 +546,27 @@ IfaceWrapper::handle_udp_payload(int src_rx_q, char* payload, std::size_t size)
 
   } // Scatter loop end
 
+}
+
+//-----------------------------------------------------------------------------
+void
+IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size)
+{
+  // Get DAQ Header and its StreamID
+  auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
+  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daqhdrptr->stream_id];
+
+  if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
+    src_it->second->handle_daq_frame(payload, size);
+  } else {
+    // Really bad -> unexpeced StreamID in UDP Payload.
+    // This check is needed in order to avoid dynamically add thousands
+    // of Sources on the fly, in case the data corruption is extremely severe.
+    if (m_num_unexid_frames.count(src_id) == 0) {
+      m_num_unexid_frames[src_id] = 0;
+    }
+    m_num_unexid_frames[src_id]++;
+  }
 }
 
 } // namespace dpdklibs
