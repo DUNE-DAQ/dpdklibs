@@ -61,12 +61,6 @@ struct ipv4_udp_packet_hdr {
     //} __rte_packed;
 } __rte_packed;
 
-struct ipv4_udp_packet {
-    struct ipv4_udp_packet_hdr hdr;
-#warning RS FIXME -> Hardcoded IPV4 UDP packet payload size!
-    char payload[8000]; // TODO jumbo Mind the padding
-};
-
 } // namespace udp
 } // namespace dpdklibs
 } // namespace dunedaq

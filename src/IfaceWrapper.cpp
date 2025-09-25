@@ -73,6 +73,15 @@ IfaceWrapper::IfaceWrapper(
   m_mac_addr = net_device->get_mac_address();
   m_ip_addr = net_device->get_ip_address();
 
+  TLOG() << "Building IfaceWrapper " << m_iface_id;
+  std::stringstream s;
+  s << 'IfaceWrapper (port ' << m_iface_id << ") responding to : ";
+  for( const std::string& ip_addr : m_ip_addr) {
+      s << ip_addr << " ";
+  }
+
+  TLOG() << s.str();
+
   for( const std::string& ip_addr : m_ip_addr) {
     IpAddr ip_addr_struct(ip_addr);
     m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
@@ -89,6 +98,7 @@ IfaceWrapper::IfaceWrapper(
   m_with_flow = iface_cfg->get_flow_control();
   m_prom_mode = iface_cfg->get_promiscuous_mode();;
   m_mtu = iface_cfg->get_mtu();
+  m_max_block_words = unsigned(m_mtu) / sizeof(uint64_t);
   m_rx_ring_size = iface_cfg->get_rx_ring_size();
   m_tx_ring_size = iface_cfg->get_tx_ring_size();
   m_num_mbufs = iface_cfg->get_num_bufs();
@@ -162,6 +172,13 @@ IfaceWrapper::IfaceWrapper(
   // Adding single TX queue for ARP responses
   TLOG() << "Append TX_Q=0 for ARP responses.";
   m_tx_qs.insert(0);
+
+  // Strict parsing (DAQ protocol) or pass through of UDP payloads to SourceModels
+  for (auto const& [sid, src_concept] : m_sources) {
+    if (!src_concept->m_daq_protocol_ensured) {
+      m_strict_parsing = false;
+    }
+  }
 
 }
 
@@ -298,11 +315,19 @@ IfaceWrapper::setup_xstats()
 void
 IfaceWrapper::start()
 {
+  // Reset counters for RX queues
   for (auto const& [rx_q, _] : m_num_frames_rxq ) {
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
     m_num_full_bursts[rx_q] = { 0 };
     m_max_burst_size[rx_q] = { 0 };
+  }
+
+  // Reset counters for rte_workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    m_num_unhandled_non_ipv4[lcore] = { 0 };
+    m_num_unhandled_non_udp[lcore] = { 0 };
+    m_num_unhandled_non_jumbo_udp[lcore] = { 0 };
   }
 
   m_lcore_enable_flow.store(false);
@@ -431,6 +456,22 @@ IfaceWrapper::generate_opmon_data() {
     
     publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
   }
+
+  // RTE Workers
+  for (auto const& [lcore, _] : m_rx_core_map) {
+    opmon::RTEWorkerInfo info;
+    info.set_num_unhandled_non_ipv4( m_num_unhandled_non_ipv4[lcore].exchange(0) );
+    info.set_num_unhandled_non_udp( m_num_unhandled_non_udp[lcore].exchange(0) ); 
+    info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
+    publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
+  }
+
+  for ( auto & [id, counter] : m_num_unexid_frames ) {
+    auto val = counter.exchange(0);
+    if ( val > 0 ) {
+      ers::warning( UnexpectedStreamID( ERS_HERE, id, val ) );
+    }
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -450,14 +491,73 @@ IfaceWrapper::garp_func()
 
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::handle_eth_payload(int src_rx_q, char* payload, std::size_t size)
-{  
+IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
+{
+  // Pointers for parsing and to the end of the UDP payload.
+  char* plptr = payload;
+  const char* plendptr = payload + size;
+
+  // Process every DAQEth frame within UDP payload
+  while ( plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < plendptr ) { // Scatter loop start
+
+    // Reinterpret directly to DAQEthHeader
+    auto daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(plptr);
+
+    // Check number of DAQEth block_words 
+    unsigned block_words = unsigned(daqhdrptr->block_length) - 1; // removing timestamp word from the block length.
+
+    // Check for corrupted DAQEth frame length   
+    if ( block_words == 0 || block_words > m_max_block_words ) {
+      // RS FIXME: corrupted length -> stop, add opmon counter or warning
+      return;
+    }    
+
+    // Calculate data bytes after DAQEthHeader based on block_words
+    std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
+
+    // Grab end pointer of DAQEth frame
+    char* daqframe_endptr = plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
+
+    // Check if full DAQEth frame fits
+    if ( daqframe_endptr > plendptr ) {
+      // RS FIXME: truncated payload -> stop, add opmon counter or warning
+      return;
+    }
+
+    // Calculate DAQEth frame size (used both for handling and advancing)
+    std::size_t daq_frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
+
+    // Check Source/Stream ID and if its an expected one
+    auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(daqhdrptr->stream_id)];
+    if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end() ) {
+      src_it->second->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
+    } else {
+      // Really bad -> unexpeced StreamID in UDP Payload.
+      // This check is needed in order to avoid dynamically add thousands
+      // of Sources on the fly, in case the data corruption is extremely severe.
+      if (m_num_unexid_frames.count(src_id) == 0) {
+        m_num_unexid_frames[src_id] = 0;
+      }
+      m_num_unexid_frames[src_id]++;
+    }
+      
+    // Advance to next payload
+    plptr += daq_frame_size;
+
+  } // Scatter loop end
+
+}
+
+//-----------------------------------------------------------------------------
+void
+IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size)
+{
   // Get DAQ Header and its StreamID
-  auto* daq_header = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daq_header->stream_id];
+  auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
+  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daqhdrptr->stream_id];
 
   if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
-    src_it->second->handle_payload(payload, size);
+    src_it->second->handle_daq_frame(payload, size);
   } else {
     // Really bad -> unexpeced StreamID in UDP Payload.
     // This check is needed in order to avoid dynamically add thousands

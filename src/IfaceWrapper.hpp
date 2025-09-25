@@ -44,7 +44,13 @@ namespace dunedaq {
 		     "Field " << field << " was not reported",
 		     ((std::string)field)
 		     )
-  
+
+  ERS_DECLARE_ISSUE( dpdklibs,
+		     UnexpectedStreamID,
+		     "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
+		     ((int)src_id)((size_t)counter)
+		     )
+
 namespace dpdklibs {
 
   class IfaceWrapper : public opmonlib::MonitorableObject
@@ -91,6 +97,7 @@ protected:
   std::string m_mac_addr;
   int m_socket_id;
   int m_mtu;
+  unsigned m_max_block_words;
   uint16_t m_rx_ring_size;
   uint16_t m_tx_ring_size;
   int m_num_mbufs;
@@ -122,9 +129,17 @@ private:
   // Stats by queues
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
   std::map<int, std::atomic<std::size_t>> m_num_bytes_rxq;
-  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
   std::map<int, std::atomic<std::size_t>> m_num_full_bursts;
   std::map<int, std::atomic<uint16_t>> m_max_burst_size;
+
+  // Stats by rte_workers
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_ipv4;
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_udp;
+  std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_jumbo_udp;
+
+  // Unexpected stream ID count
+  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
+
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
@@ -133,6 +148,7 @@ private:
   // queue -> [stream_id -> sid]
   std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
   sid_to_source_map_t& m_sources;
+  bool m_strict_parsing {true};
 
   // Run marker
   std::atomic<bool>& m_run_marker;
@@ -155,8 +171,11 @@ private:
   int rx_runner(void *arg __rte_unused);
   int arp_response_runner(void *arg __rte_unused);
 
-  // What to do with every payload
-  void handle_eth_payload(int src_rx_q, char* payload, std::size_t size);
+  // Parse UDP payloads as DAQ frames
+  void parse_udp_payload(int src_rx_q, char* payload, std::size_t size);
+
+  // Pass through UDP payloads as is
+  void passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size);
 
 };
 

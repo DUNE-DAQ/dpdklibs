@@ -50,13 +50,16 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     // Setup sink (acquire pointer from QueueRegistry)
     source_model->set_sink(conn_uid, callback_mode);
 
-
     // Return with setup model
     return source_model;
 
   } else if (raw_dt.find("TDEEthFrame") != std::string::npos) {
-    // WIB2 specific char arrays
+
+    // Create Model
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::TDEEthTypeAdapter>>();
+
+    // Disable DAQ protocol checks
+    source_model->disable_daq_protocol_checks();
 
     // For callback acquisition later (lazy)
     source_model->set_sink_name(conn_uid);
