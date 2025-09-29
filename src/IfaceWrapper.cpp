@@ -67,6 +67,30 @@ IfaceWrapper::IfaceWrapper(
     : m_sources(sources)
     , m_run_marker(run_marker)
 { 
+
+  // Arguments consistency check: collect source ids in senders
+  std::set<int> src_in_d2d;
+  for( auto nw_sender : nw_senders ) {
+    for ( auto det_stream : nw_sender->get_streams() ) {
+      src_in_d2d.insert(det_stream->get_source_id());
+    }
+  }
+
+  // Arguments consistency check: collect source ids in source model map
+  std::set<int> src_models;
+  for( const auto& [src_id, _] : m_sources ) {
+    src_models.insert(src_id);
+  }
+
+  // check that the 2 sets are identical.
+  if (src_in_d2d != src_models) {
+    // TODO : Add set diff to exception
+    // std::vector<int> src_diff;
+    // std::set_symmetric_difference(src_in_d2d.begin(), src_ind2d.end(), src_models.begin(), src_models.end(),
+    //                               std::back_inserter(src_diff));
+    throw InconsistentSourceIDConfiguration(ERS_HERE, m_iface_id);
+  }
+
   auto net_device = receiver->get_uses();
 
   m_iface_id = iface_id;
@@ -122,7 +146,7 @@ IfaceWrapper::IfaceWrapper(
 
   // iterate through active streams
 
-  // Create a map of sender ni (ip) to streams
+  // Create a map of sender ni (ip) to streams from the d2d connection object
   std::map<std::string, std::map<uint, uint>> ip_to_stream_src_groups;
 
   for( auto nw_sender : nw_senders ) {
@@ -130,14 +154,15 @@ IfaceWrapper::IfaceWrapper(
 
     std::string tx_ip = sender_ni->get_ip_address().at(0);
 
+    // Loop over streams
     for ( auto det_stream : nw_sender->get_streams() ) {
 
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
+      // (tx, geo_stream) -> source_id
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
-
     }
-
   }
+
 
 // RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned... 
   uint32_t core_idx(0), rx_q(0); // RS FIXME: Ensure that no RX_Q=0 is used for UDP RX, ever.
@@ -146,6 +171,7 @@ IfaceWrapper::IfaceWrapper(
   m_arp_rx_queue = rx_q;
   ++rx_q;
 
+  // Build additional helper maps
   for( const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
     m_ips.insert(tx_ip);
     m_rx_qs.insert(rx_q);
@@ -154,6 +180,7 @@ IfaceWrapper::IfaceWrapper(
 
     m_rx_core_map[m_rte_cores[core_idx]][rx_q] = tx_ip;
     m_stream_id_to_source_id[rx_q] = strm_src;
+    // TLOG() << "+++ ip, rx_q : (" << tx_ip << ", " << rx_q << ") -> " << strm_src;
 
     ++rx_q;
     if ( ++core_idx == m_rte_cores.size()) {
@@ -527,18 +554,21 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Calculate DAQEth frame size (used both for handling and advancing)
     std::size_t daq_frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
-    // Check Source/Stream ID and if its an expected one
-    auto src_id = m_stream_id_to_source_id[src_rx_q][unsigned(daqhdrptr->stream_id)];
-    if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end() ) {
-      src_it->second->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
+    // Check that stream id is corresponds to a registered source
+    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
+    // Sadly, cannot take a reference to a bitfield
+    uint strm_id = daqhdrptr->stream_id;
+
+    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
+      m_sources[strm_id]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands
       // of Sources on the fly, in case the data corruption is extremely severe.
-      if (m_num_unexid_frames.count(src_id) == 0) {
-        m_num_unexid_frames[src_id] = 0;
+      if (m_num_unexid_frames.count(strm_id) == 0) {
+        m_num_unexid_frames[strm_id] = 0;
       }
-      m_num_unexid_frames[src_id]++;
+      m_num_unexid_frames[strm_id]++;
     }
       
     // Advance to next payload
@@ -554,19 +584,24 @@ IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t s
 {
   // Get DAQ Header and its StreamID
   auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
-  auto src_id = m_stream_id_to_source_id[src_rx_q][(unsigned)daqhdrptr->stream_id];
 
-  if ( auto src_it = m_sources.find(src_id); src_it != m_sources.end()) {
-    src_it->second->handle_daq_frame(payload, size);
-  } else {
-    // Really bad -> unexpeced StreamID in UDP Payload.
-    // This check is needed in order to avoid dynamically add thousands
-    // of Sources on the fly, in case the data corruption is extremely severe.
-    if (m_num_unexid_frames.count(src_id) == 0) {
-      m_num_unexid_frames[src_id] = 0;
+    // Check that stream id is corresponds to a registered source
+    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
+    
+    // Sadly, cannot take a reference to a bitfield
+    uint strm_id = daqhdrptr->stream_id;
+
+    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
+      m_sources[strm_id]->handle_daq_frame(payload, size);
+    } else {
+      // Really bad -> unexpeced StreamID in UDP Payload.
+      // This check is needed in order to avoid dynamically add thousands
+      // of Sources on the fly, in case the data corruption is extremely severe.
+      if (m_num_unexid_frames.count(strm_id) == 0) {
+        m_num_unexid_frames[strm_id] = 0;
+      }
+      m_num_unexid_frames[strm_id]++;
     }
-    m_num_unexid_frames[src_id]++;
-  }
 }
 
 } // namespace dpdklibs

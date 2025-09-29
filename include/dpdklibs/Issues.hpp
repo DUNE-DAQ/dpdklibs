@@ -39,6 +39,12 @@ ERS_DECLARE_ISSUE(dpdklibs,
                 );
 
 ERS_DECLARE_ISSUE(dpdklibs,
+                  InconsistentSourceIDConfiguration,
+                  "The list of source ids for [" << ifaceid << "] is inconsistent",
+                  ((int)ifaceid)
+                );
+
+ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToRetrieveInterfaceInfo,
                   "Failed to retrieve device info for interfce [" << ifaceid << "]: " << error,
                   ((int)ifaceid)((int)error)
