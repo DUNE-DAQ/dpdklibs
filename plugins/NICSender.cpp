@@ -300,7 +300,7 @@ NICSender::~NICSender()
 }
 
 void
-NICSender::init(const data_t&)
+NICSender::init(std::shared_ptr<ConfigurationManager>)
 {
 }
 
@@ -316,7 +316,7 @@ NICSender::dpdk_configure()
 }
 
 void
-NICSender::do_configure(const data_t& args)
+NICSender::do_configure(const CommandData_t& args)
 {
   module_conf_t cfg = args.get<module_conf_t>();
 
@@ -348,7 +348,7 @@ NICSender::do_configure(const data_t& args)
 }
 
 void
-NICSender::do_start(const data_t&)
+NICSender::do_start(const CommandData_t&)
 {
   m_run_mark.store(true);
   if (m_frontend_type == "tde") {
@@ -363,7 +363,7 @@ NICSender::do_start(const data_t&)
 }
 
 void
-NICSender::do_stop(const data_t&)
+NICSender::do_stop(const CommandData_t&)
 {
   TLOG() << "Stopping on core " << rte_lcore_id();
   m_run_mark.store(false);
@@ -373,7 +373,7 @@ NICSender::do_stop(const data_t&)
 }
 
 void
-NICSender::do_scrap(const data_t&)
+NICSender::do_scrap(const CommandData_t&)
 {
 }
 
