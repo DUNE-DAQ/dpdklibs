@@ -39,9 +39,9 @@ ERS_DECLARE_ISSUE(dpdklibs,
                 );
 
 ERS_DECLARE_ISSUE(dpdklibs,
-                  InconsistentSourceIDConfiguration,
-                  "The list of source ids for [" << ifaceid << "] is inconsistent",
-                  ((int)ifaceid)
+                  MissingSourceIDOutputs,
+                  "The following of source ids are available as SourceModels for interface " << ifaceid << ": " << srcs_str,
+                  ((int)ifaceid)((std::string)srcs_str)
                 );
 
 ERS_DECLARE_ISSUE(dpdklibs,

@@ -84,12 +84,24 @@ IfaceWrapper::IfaceWrapper(
   }
 
   // check that the 2 sets are identical.
-  if (src_in_d2d != src_models) {
-    // TODO : Add set diff to exception
-    // std::vector<int> src_diff;
-    // std::set_symmetric_difference(src_in_d2d.begin(), src_ind2d.end(), src_models.begin(), src_models.end(),
-    //                               std::back_inserter(src_diff));
-    throw InconsistentSourceIDConfiguration(ERS_HERE, m_iface_id);
+  if (!std::includes(src_models.begin(), src_models.end(), src_in_d2d.begin(), src_in_d2d.end())) {
+
+    // D2D sources are not included in the source model list
+    // Extract the differences: src_in_d2d - src_models
+
+
+    std::vector<int> src_missing;
+    std::set_difference(src_models.begin(), src_models.end(),
+                        src_in_d2d.begin(), src_in_d2d.end(),
+                        std::back_inserter(src_missing));
+
+    std::stringstream ss;
+    for( int src : src_missing ) {
+      ss << src << " ";
+    }
+
+    // TLOG() << std::format("WARNING : these source ids are present in the d2d connection but no corresponding source objects are found {}", ss.str());
+    throw MissingSourceIDOutputs(ERS_HERE, m_iface_id, ss.str());
   }
 
   auto net_device = receiver->get_uses();
