@@ -41,6 +41,7 @@
 #include <string>
 #include <regex>
 #include <stdexcept>
+#include <format>
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -524,8 +525,10 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
   char* plptr = payload;
   const char* plendptr = payload + size;
 
+
   // Process every DAQEth frame within UDP payload
   while ( plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < plendptr ) { // Scatter loop start
+
 
     // Reinterpret directly to DAQEthHeader
     auto daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(plptr);
@@ -554,13 +557,17 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Calculate DAQEth frame size (used both for handling and advancing)
     std::size_t daq_frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
-    // Check that stream id is corresponds to a registered source
-    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
     // Sadly, cannot take a reference to a bitfield
     uint strm_id = daqhdrptr->stream_id;
 
+    // Check that stream id is corresponds to a registered source
+    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
+
     if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
-      m_sources[strm_id]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
+
+      m_sources[strm_it->second]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
+
+
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands
@@ -585,14 +592,16 @@ IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t s
   // Get DAQ Header and its StreamID
   auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
 
-    // Check that stream id is corresponds to a registered source
-    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
-    
+
     // Sadly, cannot take a reference to a bitfield
     uint strm_id = daqhdrptr->stream_id;
 
+    // Check that stream id is corresponds to a registered source
+    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
+    
+
     if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
-      m_sources[strm_id]->handle_daq_frame(payload, size);
+      m_sources[strm_it->second]->handle_daq_frame(payload, size);
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands
