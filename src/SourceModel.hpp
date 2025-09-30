@@ -82,35 +82,35 @@ public:
   // Exposes sink via returning a pointer to it. 
   std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
 
-  // Process an incoming raw byte buffer and extract complete payloads of type TargetPayloadType.
-  void handle_payload(char* message, std::size_t size)
+  // Process an incoming raw byte buffer and extract complete frames of type TargetPayloadType.
+  void handle_daq_frame(char* buffer, std::size_t size)
   {
-    // Calculate how many full payloads fit in the incoming message buffer.
-    std::size_t full_payloads = size / m_expected_payload_size;
+    // Calculate how many full frames fit in the incoming message buffer.
+    std::size_t full_frames = size / m_expected_frame_size;
     
-    // Calculate leftover bytes that don't form a complete payload.
-    if (size % m_expected_payload_size > 0) [[unlikely]] {
+    // Calculate leftover bytes that don't form a complete frame.
+    if (size % m_expected_frame_size > 0) [[unlikely]] {
       ++m_leftover_bytes_encountered;
     }
     
-    // Process each full payload
-    for (std::size_t i = 0; i < full_payloads; ++i) {
-      // Calculate pointer to the i-th payload chunk inside the message buffer.
-      const char* src = message + i * m_expected_payload_size;
+    // Process each full frames
+    for (std::size_t i = 0; i < full_frames; ++i) {
+      // Calculate pointer to the i-th frame chunk inside the message buffer.
+      const char* src = buffer + i * m_expected_frame_size;
     
       // Materialize a real TargetPayloadType object by copying bytes from the buffer.
       // This is defined behavior, alignment-safe, and fast, without pointer vodoo
       // Previously reinterpret_cast to TargetPayloadType* introduced alignment traps 
       // “pretend there’s a constructed object there” UB. Scatter won't work like that.
-      TargetPayloadType payload;
-      std::memcpy(&payload, src, m_expected_payload_size);
+      TargetPayloadType frame;
+      std::memcpy(&frame, src, m_expected_frame_size);
 
       if (m_callback_mode) {
-        // Pass by value (moved); no references into 'message', so no UAF.
-        (*m_sink_callback)(std::move(payload));
+        // Pass by value (moved); no references into 'buffer', so no UAF.
+        (*m_sink_callback)(std::move(frame));
       } else {
-        // Queue mode: attempt to enqueue the payload in a non-blocking way.
-        if (!m_sink_queue->try_send(std::move(payload), iomanager::Sender::s_no_block)) {
+        // Queue mode: attempt to enqueue the frame in a non-blocking way.
+        if (!m_sink_queue->try_send(std::move(frame), iomanager::Sender::s_no_block)) {
            ++m_failed_to_send_daq_payloads;
         }
       }
@@ -132,8 +132,7 @@ public:
   
 private:
   // Constants
-  const std::size_t m_expected_payload_size = sizeof(TargetPayloadType);
-
+  const std::size_t m_expected_frame_size = sizeof(TargetPayloadType);
 
   // Sink internals
   std::string m_sink_id;

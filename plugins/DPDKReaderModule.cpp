@@ -90,38 +90,39 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 void
 DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg )
 {
- auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
- m_cfg = mcfg;
- if (mdal->get_outputs().empty()) {
-   auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
-   ers::fatal(err);
-   throw err;
- }
-
- for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<confmodel::QueueWithSourceId>();
-  if(queue == nullptr) {
-	  auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
-	  ers::fatal(err);
-	  throw err;
+  auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
+  m_cfg = mcfg;
+  if (mdal->get_outputs().empty()) {
+    auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
+    ers::fatal(err);
+    throw err;
   }
 
-  // Check for CB prefix indicating Callback use
-  const char delim = '_';
-  std::string target = queue->UID();
-  std::vector<std::string> words;
-  tokenize(target, delim, words);
-  int sourceid = -1;
+  // Loop over output queues, extract source ids and create source model objects
+  for (auto con : mdal->get_outputs()) {
+    auto queue = con->cast<confmodel::QueueWithSourceId>();
+    if (queue == nullptr) {
+      auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
+      ers::fatal(err);
+      throw err;
+    }
 
-  bool callback_mode = false;
-  if (words.front() == "cb") {
-    callback_mode = true;
+    // Check for CB prefix indicating Callback use
+    const char delim = '_';
+    std::string target = queue->UID();
+    std::vector<std::string> words;
+    tokenize(target, delim, words);
+    int sourceid = -1;
+
+    bool callback_mode = false;
+    if (words.front() == "cb") {
+      callback_mode = true;
+    }
+
+    auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
+    register_node(queue->UID(), ptr);
+    // m_sources[queue->get_source_id()]->init();
   }
-
-  auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
-  register_node( queue->UID(), ptr );
-  //m_sources[queue->get_source_id()]->init(); 
- }
 }
 
 void
@@ -230,7 +231,7 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     }
     
     uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
-    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders,  m_sources, m_run_marker);
+    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, m_sources, m_run_marker);
     register_node( fmt::format("interface-{}", iface_id), ptr);
     ptr->allocate_mbufs();
     ptr->setup_interface();

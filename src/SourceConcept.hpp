@@ -43,15 +43,25 @@ namespace dunedaq {
       //  virtual void start(const nlohmann::json& args) = 0;
       //  virtual void stop(const nlohmann::json& args) = 0;
 
-      // Meant to process an incoming raw byte buffer and extract complete payloads of arbitrary types in specialized models.
-      virtual void handle_payload(char* message, std::size_t size) = 0;
+      // Meant to process an incoming raw byte buffer and extract complete frames of arbitrary types in specialized models.
+      virtual void handle_daq_frame(char* buffer, std::size_t size) = 0;
 
       void set_sink_name(const std::string& sink_name) 
       { 
-	m_sink_name = sink_name; 
+        m_sink_name = sink_name; 
       }
 
+      // Disables DAQEth protocol on this source 
+      void disable_daq_protocol_checks() {
+        m_daq_protocol_ensured = false;   
+      }
+
+      // Sink or destination related
       std::string m_sink_name;
+
+      // Features
+      bool m_daq_protocol_ensured { true };
+
     };
 
   } // namespace dpdklibs
