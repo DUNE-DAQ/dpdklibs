@@ -229,7 +229,7 @@ void
 IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
-  bool with_reset = true, with_mq_mode = true; // go to config
+  bool with_reset = false, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
   int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
