@@ -90,45 +90,46 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 void
 DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg )
 {
- auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
- m_cfg = mcfg;
- if (mdal->get_outputs().empty()) {
-   auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
-   ers::fatal(err);
-   throw err;
- }
-
- for (auto con : mdal->get_outputs()) {
-  auto queue = con->cast<confmodel::QueueWithSourceId>();
-  if(queue == nullptr) {
-	  auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
-	  ers::fatal(err);
-	  throw err;
+  auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
+  m_cfg = mcfg;
+  if (mdal->get_outputs().empty()) {
+    auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
+    ers::fatal(err);
+    throw err;
   }
 
-  // Check for CB prefix indicating Callback use
-  const char delim = '_';
-  std::string target = queue->UID();
-  std::vector<std::string> words;
-  tokenize(target, delim, words);
-  int sourceid = -1;
+  // Loop over output queues, extract source ids and create source model objects
+  for (auto con : mdal->get_outputs()) {
+    auto queue = con->cast<confmodel::QueueWithSourceId>();
+    if (queue == nullptr) {
+      auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
+      ers::fatal(err);
+      throw err;
+    }
 
-  bool callback_mode = false;
-  if (words.front() == "cb") {
-    callback_mode = true;
+    // Check for CB prefix indicating Callback use
+    const char delim = '_';
+    std::string target = queue->UID();
+    std::vector<std::string> words;
+    tokenize(target, delim, words);
+    int sourceid = -1;
+
+    bool callback_mode = false;
+    if (words.front() == "cb") {
+      callback_mode = true;
+    }
+
+    auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
+    register_node(queue->UID(), ptr);
+    // m_sources[queue->get_source_id()]->init();
   }
-
-  auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
-  register_node( queue->UID(), ptr );
-  //m_sources[queue->get_source_id()]->init(); 
- }
 }
 
 void
-DPDKReaderModule::do_configure(const data_t& /*args*/)
+DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
-  //auto session = appfwk::ModuleManager::get()->session();
+  //auto session = appfwk::ModuleManager::get()->get_session();
   auto mdal = m_cfg->get_dal<appmodel::DataReaderModule>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
@@ -153,7 +154,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (connection->is_disabled(*(m_cfg->session()))) {
+    if (connection->is_disabled(*(m_cfg->get_session()))) {
 	    continue;
     }
 
@@ -215,7 +216,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     auto dpdk_receiver = d2d_conn->get_net_receiver()->cast<appmodel::DPDKReceiver>();
     std::vector<const appmodel::NWDetDataSender*> nw_senders;
     for ( auto nw_sender : d2d_conn->get_net_senders() ) {
-      if ( ! nw_sender->is_disabled(*(m_cfg->session())) ) {
+      if ( ! nw_sender->is_disabled(*(m_cfg->get_session())) ) {
         nw_senders.push_back(nw_sender);
       }
     }
@@ -230,7 +231,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
     }
     
     uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
-    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders,  m_sources, m_run_marker);
+    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, m_sources, m_run_marker);
     register_node( fmt::format("interface-{}", iface_id), ptr);
     ptr->allocate_mbufs();
     ptr->setup_interface();
@@ -252,7 +253,7 @@ DPDKReaderModule::do_configure(const data_t& /*args*/)
 }
 
 void
-DPDKReaderModule::do_start(const data_t&)
+DPDKReaderModule::do_start(const CommandData_t&)
 {
 
   // Setup callbacks on all sourcemodels
@@ -266,7 +267,7 @@ DPDKReaderModule::do_start(const data_t&)
 }
 
 void
-DPDKReaderModule::do_stop(const data_t&)
+DPDKReaderModule::do_stop(const CommandData_t&)
 {
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->disable_flow();
@@ -275,7 +276,7 @@ DPDKReaderModule::do_stop(const data_t&)
 
 
 void
-DPDKReaderModule::do_scrap(const data_t&)
+DPDKReaderModule::do_scrap(const CommandData_t&)
 {
   TLOG() << get_name() << ": Entering do_scrap() method";
   if (m_run_marker.load()) {

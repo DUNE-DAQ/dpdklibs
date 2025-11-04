@@ -56,10 +56,10 @@ private:
   //using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
 
   // Commands
-  void do_configure(const data_t&);
-  void do_start(const data_t&);
-  void do_stop(const data_t&);
-  void do_scrap(const data_t&);
+  void do_configure(const CommandData_t&);
+  void do_start(const CommandData_t&);
+  void do_stop(const CommandData_t&);
+  void do_scrap(const CommandData_t&);
 
   // Internals
   std::shared_ptr<appfwk::ConfigurationManager> m_cfg;

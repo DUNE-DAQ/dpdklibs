@@ -39,6 +39,12 @@ ERS_DECLARE_ISSUE(dpdklibs,
                 );
 
 ERS_DECLARE_ISSUE(dpdklibs,
+                  MissingSourceIDOutputs,
+                  "The following of source ids are available as SourceModels for interface " << ifaceid << ": " << srcs_str,
+                  ((int)ifaceid)((std::string)srcs_str)
+                );
+
+ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToRetrieveInterfaceInfo,
                   "Failed to retrieve device info for interfce [" << ifaceid << "]: " << error,
                   ((int)ifaceid)((int)error)
