@@ -120,6 +120,7 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg 
       callback_mode = true;
     }
 
+    // TODO: add nullpointer check against misconfiguration
     auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
     register_node(queue->UID(), ptr);
     // m_sources[queue->get_source_id()]->init();
