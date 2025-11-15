@@ -18,6 +18,7 @@
 #include "confmodel/ProcessingResource.hpp"
 #include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
+#include "confmodel/DetectorStream.hpp"
 
 #include "logging/Logging.hpp"
 
@@ -214,10 +215,23 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
 
   for (auto d2d_conn : d2d_conns) {
     auto dpdk_receiver = d2d_conn->get_net_receiver()->cast<appmodel::DPDKReceiver>();
+
+    // Prepare the list of active senders (network transmitters) and active streams
     std::vector<const appmodel::NWDetDataSender*> nw_senders;
+    std::vector<const confmodel::DetectorStream*> active_streams;
+
     for ( auto nw_sender : d2d_conn->get_net_senders() ) {
+      TLOG() << "Sender " << nw_sender->UID() << "is " << nw_sender->is_disabled(*(m_cfg->get_session()));
+
       if ( ! nw_sender->is_disabled(*(m_cfg->get_session())) ) {
         nw_senders.push_back(nw_sender);
+
+        for ( auto det_stream : nw_sender->get_streams() ) {
+          if ( det_stream->is_disabled(*(m_cfg->get_session())) ) 
+            continue;
+          
+          active_streams.push_back(det_stream);
+        }
       }
     }
 
@@ -231,7 +245,7 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     }
     
     uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
-    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, m_sources, m_run_marker);
+    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, active_streams, m_sources, m_run_marker);
     register_node( fmt::format("interface-{}", iface_id), ptr);
     ptr->allocate_mbufs();
     ptr->setup_interface();

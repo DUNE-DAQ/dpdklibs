@@ -60,6 +60,7 @@ public:
 
   IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver,
 	       const std::vector<const appmodel::NWDetDataSender*>& senders,
+	       const std::vector<const confmodel::DetectorStream*>& active_streams,
 	       sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
   ~IfaceWrapper(); 
  
