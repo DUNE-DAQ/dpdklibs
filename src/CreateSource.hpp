@@ -15,6 +15,7 @@
 #include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
 #include "fdreadoutlibs/TDEEthTypeAdapter.hpp"
 #include "fdreadoutlibs/DAPHNEEthTypeAdapter.hpp"
+#include "fdreadoutlibs/DAPHNEEthStreamTypeAdapter.hpp"
 
 #include <memory>
 #include <string>
@@ -80,8 +81,18 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->set_sink(conn_uid, callback_mode);
     
     return source_model;
-  }
+  } else if (raw_dt.find("DAPHNEEthStreamFrame") != std::string::npos) {
+    // WIB2 specific char arrays
+    auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::DAPHNEEthStreamTypeAdapter>>();
+
+    // For callback acquisition later (lazy)
+    source_model->set_sink_name(conn_uid);
   
+    // Setup sink (acquire pointer from QueueRegistry)
+    source_model->set_sink(conn_uid, callback_mode);
+    
+    return source_model;
+  }  
     
   return nullptr;
 }
