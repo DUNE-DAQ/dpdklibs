@@ -58,10 +58,19 @@ namespace dpdklibs {
 
 
 //-----------------------------------------------------------------------------
+// TODO: the constructor signature shall be reviewd.
+// The current constructor takes a set of largely correlated arguments
+// - a receiver object
+// - the list of active senders
+// - the list of active streams
+// 
+// These arguments are created by applying the enable mask to detector2daq connection object.
+// They are preferred to the d2d object not to expose the IfaceWrapper code to the System class
 IfaceWrapper::IfaceWrapper(
   uint iface_id,
   const appmodel::DPDKReceiver* receiver,
   const std::vector<const appmodel::NWDetDataSender*>& nw_senders,
+  const std::vector<const confmodel::DetectorStream*>& active_streams,
   sid_to_source_map_t& sources,
   std::atomic<bool>& run_marker
   )
@@ -71,10 +80,9 @@ IfaceWrapper::IfaceWrapper(
 
   // Arguments consistency check: collect source ids in senders
   std::set<int> src_in_d2d;
-  for( auto nw_sender : nw_senders ) {
-    for ( auto det_stream : nw_sender->get_streams() ) {
-      src_in_d2d.insert(det_stream->get_source_id());
-    }
+
+  for( auto& det_stream : active_streams ) {
+    src_in_d2d.insert(det_stream->get_source_id());
   }
 
   // Arguments consistency check: collect source ids in source model map
@@ -86,9 +94,14 @@ IfaceWrapper::IfaceWrapper(
   // check that the 2 sets are identical.
   if (!std::includes(src_models.begin(), src_models.end(), src_in_d2d.begin(), src_in_d2d.end())) {
 
+    // TODO: remove, possibly
+    for ( auto src : src_models ) 
+      TLOG_DEBUG(TLVL_BOOKKEEPING) << "model srcid " << src;
+    for ( auto src : src_in_d2d ) 
+      TLOG_DEBUG(TLVL_BOOKKEEPING) << "d2d srcid " << src;
+
     // D2D sources are not included in the source model list
     // Extract the differences: src_in_d2d - src_models
-
 
     std::vector<int> src_missing;
     std::set_difference(src_models.begin(), src_models.end(),
@@ -170,6 +183,10 @@ IfaceWrapper::IfaceWrapper(
     // Loop over streams
     for ( auto det_stream : nw_sender->get_streams() ) {
 
+      // Only include active streams
+      if ( std::find(active_streams.begin(), active_streams.end(), det_stream) == active_streams.end()) 
+        continue;
+        
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
       // (tx, geo_stream) -> source_id
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
