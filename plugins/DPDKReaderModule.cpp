@@ -108,20 +108,8 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg 
       throw err;
     }
 
-    // Check for CB prefix indicating Callback use
-    const char delim = '_';
-    std::string target = queue->UID();
-    std::vector<std::string> words;
-    tokenize(target, delim, words);
-    int sourceid = -1;
-
-    bool callback_mode = false;
-    if (words.front() == "cb") {
-      callback_mode = true;
-    }
-
     // TODO: add nullpointer check against misconfiguration
-    auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
+    auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID());
     register_node(queue->UID(), ptr);
     // m_sources[queue->get_source_id()]->init();
   }
@@ -270,12 +258,6 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
 void
 DPDKReaderModule::do_start(const CommandData_t&)
 {
-
-  // Setup callbacks on all sourcemodels
-  for (auto& [sourceid, source] : m_sources) {
-    source->acquire_callback();
-  }
-
   for (auto& [iface_id, iface] : m_ifaces) {
     iface->enable_flow();
   }

@@ -29,7 +29,7 @@ DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::DAPHNEEthTypeAdapter, "DAPHNE
 namespace dpdklibs {
 
 std::shared_ptr<SourceConcept>
-createSourceModel(const std::string& conn_uid, bool callback_mode)
+createSourceModel(const std::string& conn_uid)
 {
 
   auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
@@ -49,7 +49,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->set_sink_name(conn_uid);
 
     // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink(conn_uid);
 
     // Return with setup model
     return source_model;
@@ -66,7 +66,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->set_sink_name(conn_uid);
   
     // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink(conn_uid);
     
     return source_model;
 
@@ -78,7 +78,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->set_sink_name(conn_uid);
   
     // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink(conn_uid);
     
     return source_model;
   } else if (raw_dt.find("DAPHNEEthStreamFrame") != std::string::npos) {
@@ -89,7 +89,7 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->set_sink_name(conn_uid);
   
     // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink(conn_uid);
     
     return source_model;
   }  
