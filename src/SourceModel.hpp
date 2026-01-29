@@ -48,39 +48,17 @@ public:
   {}
   ~SourceModel() {}
 
-  void set_sink(const std::string& sink_name, bool callback_mode) override
-  {
-    m_callback_mode = callback_mode;
-    if (callback_mode) {
-      TLOG_DEBUG(5) << "Callback mode requested. Won't acquire iom sender!";
-    } else {
-      if (m_sink_is_set) {
-        TLOG_DEBUG(5) << "SourceModel sink is already set in initialized!";
-      } else {
-        m_sink_queue = get_iom_sender<TargetPayloadType>(sink_name);
-        m_sink_is_set = true;
-      }
-    }
-  }
-
   void acquire_callback() override
   {
-    if (m_callback_mode) {
       if (m_callback_is_acquired) {
         TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
       } else {
         // Getting DataMoveCBRegistry
         auto dmcbr = datahandlinglibs::DataMoveCallbackRegistry::get();
-        m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_name);
+        m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_conf);
         m_callback_is_acquired = true;
       }
-    } else {
-      TLOG_DEBUG(5) << "Won't acquire callback, as IOM sink is set!";
-    }
   }
-
-  // Exposes sink via returning a pointer to it. 
-  std::shared_ptr<sink_t>& get_sink() { return m_sink_queue; }
 
   // Process an incoming raw byte buffer and extract complete frames of type TargetPayloadType.
   void handle_daq_frame(char* buffer, std::size_t size)
@@ -105,22 +83,15 @@ public:
       TargetPayloadType frame;
       std::memcpy(&frame, src, m_expected_frame_size);
 
-      if (m_callback_mode) {
         // Pass by value (moved); no references into 'buffer', so no UAF.
         (*m_sink_callback)(std::move(frame));
-      } else {
-        // Queue mode: attempt to enqueue the frame in a non-blocking way.
-        if (!m_sink_queue->try_send(std::move(frame), iomanager::Sender::s_no_block)) {
-           ++m_failed_to_send_daq_payloads;
-        }
-      }
     }
   }
 
   void generate_opmon_data() override {
       
     if(m_failed_to_send_daq_payloads != 0) {
-        ers::warning(FailedToSendData(ERS_HERE, m_sink_id, m_failed_to_send_daq_payloads));
+      ers::warning(FailedToSendData(ERS_HERE, inherited::m_sink_conf->UID(), m_failed_to_send_daq_payloads));
     }
 
     opmon::SourceInfo info;
@@ -134,13 +105,7 @@ private:
   // Constants
   const std::size_t m_expected_frame_size = sizeof(TargetPayloadType);
 
-  // Sink internals
-  std::string m_sink_id;
-  bool m_sink_is_set{ false };
-  std::shared_ptr<sink_t> m_sink_queue;
-
   // Callback internals
-  bool m_callback_mode;
   bool m_callback_is_acquired{ false };
   using sink_cb_t = std::shared_ptr<std::function<void(TargetPayloadType&&)>>;
   sink_cb_t m_sink_callback;

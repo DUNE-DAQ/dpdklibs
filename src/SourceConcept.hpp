@@ -15,6 +15,7 @@
 
 #include "opmonlib/MonitorableObject.hpp"
 #include "appfwk/DAQModule.hpp"
+#include "appmodel/RawDataCallbackConf.hpp"
 //#include "packetformat/detail/block_parser.hpp"
 #include <nlohmann/json.hpp>
 
@@ -37,7 +38,6 @@ namespace dunedaq {
       SourceConcept& operator=(SourceConcept&&) = delete;      ///< SourceConcept is not move-assignable
 
       //  virtual void init(const nlohmann::json& args) = 0;
-      virtual void set_sink(const std::string& sink_name, bool callback_mode) = 0;
       virtual void acquire_callback() = 0;
       //  virtual void conf(const nlohmann::json& args) = 0;
       //  virtual void start(const nlohmann::json& args) = 0;
@@ -46,9 +46,9 @@ namespace dunedaq {
       // Meant to process an incoming raw byte buffer and extract complete frames of arbitrary types in specialized models.
       virtual void handle_daq_frame(char* buffer, std::size_t size) = 0;
 
-      void set_sink_name(const std::string& sink_name) 
+      void set_sink_config(const appmodel::RawDataCallbackConf* sink_conf) 
       { 
-        m_sink_name = sink_name; 
+        m_sink_conf = sink_conf; 
       }
 
       // Disables DAQEth protocol on this source 
@@ -57,7 +57,7 @@ namespace dunedaq {
       }
 
       // Sink or destination related
-      std::string m_sink_name;
+      const appmodel::RawDataCallbackConf* m_sink_conf;
 
       // Features
       bool m_daq_protocol_ensured { true };
