@@ -29,7 +29,7 @@ DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::DAPHNEEthTypeAdapter, "DAPHNE
 namespace dpdklibs {
 
 std::shared_ptr<SourceConcept>
-createSourceModel(const appmodel::RawDataCallbackConf* conf)
+createSourceModel(const appmodel::DataMoveCallbackConf* conf)
 {
 
   auto datatype = conf->get_data_type();

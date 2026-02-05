@@ -15,7 +15,7 @@
 
 #include "opmonlib/MonitorableObject.hpp"
 #include "appfwk/DAQModule.hpp"
-#include "appmodel/RawDataCallbackConf.hpp"
+#include "appmodel/DataMoveCallbackConf.hpp"
 //#include "packetformat/detail/block_parser.hpp"
 #include <nlohmann/json.hpp>
 
@@ -46,7 +46,7 @@ namespace dunedaq {
       // Meant to process an incoming raw byte buffer and extract complete frames of arbitrary types in specialized models.
       virtual void handle_daq_frame(char* buffer, std::size_t size) = 0;
 
-      void set_sink_config(const appmodel::RawDataCallbackConf* sink_conf) 
+      void set_sink_config(const appmodel::DataMoveCallbackConf* sink_conf) 
       { 
         m_sink_conf = sink_conf; 
       }
@@ -57,7 +57,7 @@ namespace dunedaq {
       }
 
       // Sink or destination related
-      const appmodel::RawDataCallbackConf* m_sink_conf;
+      const appmodel::DataMoveCallbackConf* m_sink_conf;
 
       // Features
       bool m_daq_protocol_ensured { true };
