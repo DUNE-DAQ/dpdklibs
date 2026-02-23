@@ -436,67 +436,69 @@ IfaceWrapper::scrap()
 void 
 IfaceWrapper::generate_opmon_data() {
 
-  // Poll stats from HW
-  m_iface_xstats.poll();
+  if(m_iface_xstats.m_allocated) {
+    // Poll stats from HW
+    m_iface_xstats.poll();
 
-  opmon::EthStats s;
-  s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
-  s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
-  s.set_ibytes( m_iface_xstats.m_eth_stats.ibytes );
-  s.set_obytes( m_iface_xstats.m_eth_stats.obytes );
-  s.set_imissed( m_iface_xstats.m_eth_stats.imissed );
-  s.set_ierrors( m_iface_xstats.m_eth_stats.ierrors );
-  s.set_oerrors( m_iface_xstats.m_eth_stats.oerrors );
-  s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
-  publish( std::move(s) );
+    opmon::EthStats s;
+    s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
+    s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
+    s.set_ibytes( m_iface_xstats.m_eth_stats.ibytes );
+    s.set_obytes( m_iface_xstats.m_eth_stats.obytes );
+    s.set_imissed( m_iface_xstats.m_eth_stats.imissed );
+    s.set_ierrors( m_iface_xstats.m_eth_stats.ierrors );
+    s.set_oerrors( m_iface_xstats.m_eth_stats.oerrors );
+    s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
+    publish( std::move(s) );
 
-  if(m_iface_xstats.m_eth_stats.imissed > 0){
-    ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "missed", m_iface_xstats.m_eth_stats.imissed));
-  }
-  if(m_iface_xstats.m_eth_stats.ierrors > 0){
-    ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "dropped", m_iface_xstats.m_eth_stats.ierrors));
-  }
-
-  // loop over all the xstats information
-  opmon::EthXStatsInfo xinfos;
-  opmon::EthXStatsErrors xerrs;
-  std::map<std::string, opmon::QueueEthXStats> xq;
-
-  for (int i = 0; i < m_iface_xstats.m_len; ++i) {
-    
-    std::string name(m_iface_xstats.m_xstats_names[i].name);
-    
-    // first we select the info from the queue
-    static std::regex queue_regex(R"((rx|tx)_q(\d+)_([^_]+))");
-    std::smatch match;
-    
-    if ( std::regex_match(name, match, queue_regex) ) {
-      auto queue_name = match[1].str() + '-' + match[2].str();
-      auto & entry = xq[queue_name];
-      try {
-	opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
-      } catch ( const ers::Issue & e ) {
-	ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
-      }
-      continue;
-    } 
-
-    google::protobuf::Message * metric_p = nullptr;
-    static std::regex err_regex(R"(.+error.*)");
-    if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
-    else  metric_p = & xinfos;
-    
-    try { 
-      opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
-    } catch ( const ers::Issue & e ) {
-      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+    if(m_iface_xstats.m_eth_stats.imissed > 0){
+      ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "missed", m_iface_xstats.m_eth_stats.imissed));
     }
+    if(m_iface_xstats.m_eth_stats.ierrors > 0){
+      ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "dropped", m_iface_xstats.m_eth_stats.ierrors));
+    }
+
+    // loop over all the xstats information
+    opmon::EthXStatsInfo xinfos;
+    opmon::EthXStatsErrors xerrs;
+    std::map<std::string, opmon::QueueEthXStats> xq;
+
+    for (int i = 0; i < m_iface_xstats.m_len; ++i) {
+      
+      std::string name(m_iface_xstats.m_xstats_names[i].name);
+      
+      // first we select the info from the queue
+      static std::regex queue_regex(R"((rx|tx)_q(\d+)_([^_]+))");
+      std::smatch match;
+      
+      if ( std::regex_match(name, match, queue_regex) ) {
+        auto queue_name = match[1].str() + '-' + match[2].str();
+        auto & entry = xq[queue_name];
+        try {
+          opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
+        } catch ( const ers::Issue & e ) {
+          ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+        }
+        continue;
+      } 
+
+      google::protobuf::Message * metric_p = nullptr;
+      static std::regex err_regex(R"(.+error.*)");
+      if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
+      else  metric_p = & xinfos;
+      
+      try { 
+        opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
+      } catch ( const ers::Issue & e ) {
+        ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+      }
+      
+    } // loop over xstats
     
-  } // loop over xstats
-  
-  // Reset HW counters
-  m_iface_xstats.reset_counters();
-  
+    // Reset HW counters
+    m_iface_xstats.reset_counters();
+  }
+
   // finally we publish the information
   publish( std::move(xinfos) );
   publish( std::move(xerrs) );
