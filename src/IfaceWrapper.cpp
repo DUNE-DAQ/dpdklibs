@@ -436,11 +436,6 @@ IfaceWrapper::scrap()
 void 
 IfaceWrapper::generate_opmon_data() {
 
-  // initialise xstats info objects
-  opmon::EthXStatsInfo xinfos;
-  opmon::EthXStatsErrors xerrs;
-  std::map<std::string, opmon::QueueEthXStats> xq;
-
   if(m_iface_xstats.m_allocated) {
     // Poll stats from HW
     m_iface_xstats.poll();
@@ -464,6 +459,10 @@ IfaceWrapper::generate_opmon_data() {
     }
 
     // loop over all the xstats information
+    opmon::EthXStatsInfo xinfos;
+    opmon::EthXStatsErrors xerrs;
+    std::map<std::string, opmon::QueueEthXStats> xq;
+
     for (int i = 0; i < m_iface_xstats.m_len; ++i) {
       
       std::string name(m_iface_xstats.m_xstats_names[i].name);
@@ -498,13 +497,12 @@ IfaceWrapper::generate_opmon_data() {
     
     // Reset HW counters
     m_iface_xstats.reset_counters();
-  }
-
-  // finally we publish the information
-  publish( std::move(xinfos) );
-  publish( std::move(xerrs) );
-  for ( auto [id, stat] : xq ) {
-    publish( std::move(stat), {{"queue", id}} );
+    // finally we publish the information
+    publish( std::move(xinfos) );
+    publish( std::move(xerrs) );
+    for ( auto [id, stat] : xq ) {
+      publish( std::move(stat), {{"queue", id}} );
+    }
   }
   
   for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
