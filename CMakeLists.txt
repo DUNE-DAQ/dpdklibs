@@ -22,7 +22,7 @@ find_package(CLI11 REQUIRED)
 find_package(Boost COMPONENTS unit_test_framework REQUIRED)
 find_package(fmt REQUIRED)
 
-daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
+#daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 
 daq_protobuf_codegen( opmon/*.proto )
 
