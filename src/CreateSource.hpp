@@ -29,32 +29,24 @@ DUNE_DAQ_TYPESTRING(dunedaq::fdreadoutlibs::types::DAPHNEEthTypeAdapter, "DAPHNE
 namespace dpdklibs {
 
 std::shared_ptr<SourceConcept>
-createSourceModel(const std::string& conn_uid, bool callback_mode)
+createSourceModel(const appmodel::DataMoveCallbackConf* conf)
 {
 
-  auto datatypes = dunedaq::iomanager::IOManager::get()->get_datatypes(conn_uid);
-  if (datatypes.size() != 1) {
-    ers::error(dunedaq::datahandlinglibs::GenericConfigurationError(ERS_HERE,
-      "Multiple output data types specified! Expected only a single type!"));
-  }
-  std::string raw_dt{ *datatypes.begin() };
+  auto datatype = conf->get_data_type();
   TLOG() << "Choosing specializations for SourceModel for output connection "
-         << " [uid:" << conn_uid << " , data_type:" << raw_dt << ']';
+         << " [uid:" << conf->UID() << " , data_type:" << datatype << ']';
 
-  if (raw_dt.find("WIBEthFrame") != std::string::npos) {
+  if (datatype.find("WIBEthFrame") != std::string::npos) {
     // Create Model
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::DUNEWIBEthTypeAdapter>>();
 
     // For callback acquisition later (lazy)
-    source_model->set_sink_name(conn_uid);
-
-    // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink_config(conf);
 
     // Return with setup model
     return source_model;
 
-  } else if (raw_dt.find("TDEEthFrame") != std::string::npos) {
+  } else if (datatype.find("TDEEthFrame") != std::string::npos) {
 
     // Create Model
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::TDEEthTypeAdapter>>();
@@ -63,33 +55,24 @@ createSourceModel(const std::string& conn_uid, bool callback_mode)
     source_model->disable_daq_protocol_checks();
 
     // For callback acquisition later (lazy)
-    source_model->set_sink_name(conn_uid);
-  
-    // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink_config(conf);
     
     return source_model;
 
-  } else if (raw_dt.find("DAPHNEEthFrame") != std::string::npos) {
+  } else if (datatype.find("DAPHNEEthFrame") != std::string::npos) {
     // WIB2 specific char arrays
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::DAPHNEEthTypeAdapter>>();
 
     // For callback acquisition later (lazy)
-    source_model->set_sink_name(conn_uid);
-  
-    // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink_config(conf);
     
     return source_model;
-  } else if (raw_dt.find("DAPHNEEthStreamFrame") != std::string::npos) {
+  } else if (datatype.find("DAPHNEEthStreamFrame") != std::string::npos) {
     // WIB2 specific char arrays
     auto source_model = std::make_shared<SourceModel<fdreadoutlibs::types::DAPHNEEthStreamTypeAdapter>>();
 
     // For callback acquisition later (lazy)
-    source_model->set_sink_name(conn_uid);
-  
-    // Setup sink (acquire pointer from QueueRegistry)
-    source_model->set_sink(conn_uid, callback_mode);
+    source_model->set_sink_config(conf);
     
     return source_model;
   }  

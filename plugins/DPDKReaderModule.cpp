@@ -93,37 +93,17 @@ DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg 
 {
   auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
   m_cfg = mcfg;
-  if (mdal->get_outputs().empty()) {
+  if (mdal->get_raw_data_callbacks().empty()) {
     auto err = datahandlinglibs::InitializationError(ERS_HERE, "No outputs defined for NIC reader in configuration.");
     ers::fatal(err);
     throw err;
   }
 
   // Loop over output queues, extract source ids and create source model objects
-  for (auto con : mdal->get_outputs()) {
-    auto queue = con->cast<confmodel::QueueWithSourceId>();
-    if (queue == nullptr) {
-      auto err = datahandlinglibs::InitializationError(ERS_HERE, "Outputs are not of type QueueWithGeoId.");
-      ers::fatal(err);
-      throw err;
-    }
-
-    // Check for CB prefix indicating Callback use
-    const char delim = '_';
-    std::string target = queue->UID();
-    std::vector<std::string> words;
-    tokenize(target, delim, words);
-    int sourceid = -1;
-
-    bool callback_mode = false;
-    if (words.front() == "cb") {
-      callback_mode = true;
-    }
-
+  for (auto con : mdal->get_raw_data_callbacks()) {
     // TODO: add nullpointer check against misconfiguration
-    auto ptr = m_sources[queue->get_source_id()] = createSourceModel(queue->UID(), callback_mode);
-    register_node(queue->UID(), ptr);
-    // m_sources[queue->get_source_id()]->init();
+    auto ptr = m_sources[con->get_source_id()] = createSourceModel(con);
+    register_node(con->UID(), ptr);
   }
 }
 
