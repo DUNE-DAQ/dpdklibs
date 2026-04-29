@@ -180,6 +180,8 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
 
   eal_params.push_back(module_conf->get_eal_args());
 
+  eal_params.push_back("--force-max-simd-bitwidth=512");
+
   ealutils::init_eal(eal_params);
 
   // Get available connections from EAL
