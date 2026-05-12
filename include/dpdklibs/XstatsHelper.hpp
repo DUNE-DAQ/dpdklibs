@@ -82,6 +82,10 @@ namespace dunedaq::dpdklibs {
       }
     }
 
+    void stop() {
+      m_allocated = false;
+    }
+    
     int m_iface_id;
     bool m_allocated = false;
     struct rte_eth_stats m_eth_stats;

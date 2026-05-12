@@ -367,6 +367,15 @@ IfaceWrapper::setup_xstats()
   m_iface_xstats.reset_counters();
 }
 
+//-----------------------------------------------------------------------------
+void
+IfaceWrapper::stop_xstats() 
+{
+  // Stats setup
+  m_iface_xstats.reset_counters();
+  m_iface_xstats.stop();
+}
+
 
 //-----------------------------------------------------------------------------
 void
