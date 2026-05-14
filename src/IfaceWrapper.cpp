@@ -371,7 +371,7 @@ IfaceWrapper::setup_xstats()
 void
 IfaceWrapper::stop_xstats() 
 {
-  // Stats setup
+  // Stopping stats
   m_iface_xstats.reset_counters();
   m_iface_xstats.stop();
 }
@@ -445,7 +445,7 @@ IfaceWrapper::scrap()
 void 
 IfaceWrapper::generate_opmon_data() {
 
-  if(m_iface_xstats.m_allocated) {
+  if(m_iface_xstats.m_enabled) {
     // Poll stats from HW
     m_iface_xstats.poll();
 
