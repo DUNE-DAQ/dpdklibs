@@ -83,6 +83,7 @@ namespace dunedaq::dpdklibs {
     }
 
     void stop() {
+      TLOG() << "Set allocate for xstats helper to false.";
       m_allocated = false;
     }
     
