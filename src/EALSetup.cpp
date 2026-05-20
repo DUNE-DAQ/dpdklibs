@@ -266,9 +266,9 @@ get_mempool(const std::string& pool_name,
          << " | SOCKET_ID = " << socket_id;
 
   struct rte_mempool *mbuf_pool;
-  mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), num_mbufs, 
-    mbuf_cache_size, 0, data_room_size, 
-    socket_id); 
+  mbuf_pool = rte_pktmbuf_pool_create_by_ops(pool_name.c_str(), num_mbufs,
+    mbuf_cache_size, 0, data_room_size,
+    socket_id, "stack");
   
   if (mbuf_pool == NULL) {
     // ers fatal
