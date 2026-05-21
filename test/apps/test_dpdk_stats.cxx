@@ -109,9 +109,10 @@ lcore_main(struct rte_mempool *mbuf_pool)
              << " Total UDP frames: " << num_udp_frames.exchange(0)
              << " Total JUMBO frames: " << num_jumbo_frames.exchange(0);
       // Queue based counters doesn't seem to work neither here neither in module... :((((((
-      for( unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++ ){
-        TLOG() << "HW iface queue[" << i << "] received: " << (uint64_t)iface_stats.q_ipackets[i];
-      }
+      // RTE_ETHDEV_QUEUE_STAT_CNTRS and rte_eth_stats::q_ipackets removed in DPDK 25.11
+      //for( unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++ ){
+      //  TLOG() << "HW iface queue[" << i << "] received: " << (uint64_t)iface_stats.q_ipackets[i];
+      //}
 
 ////////////// RS FIXME: HW counter based stats monitoring. Fields initialized just before thread spawn.
       if (len != rte_eth_xstats_get_by_id(iface, NULL, values, len)) {
