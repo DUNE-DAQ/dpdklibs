@@ -294,7 +294,7 @@ void
 IfaceWrapper::setup_interface()
 {
   TLOG() << "Initialize interface " << m_iface_id;
-  bool with_reset = true, with_mq_mode = true; // go to config
+  bool with_reset = false, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
   int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
@@ -474,12 +474,12 @@ IfaceWrapper::generate_opmon_data() {
       auto queue_name = match[1].str() + '-' + match[2].str();
       auto & entry = xq[queue_name];
       try {
-	opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
+	      opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
       } catch ( const ers::Issue & e ) {
-	ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+	      ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
       }
       continue;
-    } 
+    }  
 
     google::protobuf::Message * metric_p = nullptr;
     static std::regex err_regex(R"(.+error.*)");
@@ -494,10 +494,10 @@ IfaceWrapper::generate_opmon_data() {
     
   } // loop over xstats
   
-  // Reset HW counters
+  //Reset HW counters
   m_iface_xstats.reset_counters();
-  
-  // finally we publish the information
+
+  //finally we publish the information
   publish( std::move(xinfos) );
   publish( std::move(xerrs) );
   for ( auto [id, stat] : xq ) {

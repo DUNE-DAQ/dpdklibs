@@ -218,7 +218,7 @@ main(int argc, char* argv[])
   TLOG() << "  -> Iface PCI: " << ifaceutils::get_iface_pci_str(iface_id);
 
   ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools, false, false);
-  ealutils::iface_promiscuous_mode(iface_id, false); // should come from config
+  ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
 
   // Launch lcores
   lcore_main(mbuf_pools[0].get());
