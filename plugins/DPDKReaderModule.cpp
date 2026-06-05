@@ -279,6 +279,7 @@ DPDKReaderModule::do_scrap(const CommandData_t&)
     set_running(false);
     TLOG() << "Stopping iface wrappers.";
     for (auto& [iface_id, iface] : m_ifaces) {
+      iface->stop_xstats();
       iface->stop();
     }
     ealutils::wait_for_lcores();

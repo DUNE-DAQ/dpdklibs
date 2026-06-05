@@ -79,6 +79,7 @@ public:
   void setup_interface();
   void setup_flow_steering();
   void setup_xstats();
+  void stop_xstats();
   
   void enable_flow() { m_lcore_enable_flow.store(true);}
   void disable_flow() { m_lcore_enable_flow.store(false);}

@@ -9,6 +9,10 @@ namespace dunedaq::dpdklibs {
     IfaceXstats(){}
     ~IfaceXstats() 
     {
+      clear();
+    }
+
+    void clear() {
       if (m_xstats_values != nullptr) {
         free(m_xstats_values);
       }
@@ -18,6 +22,7 @@ namespace dunedaq::dpdklibs {
       if (m_xstats_names != nullptr) {
         free(m_xstats_names);
       }
+      m_len = 0;
     }
 
     void setup(int iface) {
@@ -59,11 +64,11 @@ namespace dunedaq::dpdklibs {
         TLOG() << "  XName: " << m_xstats_names[i].name;
       }
 
-      m_allocated = true;
+      m_enabled = true;
     };
 
     void reset_counters() {
-      if (m_allocated) {
+      if (m_enabled) {
         rte_eth_xstats_reset(m_iface_id); //{
         //  TLOG() << "Cannot reset xstat values!";
         //} else { 
@@ -72,7 +77,7 @@ namespace dunedaq::dpdklibs {
     }
 
     void poll() {
-      if (m_allocated) {
+      if (m_enabled) {
         if (m_len != rte_eth_xstats_get_by_id(m_iface_id, nullptr, m_xstats_values, m_len)) {
           TLOG() << "Cannot get xstat values!";
         //} else { 
@@ -82,8 +87,14 @@ namespace dunedaq::dpdklibs {
       }
     }
 
+    void stop() {
+      m_enabled = false;
+      clear();
+      TLOG() << "XstatsHelper disabled.";
+    }
+    
     int m_iface_id;
-    bool m_allocated = false;
+    bool m_enabled = false;
     struct rte_eth_stats m_eth_stats;
     struct rte_eth_xstat_name *m_xstats_names;
     uint64_t *m_xstats_ids;
