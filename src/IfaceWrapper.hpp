@@ -12,6 +12,7 @@
 //#include "dpdklibs/nicreader/Structs.hpp"
 #include "confmodel/NetworkDevice.hpp"
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -47,8 +48,8 @@ namespace dunedaq {
 
   ERS_DECLARE_ISSUE( dpdklibs,
 		     UnexpectedStreamID,
-		     "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
-		     ((int)src_id)((size_t)counter)
+		     "Unexpected StreamUID " << stream_uid << " (det, crate, slot, stream) in UDP payload. Total counter: " << counter,
+		     ((std::string)stream_uid)((size_t)counter)
 		     )
 
 namespace dpdklibs {
@@ -124,8 +125,8 @@ private:
 
   std::atomic<bool> m_lcore_enable_flow{ false };
 
-  // Mbufs and pools
-  std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
+  // Mbufs and pools (owning handles; freed with rte_mempool_free before EAL cleanup)
+  std::map<int, unique_mempool> m_mbuf_pools;
   std::map<int, struct rte_mbuf **> m_bufs; // by queue
 
   // Stats by queues
@@ -139,16 +140,21 @@ private:
   std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_udp;
   std::map<int, std::atomic<std::size_t>> m_num_unhandled_non_jumbo_udp;
 
-  // Unexpected stream ID count
-  std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
+  // Unexpected frame count keyed by the full (det, crate, slot, stream) tuple
+  std::map<udp::StreamUID, std::atomic<std::size_t>> m_num_unexid_frames;
 
 
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
 
   // stream -> source id map indexed by queue id
-  // queue -> [stream_id -> sid]
-  std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
+  // queue -> [(detector, crate, slot, stream) -> sid]
+  //
+  // The RX queue already selects the sender IP address.  Within a sender-IP
+  // group the stream_id alone is not globally unique: a realistic WIBEth setup
+  // can use stream IDs 0..3 in multiple slots.  Use the full DAQEthHeader geo
+  // tuple so same-stream different-slot packets route to different sources.
+  std::map<int, std::map<udp::StreamUID, uint>> m_stream_uid_to_source_id;
   sid_to_source_map_t& m_sources;
   bool m_strict_parsing {true};
 
@@ -156,14 +162,14 @@ private:
   std::atomic<bool>& m_run_marker;
 
   // GARP
-  std::unique_ptr<rte_mempool> m_garp_mbuf_pool;
+  unique_mempool m_garp_mbuf_pool;
   std::map<int, struct rte_mbuf **> m_garp_bufs;
   std::thread m_garp_thread;
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{0};
 
   // ARP
-  std::unique_ptr<rte_mempool> m_arp_mbuf_pool;
+  unique_mempool m_arp_mbuf_pool;
   std::map<int, struct rte_mbuf **> m_arp_bufs;
   std::thread m_arp_thread;
   void arp_func();
@@ -172,6 +178,9 @@ private:
   // Lcore processor
   int rx_runner(void *arg __rte_unused);
   int arp_response_runner(void *arg __rte_unused);
+
+  // Count a frame whose full StreamUID has no configured source
+  void record_unexpected_stream(const udp::StreamUID& stream_uid);
 
   // Parse UDP payloads as DAQ frames
   void parse_udp_payload(int src_rx_q, char* payload, std::size_t size);

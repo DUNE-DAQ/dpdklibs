@@ -15,12 +15,15 @@ namespace dunedaq::dpdklibs {
     void clear() {
       if (m_xstats_values != nullptr) {
         free(m_xstats_values);
+        m_xstats_values = nullptr;
       }
       if (m_xstats_ids != nullptr) {
         free(m_xstats_ids);
+        m_xstats_ids = nullptr;
       }
       if (m_xstats_names != nullptr) {
         free(m_xstats_names);
+        m_xstats_names = nullptr;
       }
       m_len = 0;
     }
@@ -96,10 +99,10 @@ namespace dunedaq::dpdklibs {
     int m_iface_id;
     bool m_enabled = false;
     struct rte_eth_stats m_eth_stats;
-    struct rte_eth_xstat_name *m_xstats_names;
-    uint64_t *m_xstats_ids;
-    uint64_t *m_xstats_values;
-    int m_len;
+    struct rte_eth_xstat_name *m_xstats_names = nullptr;
+    uint64_t *m_xstats_ids = nullptr;
+    uint64_t *m_xstats_values = nullptr;
+    int m_len = 0;
 
   };
 

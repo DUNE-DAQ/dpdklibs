@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <tuple>
 
+#include <algorithm>
 #include <csignal>
 #include <fstream>
 #include <iomanip>
@@ -202,7 +203,12 @@ static inline int check_packet_size(struct rte_mbuf* mbuf, StreamUID unique_str_
     return 0;
 }
 
-static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t time_per_report, const std::vector<std::string>& garp_ip_addr_strs){
+static int lcore_main(struct rte_mempool* mbuf_pool,
+                      uint16_t iface,
+                      uint64_t time_per_report,
+                      const std::vector<std::string>& garp_ip_addr_strs,
+                      const std::string& warmup_dst_mac,
+                      int warmup_packets){
     /*
      * Check that the iface is on the same NUMA node as the polling thread
      * for best performance.
@@ -288,9 +294,6 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         ip_addr_bin_vector.push_back(ip_addr_bin);
     }
 
-    struct rte_mbuf **tx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
-    rte_pktmbuf_alloc_bulk(mbuf_pool, tx_bufs, burst_size);
-
     auto garp = std::thread([&]() {
         while (true) {
         // TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets;
@@ -298,7 +301,12 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         // num_bytes.exchange(0);
 
         for(const auto& ip_addr_bin : ip_addr_bin_vector ) {
-            arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
+            rte_mbuf* garp_mbuf = rte_pktmbuf_alloc(mbuf_pool);
+            if (garp_mbuf == nullptr) {
+                TLOG() << "Unable to allocate mbuf for GARP";
+                continue;
+            }
+            arp::pktgen_send_garp(garp_mbuf, iface, ip_addr_bin);
             ++garps_sent;
         }
 
@@ -306,6 +314,26 @@ static int lcore_main(struct rte_mempool* mbuf_pool, uint16_t iface, uint64_t ti
         }
     });
 
+    if (!warmup_dst_mac.empty() && warmup_packets > 0) {
+        const int requested_warmup_packets = std::min(warmup_packets, burst_size);
+        struct rte_mbuf** warmup_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * requested_warmup_packets);
+        if (warmup_bufs == nullptr) {
+            fmt::print("Unable to allocate warmup pointer array\n");
+        } else if (rte_pktmbuf_alloc_bulk(mbuf_pool, warmup_bufs, requested_warmup_packets) != 0) {
+            fmt::print("Unable to allocate warmup mbufs\n");
+            free(warmup_bufs);
+        } else {
+            constexpr int warmup_payload_bytes = 64;
+            construct_packets_for_burst(iface, warmup_dst_mac, warmup_payload_bytes, requested_warmup_packets, warmup_bufs);
+            const uint16_t warmup_sent = rte_eth_tx_burst(iface, 0, warmup_bufs, requested_warmup_packets);
+            for (int i = warmup_sent; i < requested_warmup_packets; ++i) {
+                rte_pktmbuf_free(warmup_bufs[i]);
+            }
+            fmt::print("Warmup learning packets sent: {} / {} to {}\n", warmup_sent, requested_warmup_packets, warmup_dst_mac);
+            free(warmup_bufs);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
     struct rte_mbuf **rx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
     rte_pktmbuf_alloc_bulk(mbuf_pool, rx_bufs, burst_size);
@@ -384,6 +412,8 @@ int main(int argc, char** argv){
     uint16_t iface = 0;
     std::vector<std::string> garp_ip_addresses;
     std::vector<std::string> pcie_addresses;
+    std::string warmup_dst_mac;
+    int warmup_packets = 4;
 
     CLI::App app{"test frame receiver"};
     app.add_option("-g,--garp-ip-address", garp_ip_addresses, "IP Addresses");
@@ -391,6 +421,8 @@ int main(int argc, char** argv){
     app.add_option("-s,--exp-frame-size", expected_packet_size, "Expected frame size");
     app.add_option("-i,--iface", iface, "Interface to init");
     app.add_option("-t,--report-interval-time", time_per_report, "Time Per Report");
+    app.add_option("--warmup-dst-mac", warmup_dst_mac, "Optional destination MAC for a few receiver-originated learning packets");
+    app.add_option("--warmup-packets", warmup_packets, "Number of receiver-originated learning packets to send");
     app.add_flag("--check-time", check_timestamp, "Report back differences in timestamp");
     app.add_flag("-p,--per-stream-reports", per_stream_reports, "Detailed per stream reports");
     
@@ -467,7 +499,7 @@ int main(int argc, char** argv){
     fmt::print("Initialize only iface {}!\n", iface);
     ealutils::iface_init(iface, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
 
-    lcore_main(mbuf_pools[0].get(), iface, time_per_report, garp_ip_addresses);
+    lcore_main(mbuf_pools[0].get(), iface, time_per_report, garp_ip_addresses, warmup_dst_mac, warmup_packets);
 
     rte_eal_cleanup();
 

@@ -56,7 +56,7 @@ endif()
 
 ##############################################################################
 # Main library
-daq_add_library(*.cpp udp/*.cpp arp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp udp/*.cpp arp/*.cpp sender/*.cpp wibeth/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
 if(WITH_DPDK_AS_PACKAGE)
   # All good
@@ -69,6 +69,7 @@ endif()
 # Plugins
 #daq_add_plugin(NICSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 daq_add_plugin(DPDKReaderModule duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs opmonlib::opmonlib)
+daq_add_plugin(DPDKFakeDataSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs opmonlib::opmonlib)
 
 ##############################################################################
 # Integration tests
@@ -78,6 +79,9 @@ daq_add_application(dpdklibs_test_frame_receiver test_frame_receiver.cxx TEST LI
 daq_add_application(dpdklibs_test_garp test_garp.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES} )
 daq_add_application(dpdklibs_test_arp_response test_arp_response.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_transmit_and_receive test_transmit_and_receive.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
+daq_add_application(dpdklibs_test_bounded_transmit_and_receive test_bounded_transmit_and_receive.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
+daq_add_application(dpdklibs_test_wibeth_bounded_sender test_wibeth_bounded_sender.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
+daq_add_application(dpdklibs_test_wibeth_bounded_transmit_and_receive test_wibeth_bounded_transmit_and_receive.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_dpdk_stats test_dpdk_stats.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 daq_add_application(dpdklibs_test_multi_process test_multi_proc.cxx TEST LINK_LIBRARIES dpdklibs CLI11::CLI11 ${DPDK_LIBRARIES})
 
@@ -89,5 +93,9 @@ target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
 
 daq_add_unit_test(Conversions_test LINK_LIBRARIES dpdklibs)
 daq_add_unit_test(Utils_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(WIBEthPacketBuilder_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(SenderSafety_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(StreamRouting_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(DpdkOwnership_test LINK_LIBRARIES dpdklibs)
 
 daq_install()

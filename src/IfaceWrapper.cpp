@@ -20,6 +20,7 @@
 #include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
+#include "dpdklibs/StreamRouting.hpp"
 #include "IfaceWrapper.hpp"
 
 #include "appfwk/ConfigurationManager.hpp"
@@ -172,8 +173,11 @@ IfaceWrapper::IfaceWrapper(
 
   // iterate through active streams
 
-  // Create a map of sender ni (ip) to streams from the d2d connection object
-  std::map<std::string, std::map<uint, uint>> ip_to_stream_src_groups;
+  // Create a map of sender ni (ip) to streams from the d2d connection object.
+  // The IP address selects the RX queue; the full WIBEth geo tuple selects the
+  // detector source inside that queue.  stream_id alone is intentionally not used
+  // here because multiple slots can legitimately reuse stream IDs 0..3.
+  std::vector<StreamRouteEntry> route_entries;
 
   for( auto nw_sender : nw_senders ) {
     auto sender_ni = nw_sender->get_uses();
@@ -186,12 +190,23 @@ IfaceWrapper::IfaceWrapper(
       // Only include active streams
       if ( std::find(active_streams.begin(), active_streams.end(), det_stream) == active_streams.end()) 
         continue;
-        
-      uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
-      // (tx, geo_stream) -> source_id
-      ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
+
+      const auto* geo_id = det_stream->get_geo_id();
+      udp::StreamUID tx_stream_uid;
+      tx_stream_uid.det_id = geo_id->get_detector_id();
+      tx_stream_uid.crate_id = geo_id->get_crate_id();
+      tx_stream_uid.slot_id = geo_id->get_slot_id();
+      tx_stream_uid.stream_id = geo_id->get_stream_id();
+
+      // (tx, detector/crate/slot/stream) -> source_id
+      route_entries.push_back({ tx_ip, tx_stream_uid, static_cast<uint>(det_stream->get_source_id()) });
     }
   }
+
+  // Grouping and duplicate rejection live in a small testable helper: a
+  // conflicting duplicate (same sender IP and full StreamUID) is a
+  // configuration error, not a silent overwrite.
+  const auto ip_to_stream_src_groups = build_stream_routes(route_entries);
 
 
 // RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned... 
@@ -209,7 +224,7 @@ IfaceWrapper::IfaceWrapper(
     m_num_bytes_rxq[rx_q] = { 0 };
 
     m_rx_core_map[m_rte_cores[core_idx]][rx_q] = tx_ip;
-    m_stream_id_to_source_id[rx_q] = strm_src;
+    m_stream_uid_to_source_id[rx_q] = strm_src;
     // TLOG() << "+++ ip, rx_q : (" << tx_ip << ", " << rx_q << ") -> " << strm_src;
 
     ++rx_q;
@@ -245,8 +260,24 @@ IfaceWrapper::~IfaceWrapper()
 {
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destructor called. First stop check, then closing iface.";
     
-  struct rte_flow_error error;
-  rte_flow_flush(m_iface_id, &error);
+  // Do not call rte_flow_flush() from the destructor.  Phase-1.b teardown reaches
+  // this point after worker threads have stopped and immediately before EAL cleanup;
+  // on the ice PMD this destructor-time flush can double-free driver state.  The
+  // process/EAL teardown owns final HW-rule cleanup for this path.
+  TLOG() << "Closing iface " << m_iface_id << " before EAL cleanup.";
+  rte_eth_dev_stop(m_iface_id);
+  rte_eth_dev_close(m_iface_id);
+  TLOG() << "Closed iface " << m_iface_id << " before EAL cleanup.";
+
+  // Pools are held in unique_mempool handles whose deleter is
+  // rte_mempool_free().  Free them here, after the port is stopped/closed and
+  // worker threads have joined, but before rte_eal_cleanup() runs in the
+  // module-level teardown.  This also releases the pool names for any later
+  // reconfiguration in the same process.
+  m_mbuf_pools.clear();
+  m_garp_mbuf_pool.reset();
+  m_arp_mbuf_pool.reset();
+
   //graceful_stop();
   //close_iface();
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
@@ -264,7 +295,8 @@ IfaceWrapper::allocate_mbufs()
     std::stringstream bufss;
     bufss << "MBP-" << m_iface_id << '-' << i;
     TLOG() << "Acquire pool with name=" << bufss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
-    m_mbuf_pools[i] = ealutils::get_mempool(bufss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
+    m_mbuf_pools[i] =
+      take_mempool_ownership(ealutils::get_mempool(bufss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id));
     m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     // No need to alloc?
     // rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
@@ -274,7 +306,7 @@ IfaceWrapper::allocate_mbufs()
   std::stringstream garpss;
   garpss << "GARPMBP-" << m_iface_id;
   TLOG() << "Acquire GARP pool with name=" << garpss.str() << " for iface_id=" << m_iface_id;
-  m_garp_mbuf_pool = ealutils::get_mempool(garpss.str());
+  m_garp_mbuf_pool = take_mempool_ownership(ealutils::get_mempool(garpss.str()));
   m_garp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(m_garp_mbuf_pool.get(), m_garp_bufs[0], m_burst_size);
 
@@ -282,7 +314,7 @@ IfaceWrapper::allocate_mbufs()
   std::stringstream arpss;
   arpss << "ARPMBP-" << m_iface_id;
   TLOG() << "Acquire ARP pool with name=" << arpss.str() << " for iface_id=" << m_iface_id;
-  m_arp_mbuf_pool = ealutils::get_mempool(arpss.str());
+  m_arp_mbuf_pool = take_mempool_ownership(ealutils::get_mempool(arpss.str()));
   m_arp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(m_arp_mbuf_pool.get(), m_arp_bufs[0], m_burst_size);
 
@@ -297,7 +329,13 @@ IfaceWrapper::setup_interface()
   bool with_reset = true, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
-  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
+  // Legacy iface_init still takes a default-deleting unique_ptr map; feed it a
+  // scope-bound non-owning view so ownership stays with m_mbuf_pools.
+  BorrowedPoolMap borrowed_pools;
+  for (auto& [q, pool] : m_mbuf_pools) {
+    borrowed_pools.borrow(q, pool.get());
+  }
+  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, borrowed_pools.get(), with_reset, with_mq_mode, check_link_status);
   if (retval != 0 ) {
     throw FailedToSetupInterface(ERS_HERE, m_iface_id, retval);
   }
@@ -533,10 +571,10 @@ IfaceWrapper::generate_opmon_data() {
     publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
   }
 
-  for ( auto & [id, counter] : m_num_unexid_frames ) {
+  for ( auto & [uid, counter] : m_num_unexid_frames ) {
     auto val = counter.exchange(0);
     if ( val > 0 ) {
-      ers::warning( UnexpectedStreamID( ERS_HERE, id, val ) );
+      ers::warning( UnexpectedStreamID( ERS_HERE, std::string(uid), val ) );
     }
   }
 }
@@ -554,6 +592,20 @@ IfaceWrapper::garp_func()
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
   TLOG() << "GARP function joins.";
+}
+
+//-----------------------------------------------------------------------------
+void
+IfaceWrapper::record_unexpected_stream(const udp::StreamUID& stream_uid)
+{
+  // Unexpected full StreamUID in a UDP payload.  Counting (rather than adding
+  // sources on the fly) bounds the damage under severe data corruption, and
+  // keying by the complete (det, crate, slot, stream) tuple makes the warning
+  // identify the true offender even when the stream_id itself is valid.
+  if (m_num_unexid_frames.count(stream_uid) == 0) {
+    m_num_unexid_frames[stream_uid] = 0;
+  }
+  m_num_unexid_frames[stream_uid]++;
 }
 
 //-----------------------------------------------------------------------------
@@ -596,25 +648,19 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Calculate DAQEth frame size (used both for handling and advancing)
     std::size_t daq_frame_size = sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
-    // Sadly, cannot take a reference to a bitfield
-    uint strm_id = daqhdrptr->stream_id;
+    const udp::StreamUID stream_uid(*daqhdrptr);
 
-    // Check that stream id is corresponds to a registered source
-    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
+    // Check that the full detector/crate/slot/stream tuple corresponds to a
+    // registered source in this sender-IP RX queue.
+    auto& stream_to_src = m_stream_uid_to_source_id[src_rx_q];
 
-    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
+    if ( auto strm_it = stream_to_src.find(stream_uid); strm_it != stream_to_src.end() ) {
 
       m_sources[strm_it->second]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
 
 
     } else {
-      // Really bad -> unexpeced StreamID in UDP Payload.
-      // This check is needed in order to avoid dynamically add thousands
-      // of Sources on the fly, in case the data corruption is extremely severe.
-      if (m_num_unexid_frames.count(strm_id) == 0) {
-        m_num_unexid_frames[strm_id] = 0;
-      }
-      m_num_unexid_frames[strm_id]++;
+      record_unexpected_stream(stream_uid);
     }
       
     // Advance to next payload
@@ -628,28 +674,19 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
 void
 IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size)
 {
-  // Get DAQ Header and its StreamID
+  // Get DAQ Header and its full stream UID
   auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
+  const udp::StreamUID stream_uid(*daqhdrptr);
 
+  // Check that the full detector/crate/slot/stream tuple corresponds to a
+  // registered source in this sender-IP RX queue.
+  auto& stream_to_src = m_stream_uid_to_source_id[src_rx_q];
 
-    // Sadly, cannot take a reference to a bitfield
-    uint strm_id = daqhdrptr->stream_id;
-
-    // Check that stream id is corresponds to a registered source
-    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
-    
-
-    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
-      m_sources[strm_it->second]->handle_daq_frame(payload, size);
-    } else {
-      // Really bad -> unexpeced StreamID in UDP Payload.
-      // This check is needed in order to avoid dynamically add thousands
-      // of Sources on the fly, in case the data corruption is extremely severe.
-      if (m_num_unexid_frames.count(strm_id) == 0) {
-        m_num_unexid_frames[strm_id] = 0;
-      }
-      m_num_unexid_frames[strm_id]++;
-    }
+  if ( auto strm_it = stream_to_src.find(stream_uid); strm_it != stream_to_src.end() ) {
+    m_sources[strm_it->second]->handle_daq_frame(payload, size);
+  } else {
+    record_unexpected_stream(stream_uid);
+  }
 }
 
 } // namespace dpdklibs

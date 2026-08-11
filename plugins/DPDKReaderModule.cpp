@@ -288,6 +288,8 @@ DPDKReaderModule::do_scrap(const CommandData_t&)
     TLOG_DEBUG(5) << "DPDK lcore processor is already stopped!";
   }
   TLOG() << get_name() << ": do_scrap called. Tearing down EAL.";
+  TLOG() << "Releasing iface wrappers before EAL cleanup.";
+  m_ifaces.clear();
   ealutils::finish_eal();
 }
 
