@@ -1,3 +1,5 @@
+_JCF, Apr-21-2026: the documentation below is obsolete; `dpdklibs_gen.py` works with an earlier version of daqconf and relies on a now-removed dependency on the `moo` package_
+
 # dpdklibs - DPDK UIO software and utilities
 Appfwk DAQModules, utilities, and scripts for I/O cards over DPDK.
 

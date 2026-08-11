@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(dpdklibs VERSION 2.3.7)
+project(dpdklibs VERSION 2.3.8)
 
 find_package(daq-cmake REQUIRED)
 
@@ -21,8 +21,6 @@ find_package(CLI11 REQUIRED)
 
 find_package(Boost COMPONENTS unit_test_framework REQUIRED)
 find_package(fmt REQUIRED)
-
-daq_codegen( nicsender.jsonnet nicreader.jsonnet TEMPLATES Structs.hpp.j2 Nljs.hpp.j2 )
 
 daq_protobuf_codegen( opmon/*.proto )
 
