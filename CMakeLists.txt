@@ -56,7 +56,7 @@ endif()
 
 ##############################################################################
 # Main library
-daq_add_library(*.cpp udp/*.cpp arp/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
+daq_add_library(*.cpp udp/*.cpp arp/*.cpp sender/*.cpp LINK_LIBRARIES appfwk::appfwk ${DPDK_LIBRARIES} ${DUNEDAQ_DEPENDENCIES})
 
 if(WITH_DPDK_AS_PACKAGE)
   # All good
@@ -89,5 +89,6 @@ target_include_directories(dpdklibs PUBLIC ${DPDK_INCLUDE_DIRS})
 
 daq_add_unit_test(Conversions_test LINK_LIBRARIES dpdklibs)
 daq_add_unit_test(Utils_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(DpdkOwnership_test LINK_LIBRARIES dpdklibs)
 
 daq_install()
