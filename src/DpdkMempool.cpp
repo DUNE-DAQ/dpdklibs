@@ -31,7 +31,7 @@ take_mempool_ownership(std::unique_ptr<rte_mempool>&& legacy)
 BorrowedPoolMap::~BorrowedPoolMap()
 {
   for (auto& [index, pool] : m_map) { // NOLINT(readability-qualified-auto)
-    pool.release();                   // borrowed; not owned by this map
+    pool.release(); // NOLINT(bugprone-unused-return-value) borrowed; not owned by this map
   }
 }
 

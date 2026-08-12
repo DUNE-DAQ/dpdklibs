@@ -8,6 +8,10 @@
  * No deleter may run on a fake pool address.  A missing release would invoke a
  * deleter on static storage and terminate the process.  Completion of the test
  * is therefore the assertion.
+ *
+ * This is part of the DUNE DAQ Application Framework, copyright 2020.
+ * Licensing/copyright details are in the COPYING file that you should have
+ * received with this code.
  */
 
 #include "dpdklibs/DpdkMempool.hpp"
@@ -16,6 +20,7 @@
 
 #include "boost/test/unit_test.hpp"
 
+#include <array>
 #include <memory>
 #include <utility>
 
@@ -24,22 +29,22 @@ using namespace dunedaq::dpdklibs;
 namespace {
 
 // Static storage used as stand-in rte_mempool addresses.
-alignas(8) char g_fake_pool_a[8];
-alignas(8) char g_fake_pool_b[8];
+alignas(8) std::array<char, 8> g_fake_pool_a;
+alignas(8) std::array<char, 8> g_fake_pool_b;
 
 rte_mempool*
 fake_pool_a()
 {
-  return reinterpret_cast<rte_mempool*>(g_fake_pool_a); // NOLINT
+  return reinterpret_cast<rte_mempool*>(g_fake_pool_a.data()); // NOLINT
 }
 
 rte_mempool*
 fake_pool_b()
 {
-  return reinterpret_cast<rte_mempool*>(g_fake_pool_b); // NOLINT
+  return reinterpret_cast<rte_mempool*>(g_fake_pool_b.data()); // NOLINT
 }
 
-} // namespace
+} // namespace ""
 
 BOOST_AUTO_TEST_SUITE(DpdkOwnership_test)
 
@@ -64,7 +69,7 @@ BOOST_AUTO_TEST_CASE(TakeMempoolOwnershipTransfersWithoutDeleting)
   BOOST_CHECK_EQUAL(static_cast<void*>(owned.get()), static_cast<void*>(fake_pool_a()));
 
   // Detach before scope exit so MempoolDeleter is not given the fake address.
-  owned.release();
+  owned.release(); // NOLINT(bugprone-unused-return-value)
 }
 
 BOOST_AUTO_TEST_CASE(BorrowedPoolMapFeedsLegacyMapAndReleasesOnDestruction)

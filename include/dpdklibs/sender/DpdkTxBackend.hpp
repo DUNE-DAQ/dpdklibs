@@ -23,8 +23,8 @@ namespace dunedaq::dpdklibs::sender {
 struct DpdkTxBackend
 {
   rte_mempool* pool = nullptr;
-  std::uint16_t port = 0;
-  std::uint16_t queue = 0;
+  std::uint16_t port = 0; // NOLINT(build/unsigned)
+  std::uint16_t queue = 0; // NOLINT(build/unsigned)
 
   // Returns nullptr if the pool is exhausted.
   void* alloc();
@@ -32,7 +32,7 @@ struct DpdkTxBackend
   // Appends bytes to the mbuf and sets l2_len, l3_len and l4_len.  Returns the
   // start of the appended region, or nullptr if the tailroom is smaller than
   // bytes.
-  std::uint8_t* prepare(void* buf, std::size_t bytes);
+  std::uint8_t* prepare(void* buf, std::size_t bytes); // NOLINT(build/unsigned)
 
   // Enqueues one mbuf.  Returns false if the TX ring did not accept it, in
   // which case the caller still owns buf.

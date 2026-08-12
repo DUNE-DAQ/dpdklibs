@@ -24,17 +24,17 @@ DpdkTxBackend::alloc()
   return rte_pktmbuf_alloc(pool);
 }
 
-std::uint8_t*
+std::uint8_t* // NOLINT(build/unsigned)
 DpdkTxBackend::prepare(void* buf, std::size_t bytes)
 {
   auto* mbuf = static_cast<rte_mbuf*>(buf);
-  char* dst = rte_pktmbuf_append(mbuf, static_cast<std::uint16_t>(bytes));
+  char* dst = rte_pktmbuf_append(mbuf, static_cast<std::uint16_t>(bytes)); // NOLINT(build/unsigned)
   if (dst == nullptr) {
     return nullptr;
   }
-  mbuf->l2_len = static_cast<std::uint16_t>(sizeof(rte_ether_hdr));
-  mbuf->l3_len = static_cast<std::uint16_t>(sizeof(rte_ipv4_hdr));
-  mbuf->l4_len = static_cast<std::uint16_t>(sizeof(rte_udp_hdr));
+  mbuf->l2_len = static_cast<std::uint16_t>(sizeof(rte_ether_hdr)); // NOLINT(build/unsigned)
+  mbuf->l3_len = static_cast<std::uint16_t>(sizeof(rte_ipv4_hdr)); // NOLINT(build/unsigned)
+  mbuf->l4_len = static_cast<std::uint16_t>(sizeof(rte_udp_hdr)); // NOLINT(build/unsigned)
   return reinterpret_cast<std::uint8_t*>(dst); // NOLINT
 }
 
