@@ -15,7 +15,7 @@
 #include "appmodel/DataReaderModule.hpp"
 #include "appmodel/DPDKReaderConf.hpp"
 #include "appmodel/DPDKPortConfiguration.hpp"
-#include "confmodel/ProcessingResource.hpp"
+#include "confmodel/HostCores.hpp"
 #include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
 #include "confmodel/DetectorStream.hpp"
