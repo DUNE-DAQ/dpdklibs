@@ -136,7 +136,7 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
       ers::fatal(err);
       throw err;      
     }
-    if (connection->is_disabled(*(m_cfg->get_session()))) {
+    if (connection->is_excluded(*(m_cfg->get_session()))) {
 	    continue;
     }
 
@@ -202,13 +202,13 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     std::vector<const confmodel::DetectorStream*> active_streams;
 
     for ( auto nw_sender : d2d_conn->get_net_senders() ) {
-      TLOG() << "Sender " << nw_sender->UID() << "is " << nw_sender->is_disabled(*(m_cfg->get_session()));
+      TLOG() << "Sender " << nw_sender->UID() << "is " << nw_sender->is_excluded(*(m_cfg->get_session()));
 
-      if ( ! nw_sender->is_disabled(*(m_cfg->get_session())) ) {
+      if ( ! nw_sender->is_excluded(*(m_cfg->get_session())) ) {
         nw_senders.push_back(nw_sender);
 
         for ( auto det_stream : nw_sender->get_streams() ) {
-          if ( det_stream->is_disabled(*(m_cfg->get_session())) ) 
+          if ( det_stream->is_excluded(*(m_cfg->get_session())) ) 
             continue;
           
           active_streams.push_back(det_stream);
