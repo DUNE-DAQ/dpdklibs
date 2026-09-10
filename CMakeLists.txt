@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(dpdklibs VERSION 2.3.9)
+project(dpdklibs VERSION 2.3.10)
 
 find_package(daq-cmake REQUIRED)
 

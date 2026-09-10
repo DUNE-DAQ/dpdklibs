@@ -27,7 +27,7 @@
 // #include "confmodel/StreamParameters.hpp"
 #include "confmodel/GeoId.hpp"
 #include "confmodel/DetectorStream.hpp"
-#include "confmodel/ProcessingResource.hpp"
+#include "confmodel/HostCores.hpp"
 #include "appmodel/DPDKPortConfiguration.hpp"
 // #include "confmodel/NetworkDevice.hpp"
 // #include "appmodel/NICInterfaceConfiguration.hpp"
