@@ -2,11 +2,11 @@
 
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/RTEIfaceSetup.hpp"
-#include "logging/Logging.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
+#include "logging/Logging.hpp"
 
 #include <inttypes.h>
 #include <rte_cycles.h>
@@ -15,85 +15,84 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 
+#include <csignal>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdint.h>
-#include <limits>
-#include <iomanip>
-#include <fstream>
-#include <csignal>
 
 using namespace dunedaq;
 using namespace dpdklibs;
 using namespace udp;
 
 namespace {
-  constexpr int burst_size = 256;
+constexpr int burst_size = 256;
 
-  std::atomic<uint64_t> num_packets = 0;
-  std::atomic<uint64_t> num_bytes = 0;
-  std::atomic<uint64_t> num_errors = 0;
-  std::atomic<uint64_t> num_missed = 0; 
-  std::atomic<uint64_t> num_udp_frames = 0;
-  std::atomic<uint64_t> num_jumbo_frames = 0;
+std::atomic<uint64_t> num_packets = 0;
+std::atomic<uint64_t> num_bytes = 0;
+std::atomic<uint64_t> num_errors = 0;
+std::atomic<uint64_t> num_missed = 0;
+std::atomic<uint64_t> num_udp_frames = 0;
+std::atomic<uint64_t> num_jumbo_frames = 0;
 
 } // namespace ""
 
 static int
-lcore_main(struct rte_mempool *mbuf_pool)
+lcore_main(struct rte_mempool* mbuf_pool)
 {
   uint16_t iface = 0;
   TLOG() << "Launch lcore for interface: " << iface;
 
-  struct rte_mbuf **tx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf** tx_bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, tx_bufs, burst_size);
 
   // Reset internal ETH DEV stat counters.
   rte_eth_stats_reset(iface);
   rte_eth_xstats_reset(iface);
 
-//////////// RS FIXME -> Copy pasta DPDK Docs, of course the docs are super misleading....
-    struct rte_eth_xstat_name *xstats_names;
-    uint64_t *xstats_ids;
-    uint64_t *values;
-    int len, i;
+  //////////// RS FIXME -> Copy pasta DPDK Docs, of course the docs are super misleading....
+  struct rte_eth_xstat_name* xstats_names;
+  uint64_t* xstats_ids;
+  uint64_t* values;
+  int len, i;
 
-    // Get number of stats
-    len = rte_eth_xstats_get_names_by_id(iface, NULL, NULL, 0);
-    if (len < 0) {
-        printf("Cannot get xstats count\n");
-    }
+  // Get number of stats
+  len = rte_eth_xstats_get_names_by_id(iface, NULL, NULL, 0);
+  if (len < 0) {
+    printf("Cannot get xstats count\n");
+  }
 
-    // Get names of HW registered stat fields
-    xstats_names = (rte_eth_xstat_name*)(malloc(sizeof(struct rte_eth_xstat_name) * len));
-    if (xstats_names == NULL) {
-        printf("Cannot allocate memory for xstat names\n");
-    }
+  // Get names of HW registered stat fields
+  xstats_names = (rte_eth_xstat_name*)(malloc(sizeof(struct rte_eth_xstat_name) * len));
+  if (xstats_names == NULL) {
+    printf("Cannot allocate memory for xstat names\n");
+  }
 
-    // Retrieve xstats names, passing NULL for IDs to return all statistics
-    if (len != rte_eth_xstats_get_names(iface, xstats_names, len)) {
-        printf("Cannot get xstat names\n");
-    }
+  // Retrieve xstats names, passing NULL for IDs to return all statistics
+  if (len != rte_eth_xstats_get_names(iface, xstats_names, len)) {
+    printf("Cannot get xstat names\n");
+  }
 
-    // Allocate value fields
-    values = (uint64_t*)(malloc(sizeof(values) * len));
-    if (values == NULL) {
-        printf("Cannot allocate memory for xstats\n");
-    }
+  // Allocate value fields
+  values = (uint64_t*)(malloc(sizeof(values) * len));
+  if (values == NULL) {
+    printf("Cannot allocate memory for xstats\n");
+  }
 
-    // Getting xstats values (this is that we call in a loop/get_info
-    if (len != rte_eth_xstats_get_by_id(iface, NULL, values, len)) {
-        printf("Cannot get xstat values\n");
-    }
+  // Getting xstats values (this is that we call in a loop/get_info
+  if (len != rte_eth_xstats_get_by_id(iface, NULL, values, len)) {
+    printf("Cannot get xstat values\n");
+  }
 
-    // Print all xstats names and values to be amazed (WOW!)
-    for (i = 0; i < len; i++) {
-      TLOG() << "Name: " << xstats_names[i].name << " value: " << values[i];
-    }
+  // Print all xstats names and values to be amazed (WOW!)
+  for (i = 0; i < len; i++) {
+    TLOG() << "Name: " << xstats_names[i].name << " value: " << values[i];
+  }
 
-/////////////// RS FIXME: Stats thread spawn. Passed with the scope of attrocities above...
+  /////////////// RS FIXME: Stats thread spawn. Passed with the scope of attrocities above...
   auto stats = std::thread([&]() {
-
-///////////// RS FIXME: Simple PMD based stats monitoring is also possible
+    ///////////// RS FIXME: Simple PMD based stats monitoring is also possible
     struct rte_eth_stats iface_stats;
     while (true) {
       // RS: poll out dev stats. (SIMPLE MODE)
@@ -102,18 +101,15 @@ lcore_main(struct rte_mempool *mbuf_pool)
       num_bytes = (uint64_t)iface_stats.ibytes;
       num_missed = (uint64_t)iface_stats.imissed;
       num_errors = (uint64_t)iface_stats.ierrors;
-      TLOG() << " Total packets: " << num_packets
-             << " Total bytes: " << num_bytes
-             << " Total missed: " << num_missed
-             << " Total errors: " << num_errors
-             << " Total UDP frames: " << num_udp_frames.exchange(0)
+      TLOG() << " Total packets: " << num_packets << " Total bytes: " << num_bytes << " Total missed: " << num_missed
+             << " Total errors: " << num_errors << " Total UDP frames: " << num_udp_frames.exchange(0)
              << " Total JUMBO frames: " << num_jumbo_frames.exchange(0);
       // Queue based counters doesn't seem to work neither here neither in module... :((((((
-      for( unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++ ){
+      for (unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++) {
         TLOG() << "HW iface queue[" << i << "] received: " << (uint64_t)iface_stats.q_ipackets[i];
       }
 
-////////////// RS FIXME: HW counter based stats monitoring. Fields initialized just before thread spawn.
+      ////////////// RS FIXME: HW counter based stats monitoring. Fields initialized just before thread spawn.
       if (len != rte_eth_xstats_get_by_id(iface, NULL, values, len)) {
         TLOG() << "Cannot get xstat values!";
       } else {
@@ -122,17 +118,16 @@ lcore_main(struct rte_mempool *mbuf_pool)
         }
       }
       int reset_res = rte_eth_xstats_reset(iface);
-      TLOG() << "Reset notification result: " << reset_res; 
-////////////// RS FIXME: HW counter based loop ends.
+      TLOG() << "Reset notification result: " << reset_res;
+      ////////////// RS FIXME: HW counter based loop ends.
 
-      std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
+      std::this_thread::sleep_for(
+        std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
     }
   });
 
-  struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf** bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
-
-  
 
   bool once = true; // one shot variable
   while (true) {
@@ -140,13 +135,13 @@ lcore_main(struct rte_mempool *mbuf_pool)
     if (nb_rx != 0) {
       num_packets += nb_rx;
       // Iterate on burst packets
-      for (int i_b=0; i_b<nb_rx; ++i_b) {
+      for (int i_b = 0; i_b < nb_rx; ++i_b) {
         num_bytes += bufs[i_b]->pkt_len;
 
         // Check for segmentation
         if (bufs[i_b]->nb_segs > 1) {
-            TLOG() << "It appears a packet is spread across more than one receiving buffer;"
-                   << " there's currently no logic in this program to handle this";
+          TLOG() << "It appears a packet is spread across more than one receiving buffer;"
+                 << " there's currently no logic in this program to handle this";
         }
 
         // Check packet type
@@ -157,7 +152,7 @@ lcore_main(struct rte_mempool *mbuf_pool)
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG() << "TODO: Handle ARP request!";
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
-            //arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
+            // arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             TLOG() << "TODO: Handle LLDP packet!";
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
@@ -174,22 +169,20 @@ lcore_main(struct rte_mempool *mbuf_pool)
         }
 
         // Check for JUMBO frames (bigger than 1500 Bytes)
-        if (bufs[i_b]->pkt_len > 1500) { // RS FIXME: do proper check on data length later 
+        if (bufs[i_b]->pkt_len > 1500) { // RS FIXME: do proper check on data length later
           ++num_jumbo_frames;
         }
-
       }
       rte_pktmbuf_free_bulk(bufs, nb_rx);
     }
   } // main loop
-
 
   return 0;
 }
 
 int
 main(int argc, char* argv[])
-{  
+{
   int ret = rte_eal_init(argc, argv);
   if (ret < 0) {
     rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
@@ -204,7 +197,7 @@ main(int argc, char* argv[])
   // Get pool
   std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
   TLOG() << "Allocating pool";
-  for (unsigned p_i = 0; p_i<rx_qs; ++p_i) {
+  for (unsigned p_i = 0; p_i < rx_qs; ++p_i) {
     std::ostringstream ss;
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
@@ -227,6 +220,6 @@ main(int argc, char* argv[])
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
   rte_eal_cleanup();
-  
+
   return 0;
 }

@@ -127,11 +127,9 @@ public:
       // process-global registry outlives this object, dispatch becomes a drop
       // rather than a call through a dangling pointer.
       auto gate = m_gate;
-      registry.template register_callback<PayloadT>(
-        conf, [gate, callback_id](PayloadT&& payload) {
-          gate->dispatch(
-            [&](WIBEthTransmitter& owner) { owner.transmit(callback_id, std::move(payload)); });
-        });
+      registry.template register_callback<PayloadT>(conf, [gate, callback_id](PayloadT&& payload) {
+        gate->dispatch([&](WIBEthTransmitter& owner) { owner.transmit(callback_id, std::move(payload)); });
+      });
     }
     m_streams_registered = true;
     m_gate->arm(this);
@@ -211,8 +209,7 @@ private:
   mutable std::mutex m_mutex;
   std::map<std::string, StreamStats> m_streams;
 
-  std::shared_ptr<CallbackGate<WIBEthTransmitter>> m_gate =
-    std::make_shared<CallbackGate<WIBEthTransmitter>>();
+  std::shared_ptr<CallbackGate<WIBEthTransmitter>> m_gate = std::make_shared<CallbackGate<WIBEthTransmitter>>();
   bool m_streams_registered = false;
 
   std::atomic<bool> m_accepting{ false };

@@ -27,10 +27,10 @@
 
 namespace dunedaq {
 
-ERS_DECLARE_ISSUE(dpdklibs, 
-  BadPacketHeaderIssue, 
-  "BadPacketHeaderIssue: \"" << ers_messg << "\"",
-  ((std::string)ers_messg))
+ERS_DECLARE_ISSUE(dpdklibs,
+                  BadPacketHeaderIssue,
+                  "BadPacketHeaderIssue: \"" << ers_messg << "\"",
+                  ((std::string)ers_messg))
 
 namespace dpdklibs {
 namespace udp {
@@ -83,11 +83,18 @@ struct StreamUID
     : det_id(daq_hdr.det_id)
     , crate_id(daq_hdr.crate_id)
     , slot_id(daq_hdr.slot_id)
-    , stream_id(daq_hdr.stream_id){};
+    , stream_id(daq_hdr.stream_id) {};
 
-  bool operator<(const StreamUID& rhs) const { return std::tie(det_id, crate_id, slot_id, stream_id) < std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id); }
+  bool operator<(const StreamUID& rhs) const
+  {
+    return std::tie(det_id, crate_id, slot_id, stream_id) <
+           std::tie(rhs.det_id, rhs.crate_id, rhs.slot_id, rhs.stream_id);
+  }
 
-  bool operator==(const StreamUID& rhs) const { return det_id == rhs.det_id && crate_id == rhs.crate_id && slot_id == rhs.slot_id && stream_id == rhs.stream_id; }
+  bool operator==(const StreamUID& rhs) const
+  {
+    return det_id == rhs.det_id && crate_id == rhs.crate_id && slot_id == rhs.slot_id && stream_id == rhs.stream_id;
+  }
   operator std::string() const { return fmt::format("({}, {}, {}, {})", det_id, crate_id, slot_id, stream_id); }
 };
 

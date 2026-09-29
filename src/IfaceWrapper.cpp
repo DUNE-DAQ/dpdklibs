@@ -5,8 +5,8 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-#include "logging/Logging.hpp"
 #include "datahandlinglibs/DataHandlingIssues.hpp"
+#include "logging/Logging.hpp"
 
 #include "opmonlib/Utils.hpp"
 
@@ -14,21 +14,21 @@
 
 #include "dpdklibs/nicreader/Structs.hpp"
 
+#include "IfaceWrapper.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/udp/Utils.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
-#include "IfaceWrapper.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
 #include "appfwk/ConfigurationManager.hpp"
 // #include "confmodel/DROStreamConf.hpp"
 // #include "confmodel/StreamParameters.hpp"
-#include "confmodel/GeoId.hpp"
-#include "confmodel/DetectorStream.hpp"
-#include "confmodel/HostCores.hpp"
 #include "appmodel/DPDKPortConfiguration.hpp"
+#include "confmodel/DetectorStream.hpp"
+#include "confmodel/GeoId.hpp"
+#include "confmodel/HostCores.hpp"
 // #include "confmodel/NetworkDevice.hpp"
 // #include "appmodel/NICInterfaceConfiguration.hpp"
 // #include "appmodel/NICStatsConf.hpp"
@@ -37,11 +37,11 @@
 #include "dpdklibs/opmon/IfaceWrapper.pb.h"
 
 #include <chrono>
+#include <format>
 #include <memory>
-#include <string>
 #include <regex>
 #include <stdexcept>
-#include <format>
+#include <string>
 
 /**
  * @brief TRACE debug levels used in this source file
@@ -56,38 +56,35 @@ enum
 namespace dunedaq {
 namespace dpdklibs {
 
-
 //-----------------------------------------------------------------------------
 // TODO: the constructor signature shall be reviewd.
 // The current constructor takes a set of largely correlated arguments
 // - a receiver object
 // - the list of active senders
 // - the list of active streams
-// 
+//
 // These arguments are created by applying the enable mask to detector2daq connection object.
 // They are preferred to the d2d object not to expose the IfaceWrapper code to the System class
-IfaceWrapper::IfaceWrapper(
-  uint iface_id,
-  const appmodel::DPDKReceiver* receiver,
-  const std::vector<const appmodel::NWDetDataSender*>& nw_senders,
-  const std::vector<const confmodel::DetectorStream*>& active_streams,
-  sid_to_source_map_t& sources,
-  std::atomic<bool>& run_marker
-  )
-    : m_sources(sources)
-    , m_run_marker(run_marker)
-{ 
+IfaceWrapper::IfaceWrapper(uint iface_id,
+                           const appmodel::DPDKReceiver* receiver,
+                           const std::vector<const appmodel::NWDetDataSender*>& nw_senders,
+                           const std::vector<const confmodel::DetectorStream*>& active_streams,
+                           sid_to_source_map_t& sources,
+                           std::atomic<bool>& run_marker)
+  : m_sources(sources)
+  , m_run_marker(run_marker)
+{
 
   // Arguments consistency check: collect source ids in senders
   std::set<int> src_in_d2d;
 
-  for( auto& det_stream : active_streams ) {
+  for (auto& det_stream : active_streams) {
     src_in_d2d.insert(det_stream->get_source_id());
   }
 
   // Arguments consistency check: collect source ids in source model map
   std::set<int> src_models;
-  for( const auto& [src_id, _] : m_sources ) {
+  for (const auto& [src_id, _] : m_sources) {
     src_models.insert(src_id);
   }
 
@@ -95,25 +92,25 @@ IfaceWrapper::IfaceWrapper(
   if (!std::includes(src_models.begin(), src_models.end(), src_in_d2d.begin(), src_in_d2d.end())) {
 
     // TODO: remove, possibly
-    for ( auto src : src_models ) 
+    for (auto src : src_models)
       TLOG_DEBUG(TLVL_BOOKKEEPING) << "model srcid " << src;
-    for ( auto src : src_in_d2d ) 
+    for (auto src : src_in_d2d)
       TLOG_DEBUG(TLVL_BOOKKEEPING) << "d2d srcid " << src;
 
     // D2D sources are not included in the source model list
     // Extract the differences: src_in_d2d - src_models
 
     std::vector<int> src_missing;
-    std::set_difference(src_models.begin(), src_models.end(),
-                        src_in_d2d.begin(), src_in_d2d.end(),
-                        std::back_inserter(src_missing));
+    std::set_difference(
+      src_models.begin(), src_models.end(), src_in_d2d.begin(), src_in_d2d.end(), std::back_inserter(src_missing));
 
     std::stringstream ss;
-    for( int src : src_missing ) {
+    for (int src : src_missing) {
       ss << src << " ";
     }
 
-    // TLOG() << std::format("WARNING : these source ids are present in the d2d connection but no corresponding source objects are found {}", ss.str());
+    // TLOG() << std::format("WARNING : these source ids are present in the d2d connection but no corresponding source
+    // objects are found {}", ss.str());
     throw MissingSourceIDOutputs(ERS_HERE, m_iface_id, ss.str());
   }
 
@@ -126,27 +123,25 @@ IfaceWrapper::IfaceWrapper(
   TLOG() << "Building IfaceWrapper " << m_iface_id;
   std::stringstream s;
   s << 'IfaceWrapper (port ' << m_iface_id << ") responding to : ";
-  for( const std::string& ip_addr : m_ip_addr) {
-      s << ip_addr << " ";
+  for (const std::string& ip_addr : m_ip_addr) {
+    s << ip_addr << " ";
   }
 
   TLOG() << s.str();
 
-  for( const std::string& ip_addr : m_ip_addr) {
+  for (const std::string& ip_addr : m_ip_addr) {
     IpAddr ip_addr_struct(ip_addr);
-    m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(
-        ip_addr_struct.addr_bytes[0],
-        ip_addr_struct.addr_bytes[1],
-        ip_addr_struct.addr_bytes[2],
-        ip_addr_struct.addr_bytes[3]
-    ));
-  } 
-
+    m_ip_addr_bin.push_back(udp::ip_address_dotdecimal_to_binary(ip_addr_struct.addr_bytes[0],
+                                                                 ip_addr_struct.addr_bytes[1],
+                                                                 ip_addr_struct.addr_bytes[2],
+                                                                 ip_addr_struct.addr_bytes[3]));
+  }
 
   auto iface_cfg = receiver->get_configuration();
 
   m_with_flow = iface_cfg->get_flow_control();
-  m_prom_mode = iface_cfg->get_promiscuous_mode();;
+  m_prom_mode = iface_cfg->get_promiscuous_mode();
+  ;
   m_mtu = iface_cfg->get_mtu();
   m_max_block_words = unsigned(m_mtu) / sizeof(uint64_t);
   m_rx_ring_size = iface_cfg->get_rx_ring_size();
@@ -160,14 +155,14 @@ IfaceWrapper::IfaceWrapper(
 
   m_iface_id_str = iface_cfg->UID();
 
-
   // Here is my list of cores
-  for( const auto* proc_res : iface_cfg->get_used_lcores()) {
+  for (const auto* proc_res : iface_cfg->get_used_lcores()) {
     m_rte_cores.insert(m_rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
   }
-  if(std::find(m_rte_cores.begin(), m_rte_cores.end(), rte_get_main_lcore())!=m_rte_cores.end()) {
+  if (std::find(m_rte_cores.begin(), m_rte_cores.end(), rte_get_main_lcore()) != m_rte_cores.end()) {
     TLOG() << "ERROR! Throw ERS error here that LCore=0 should not be used, as it's a control RTE core!";
-    throw std::runtime_error(std::string("ERROR! Throw ERS here that LCore=0 should not be used, as it's a control RTE core!"));
+    throw std::runtime_error(
+      std::string("ERROR! Throw ERS here that LCore=0 should not be used, as it's a control RTE core!"));
   }
 
   // iterate through active streams
@@ -175,26 +170,25 @@ IfaceWrapper::IfaceWrapper(
   // Create a map of sender ni (ip) to streams from the d2d connection object
   std::map<std::string, std::map<uint, uint>> ip_to_stream_src_groups;
 
-  for( auto nw_sender : nw_senders ) {
+  for (auto nw_sender : nw_senders) {
     auto sender_ni = nw_sender->get_uses();
 
     std::string tx_ip = sender_ni->get_ip_address().at(0);
 
     // Loop over streams
-    for ( auto det_stream : nw_sender->get_streams() ) {
+    for (auto det_stream : nw_sender->get_streams()) {
 
       // Only include active streams
-      if ( std::find(active_streams.begin(), active_streams.end(), det_stream) == active_streams.end()) 
+      if (std::find(active_streams.begin(), active_streams.end(), det_stream) == active_streams.end())
         continue;
-        
+
       uint32_t tx_geo_stream_id = det_stream->get_geo_id()->get_stream_id();
       // (tx, geo_stream) -> source_id
       ip_to_stream_src_groups[tx_ip][tx_geo_stream_id] = det_stream->get_source_id();
     }
   }
 
-
-// RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned... 
+  // RS FIXME: Is this RX_Q bump is enough??? I don't remember how the RX_Qs are assigned...
   uint32_t core_idx(0), rx_q(0); // RS FIXME: Ensure that no RX_Q=0 is used for UDP RX, ever.
 
   m_rx_qs.insert(rx_q);
@@ -202,7 +196,7 @@ IfaceWrapper::IfaceWrapper(
   ++rx_q;
 
   // Build additional helper maps
-  for( const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
+  for (const auto& [tx_ip, strm_src] : ip_to_stream_src_groups) {
     m_ips.insert(tx_ip);
     m_rx_qs.insert(rx_q);
     m_num_frames_rxq[rx_q] = { 0 };
@@ -213,7 +207,7 @@ IfaceWrapper::IfaceWrapper(
     // TLOG() << "+++ ip, rx_q : (" << tx_ip << ", " << rx_q << ") -> " << strm_src;
 
     ++rx_q;
-    if ( ++core_idx == m_rte_cores.size()) {
+    if (++core_idx == m_rte_cores.size()) {
       core_idx = 0;
     }
   }
@@ -236,36 +230,33 @@ IfaceWrapper::IfaceWrapper(
       m_strict_parsing = false;
     }
   }
-
 }
-
 
 //-----------------------------------------------------------------------------
 IfaceWrapper::~IfaceWrapper()
 {
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destructor called. First stop check, then closing iface.";
-    
+
   struct rte_flow_error error;
   rte_flow_flush(m_iface_id, &error);
-  //graceful_stop();
-  //close_iface();
+  // graceful_stop();
+  // close_iface();
   TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << "IfaceWrapper destroyed.";
 }
 
-
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::allocate_mbufs() 
+IfaceWrapper::allocate_mbufs()
 {
   TLOG() << "Allocating pools and mbufs for UDP, GARP, and ARP.";
 
-  // Pools for UDP RX messages 
-  for (size_t i=0; i<m_rx_qs.size(); ++i) {
+  // Pools for UDP RX messages
+  for (size_t i = 0; i < m_rx_qs.size(); ++i) {
     std::stringstream bufss;
     bufss << "MBP-" << m_iface_id << '-' << i;
     TLOG() << "Acquire pool with name=" << bufss.str() << " for iface_id=" << m_iface_id << " rxq=" << i;
     m_mbuf_pools[i] = ealutils::get_mempool(bufss.str(), m_num_mbufs, m_mbuf_cache_size, 16384, m_socket_id);
-    m_bufs[i] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+    m_bufs[i] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * m_burst_size);
     // No need to alloc?
     // rte_pktmbuf_alloc_bulk(m_mbuf_pools[i].get(), m_bufs[i], m_burst_size);
   }
@@ -275,7 +266,7 @@ IfaceWrapper::allocate_mbufs()
   garpss << "GARPMBP-" << m_iface_id;
   TLOG() << "Acquire GARP pool with name=" << garpss.str() << " for iface_id=" << m_iface_id;
   m_garp_mbuf_pool = ealutils::get_mempool(garpss.str());
-  m_garp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  m_garp_bufs[0] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(m_garp_mbuf_pool.get(), m_garp_bufs[0], m_burst_size);
 
   // Pools for ARP request/responses
@@ -283,11 +274,9 @@ IfaceWrapper::allocate_mbufs()
   arpss << "ARPMBP-" << m_iface_id;
   TLOG() << "Acquire ARP pool with name=" << arpss.str() << " for iface_id=" << m_iface_id;
   m_arp_mbuf_pool = ealutils::get_mempool(arpss.str());
-  m_arp_bufs[0] = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * m_burst_size);
+  m_arp_bufs[0] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * m_burst_size);
   rte_pktmbuf_alloc_bulk(m_arp_mbuf_pool.get(), m_arp_bufs[0], m_burst_size);
-
 }
-
 
 //-----------------------------------------------------------------------------
 void
@@ -297,14 +286,21 @@ IfaceWrapper::setup_interface()
   bool with_reset = false, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
-  int retval = ealutils::iface_init(m_iface_id, m_rx_qs.size(), m_tx_qs.size(), m_rx_ring_size, m_tx_ring_size, m_mbuf_pools, with_reset, with_mq_mode, check_link_status);
-  if (retval != 0 ) {
+  int retval = ealutils::iface_init(m_iface_id,
+                                    m_rx_qs.size(),
+                                    m_tx_qs.size(),
+                                    m_rx_ring_size,
+                                    m_tx_ring_size,
+                                    m_mbuf_pools,
+                                    with_reset,
+                                    with_mq_mode,
+                                    check_link_status);
+  if (retval != 0) {
     throw FailedToSetupInterface(ERS_HERE, m_iface_id, retval);
   }
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
 }
-
 
 //-----------------------------------------------------------------------------
 void
@@ -313,21 +309,19 @@ IfaceWrapper::setup_flow_steering()
   // Flow steering setup
   TLOG() << "Configuring Flow steering rules for iface=" << m_iface_id;
   struct rte_flow_error error;
-  struct rte_flow *flow;
+  struct rte_flow* flow;
   TLOG() << "Attempt to flush previous flow rules...";
   rte_flow_flush(m_iface_id, &error);
 #warning RS: FIXME -> Check for flow flush return!
 
   TLOG() << "Create control flow rules (ARP) assinged to rxq=" << m_arp_rx_queue;
-	flow = generate_arp_flow(m_iface_id, m_arp_rx_queue, &error);
+  flow = generate_arp_flow(m_iface_id, m_arp_rx_queue, &error);
   if (not flow) { // ers::fatal
-        TLOG() << "ARP flow  can't be created for " << m_arp_rx_queue
-         << " Error type: " << (unsigned)error.type
-         << " Message: '" << error.message << "'";
-        ers::fatal(dunedaq::datahandlinglibs::InitializationError(
-          ERS_HERE, "Couldn't create ARP flow API rules!"));
-        rte_exit(EXIT_FAILURE, "error in creating ARP flow");
-      }
+    TLOG() << "ARP flow  can't be created for " << m_arp_rx_queue << " Error type: " << (unsigned)error.type
+           << " Message: '" << error.message << "'";
+    ers::fatal(dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "Couldn't create ARP flow API rules!"));
+    rte_exit(EXIT_FAILURE, "error in creating ARP flow");
+  }
 
   TLOG() << "Create flow rules for UDP RX.";
   for (auto const& [lcoreid, rxqs] : m_rx_core_map) {
@@ -341,15 +335,12 @@ IfaceWrapper::setup_flow_steering()
         current_ind += ind + 1;
       }
 
-      flow = generate_ipv4_flow(m_iface_id, rxqid,
-        RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
+      flow = generate_ipv4_flow(m_iface_id, rxqid, RTE_IPV4(v[0], v[1], v[2], v[3]), 0xffffffff, 0, 0, &error);
 
       if (not flow) { // ers::fatal
-        TLOG() << "Flow can't be created for " << rxqid
-         << " Error type: " << (unsigned)error.type
-         << " Message: '" << error.message << "'";
-        ers::fatal(dunedaq::datahandlinglibs::InitializationError(
-          ERS_HERE, "Couldn't create Flow API rules!"));
+        TLOG() << "Flow can't be created for " << rxqid << " Error type: " << (unsigned)error.type << " Message: '"
+               << error.message << "'";
+        ers::fatal(dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "Couldn't create Flow API rules!"));
         rte_exit(EXIT_FAILURE, "error in creating flow");
       }
     }
@@ -360,7 +351,7 @@ IfaceWrapper::setup_flow_steering()
 
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::setup_xstats() 
+IfaceWrapper::setup_xstats()
 {
   // Stats setup
   m_iface_xstats.setup(m_iface_id);
@@ -369,20 +360,19 @@ IfaceWrapper::setup_xstats()
 
 //-----------------------------------------------------------------------------
 void
-IfaceWrapper::stop_xstats() 
+IfaceWrapper::stop_xstats()
 {
   // Stopping stats
   m_iface_xstats.reset_counters();
   m_iface_xstats.stop();
 }
 
-
 //-----------------------------------------------------------------------------
 void
 IfaceWrapper::start()
 {
   // Reset counters for RX queues
-  for (auto const& [rx_q, _] : m_num_frames_rxq ) {
+  for (auto const& [rx_q, _] : m_num_frames_rxq) {
     m_num_frames_rxq[rx_q] = { 0 };
     m_num_bytes_rxq[rx_q] = { 0 };
     m_num_full_bursts[rx_q] = { 0 };
@@ -398,17 +388,17 @@ IfaceWrapper::start()
 
   m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(false);
-  TLOG() << "Interface id=" << m_iface_id <<" Launching GARP thread with garp_func...";
+  TLOG() << "Interface id=" << m_iface_id << " Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
-  
+
   TLOG() << "Interface id=" << m_iface_id << " starting ARP LCore processor:";
   m_arp_thread = std::thread(&IfaceWrapper::IfaceWrapper::arp_response_runner, this, nullptr);
-
 
   TLOG() << "Interface id=" << m_iface_id << " starting LCore processors:";
   for (auto const& [lcoreid, _] : m_rx_core_map) {
     int ret = rte_eal_remote_launch((int (*)(void*))(&IfaceWrapper::rx_runner), this, lcoreid);
-    TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret << "   " << (ret < 0 ? rte_strerror(-ret) : "");
+    TLOG() << "  -> LCore[" << lcoreid << "] launched with return code=" << ret << "   "
+           << (ret < 0 ? rte_strerror(-ret) : "");
   }
 }
 
@@ -418,7 +408,7 @@ IfaceWrapper::stop()
 {
   m_lcore_enable_flow.store(false);
   m_lcore_quit_signal.store(true);
-  // Stop GARP sender thread  
+  // Stop GARP sender thread
   if (m_garp_thread.joinable()) {
     m_garp_thread.join();
   } else {
@@ -440,30 +430,30 @@ IfaceWrapper::scrap()
 }
 */
 
-
 //-----------------------------------------------------------------------------
-void 
-IfaceWrapper::generate_opmon_data() {
+void
+IfaceWrapper::generate_opmon_data()
+{
 
-  if(m_iface_xstats.m_enabled) {
+  if (m_iface_xstats.m_enabled) {
     // Poll stats from HW
     m_iface_xstats.poll();
 
     opmon::EthStats s;
-    s.set_ipackets( m_iface_xstats.m_eth_stats.ipackets );
-    s.set_opackets( m_iface_xstats.m_eth_stats.opackets );
-    s.set_ibytes( m_iface_xstats.m_eth_stats.ibytes );
-    s.set_obytes( m_iface_xstats.m_eth_stats.obytes );
-    s.set_imissed( m_iface_xstats.m_eth_stats.imissed );
-    s.set_ierrors( m_iface_xstats.m_eth_stats.ierrors );
-    s.set_oerrors( m_iface_xstats.m_eth_stats.oerrors );
-    s.set_rx_nombuf( m_iface_xstats.m_eth_stats.rx_nombuf );
-    publish( std::move(s) );
+    s.set_ipackets(m_iface_xstats.m_eth_stats.ipackets);
+    s.set_opackets(m_iface_xstats.m_eth_stats.opackets);
+    s.set_ibytes(m_iface_xstats.m_eth_stats.ibytes);
+    s.set_obytes(m_iface_xstats.m_eth_stats.obytes);
+    s.set_imissed(m_iface_xstats.m_eth_stats.imissed);
+    s.set_ierrors(m_iface_xstats.m_eth_stats.ierrors);
+    s.set_oerrors(m_iface_xstats.m_eth_stats.oerrors);
+    s.set_rx_nombuf(m_iface_xstats.m_eth_stats.rx_nombuf);
+    publish(std::move(s));
 
-    if(m_iface_xstats.m_eth_stats.imissed > 0){
+    if (m_iface_xstats.m_eth_stats.imissed > 0) {
       ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "missed", m_iface_xstats.m_eth_stats.imissed));
     }
-    if(m_iface_xstats.m_eth_stats.ierrors > 0){
+    if (m_iface_xstats.m_eth_stats.ierrors > 0) {
       ers::warning(PacketErrors(ERS_HERE, m_iface_id_str, "dropped", m_iface_xstats.m_eth_stats.ierrors));
     }
 
@@ -473,70 +463,72 @@ IfaceWrapper::generate_opmon_data() {
     std::map<std::string, opmon::QueueEthXStats> xq;
 
     for (int i = 0; i < m_iface_xstats.m_len; ++i) {
-      
+
       std::string name(m_iface_xstats.m_xstats_names[i].name);
-      
+
       // first we select the info from the queue
       static std::regex queue_regex(R"((rx|tx)_q(\d+)_([^_]+))");
       std::smatch match;
-      
-      if ( std::regex_match(name, match, queue_regex) ) {
+
+      if (std::regex_match(name, match, queue_regex)) {
         auto queue_name = match[1].str() + '-' + match[2].str();
-        auto & entry = xq[queue_name];
+        auto& entry = xq[queue_name];
         try {
-          opmonlib::set_value( entry, match[3], m_iface_xstats.m_xstats_values[i] );
-        } catch ( const ers::Issue & e ) {
-          ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
+          opmonlib::set_value(entry, match[3], m_iface_xstats.m_xstats_values[i]);
+        } catch (const ers::Issue& e) {
+          ers::warning(MetricPublishFailed(ERS_HERE, name, e));
         }
         continue;
-      } 
-
-      google::protobuf::Message * metric_p = nullptr;
-      static std::regex err_regex(R"(.+error.*)");
-      if ( std::regex_match( name, err_regex ) ) metric_p = & xerrs;
-      else  metric_p = & xinfos;
-      
-      try { 
-        opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
-      } catch ( const ers::Issue & e ) {
-        ers::warning( MetricPublishFailed( ERS_HERE, name, e) );
       }
-      
+
+      google::protobuf::Message* metric_p = nullptr;
+      static std::regex err_regex(R"(.+error.*)");
+      if (std::regex_match(name, err_regex))
+        metric_p = &xerrs;
+      else
+        metric_p = &xinfos;
+
+      try {
+        opmonlib::set_value(*metric_p, name, m_iface_xstats.m_xstats_values[i]);
+      } catch (const ers::Issue& e) {
+        ers::warning(MetricPublishFailed(ERS_HERE, name, e));
+      }
+
     } // loop over xstats
-    
+
     // Reset HW counters
     m_iface_xstats.reset_counters();
     // finally we publish the information
-    publish( std::move(xinfos) );
-    publish( std::move(xerrs) );
-    for ( auto [id, stat] : xq ) {
-      publish( std::move(stat), {{"queue", id}} );
+    publish(std::move(xinfos));
+    publish(std::move(xerrs));
+    for (auto [id, stat] : xq) {
+      publish(std::move(stat), { { "queue", id } });
     }
   }
-  
-  for( const auto& [src_rx_q,_] : m_num_frames_rxq) {
+
+  for (const auto& [src_rx_q, _] : m_num_frames_rxq) {
     opmon::QueueInfo i;
-    i.set_packets_received( m_num_frames_rxq[src_rx_q].load() );
-    i.set_bytes_received( m_num_bytes_rxq[src_rx_q].load() );
-    i.set_full_rx_burst( m_num_full_bursts[src_rx_q].load() );
-    i.set_max_burst_size( m_max_burst_size[src_rx_q].exchange(0) );
-    
-    publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
+    i.set_packets_received(m_num_frames_rxq[src_rx_q].load());
+    i.set_bytes_received(m_num_bytes_rxq[src_rx_q].load());
+    i.set_full_rx_burst(m_num_full_bursts[src_rx_q].load());
+    i.set_max_burst_size(m_max_burst_size[src_rx_q].exchange(0));
+
+    publish(std::move(i), { { "queue", std::to_string(src_rx_q) } });
   }
 
   // RTE Workers
   for (auto const& [lcore, _] : m_rx_core_map) {
     opmon::RTEWorkerInfo info;
-    info.set_num_unhandled_non_ipv4( m_num_unhandled_non_ipv4[lcore].exchange(0) );
-    info.set_num_unhandled_non_udp( m_num_unhandled_non_udp[lcore].exchange(0) ); 
-    info.set_num_unhandled_non_jumbo_udp( m_num_unhandled_non_jumbo_udp[lcore].exchange(0) );
-    publish( std::move(info), {{"rte_worker_id", std::to_string(lcore)}} );
+    info.set_num_unhandled_non_ipv4(m_num_unhandled_non_ipv4[lcore].exchange(0));
+    info.set_num_unhandled_non_udp(m_num_unhandled_non_udp[lcore].exchange(0));
+    info.set_num_unhandled_non_jumbo_udp(m_num_unhandled_non_jumbo_udp[lcore].exchange(0));
+    publish(std::move(info), { { "rte_worker_id", std::to_string(lcore) } });
   }
 
-  for ( auto & [id, counter] : m_num_unexid_frames ) {
+  for (auto& [id, counter] : m_num_unexid_frames) {
     auto val = counter.exchange(0);
-    if ( val > 0 ) {
-      ers::warning( UnexpectedStreamID( ERS_HERE, id, val ) );
+    if (val > 0) {
+      ers::warning(UnexpectedStreamID(ERS_HERE, id, val));
     }
   }
 }
@@ -544,11 +536,11 @@ IfaceWrapper::generate_opmon_data() {
 //-----------------------------------------------------------------------------
 void
 IfaceWrapper::garp_func()
-{  
+{
   TLOG() << "Launching GARP sender...";
-  while(m_run_marker.load()) {
-    for( const auto& ip_addr_bin : m_ip_addr_bin ) {
-      arp::pktgen_send_garp(m_garp_bufs[0][0], m_iface_id, ip_addr_bin);   
+  while (m_run_marker.load()) {
+    for (const auto& ip_addr_bin : m_ip_addr_bin) {
+      arp::pktgen_send_garp(m_garp_bufs[0][0], m_iface_id, ip_addr_bin);
     }
     ++m_garps_sent;
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -564,22 +556,20 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
   char* plptr = payload;
   const char* plendptr = payload + size;
 
-
   // Process every DAQEth frame within UDP payload
-  while ( plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < plendptr ) { // Scatter loop start
-
+  while (plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) < plendptr) { // Scatter loop start
 
     // Reinterpret directly to DAQEthHeader
     auto daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(plptr);
 
-    // Check number of DAQEth block_words 
+    // Check number of DAQEth block_words
     unsigned block_words = unsigned(daqhdrptr->block_length) - 1; // removing timestamp word from the block length.
 
-    // Check for corrupted DAQEth frame length   
-    if ( block_words == 0 || block_words > m_max_block_words ) {
+    // Check for corrupted DAQEth frame length
+    if (block_words == 0 || block_words > m_max_block_words) {
       // RS FIXME: corrupted length -> stop, add opmon counter or warning
       return;
-    }    
+    }
 
     // Calculate data bytes after DAQEthHeader based on block_words
     std::size_t data_bytes = std::size_t(block_words) * sizeof(dunedaq::detdataformats::DAQEthHeader::word_t);
@@ -588,7 +578,7 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
     char* daqframe_endptr = plptr + sizeof(dunedaq::detdataformats::DAQEthHeader) + data_bytes;
 
     // Check if full DAQEth frame fits
-    if ( daqframe_endptr > plendptr ) {
+    if (daqframe_endptr > plendptr) {
       // RS FIXME: truncated payload -> stop, add opmon counter or warning
       return;
     }
@@ -602,10 +592,9 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
     // Check that stream id is corresponds to a registered source
     auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
 
-    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
+    if (auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end()) {
 
       m_sources[strm_it->second]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
-
 
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
@@ -616,12 +605,11 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
       }
       m_num_unexid_frames[strm_id]++;
     }
-      
+
     // Advance to next payload
     plptr += daq_frame_size;
 
   } // Scatter loop end
-
 }
 
 //-----------------------------------------------------------------------------
@@ -631,29 +619,27 @@ IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t s
   // Get DAQ Header and its StreamID
   auto* daqhdrptr = reinterpret_cast<dunedaq::detdataformats::DAQEthHeader*>(payload);
 
+  // Sadly, cannot take a reference to a bitfield
+  uint strm_id = daqhdrptr->stream_id;
 
-    // Sadly, cannot take a reference to a bitfield
-    uint strm_id = daqhdrptr->stream_id;
+  // Check that stream id is corresponds to a registered source
+  auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
 
-    // Check that stream id is corresponds to a registered source
-    auto& strm_to_src = m_stream_id_to_source_id[src_rx_q];
-    
-
-    if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
-      m_sources[strm_it->second]->handle_daq_frame(payload, size);
-    } else {
-      // Really bad -> unexpeced StreamID in UDP Payload.
-      // This check is needed in order to avoid dynamically add thousands
-      // of Sources on the fly, in case the data corruption is extremely severe.
-      if (m_num_unexid_frames.count(strm_id) == 0) {
-        m_num_unexid_frames[strm_id] = 0;
-      }
-      m_num_unexid_frames[strm_id]++;
+  if (auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end()) {
+    m_sources[strm_it->second]->handle_daq_frame(payload, size);
+  } else {
+    // Really bad -> unexpeced StreamID in UDP Payload.
+    // This check is needed in order to avoid dynamically add thousands
+    // of Sources on the fly, in case the data corruption is extremely severe.
+    if (m_num_unexid_frames.count(strm_id) == 0) {
+      m_num_unexid_frames[strm_id] = 0;
     }
+    m_num_unexid_frames[strm_id]++;
+  }
 }
 
 } // namespace dpdklibs
 } // namespace dunedaq
 
-// 
+//
 #include "detail/IfaceWrapper.hxx"

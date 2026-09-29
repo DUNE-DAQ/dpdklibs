@@ -7,9 +7,9 @@
  */
 #include "dpdklibs/udp/Utils.hpp"
 
+#include "datahandlinglibs/DataHandlingIssues.hpp"
 #include "detdataformats/DAQEthHeader.hpp"
 #include "logging/Logging.hpp"
-#include "datahandlinglibs/DataHandlingIssues.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -56,7 +56,8 @@ std::string
 get_ipv4_decimal_addr_str(struct ipaddr ipv4_address)
 {
   std::ostringstream ostrs;
-  ostrs << (unsigned)ipv4_address.addr_bytes[3] << '.' << (unsigned)ipv4_address.addr_bytes[2] << '.' << (unsigned)ipv4_address.addr_bytes[1] << '.' << (unsigned)ipv4_address.addr_bytes[0];
+  ostrs << (unsigned)ipv4_address.addr_bytes[3] << '.' << (unsigned)ipv4_address.addr_bytes[2] << '.'
+        << (unsigned)ipv4_address.addr_bytes[1] << '.' << (unsigned)ipv4_address.addr_bytes[0];
   return ostrs.str();
   /*printf("%i.%i.%i.%i",
         ipv4_address.addr_bytes[3],
@@ -135,8 +136,10 @@ get_udp_header_str(struct rte_mbuf* mbuf)
   ostrs << "ipv4 time_to_live: " << (unsigned)pkt->ipv4_hdr.time_to_live << '\n';
   ostrs << "ipv4 next_proto_id: " << (unsigned)pkt->ipv4_hdr.next_proto_id << '\n';
   ostrs << "ipv4 checksum: " << (unsigned)rte_be_to_cpu_16(pkt->ipv4_hdr.hdr_checksum) << '\n';
-  std::string srcaddr = get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
-  std::string dstaddr = get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
+  std::string srcaddr =
+    get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.src_addr)));
+  std::string dstaddr =
+    get_ipv4_decimal_addr_str(ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(pkt->ipv4_hdr.dst_addr)));
   ostrs << "src_addr: " << srcaddr << '\n';
   ostrs << "dst_addr: " << dstaddr << '\n';
 
@@ -206,7 +209,8 @@ get_ethernet_packets(const std::vector<char>& buffervec)
 
     if (!match) {
       std::stringstream msgstr;
-      msgstr << "Ether type in ethernet header (value " << std::hex << rte_be_to_cpu_16(hdr->eth_hdr.ether_type) << std::dec << ") either unknown or unsupported";
+      msgstr << "Ether type in ethernet header (value " << std::hex << rte_be_to_cpu_16(hdr->eth_hdr.ether_type)
+             << std::dec << ") either unknown or unsupported";
       throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
     }
 
@@ -216,7 +220,8 @@ get_ethernet_packets(const std::vector<char>& buffervec)
 
     if (ipv4_packet_size < min_packet_size || ipv4_packet_size > max_packet_size) {
       std::stringstream msgstr;
-      msgstr << "Calculated IPv4 packet size of " << ipv4_packet_size << " bytes is out of the required range of (" << min_packet_size << ", " << max_packet_size << ") bytes";
+      msgstr << "Calculated IPv4 packet size of " << ipv4_packet_size << " bytes is out of the required range of ("
+             << min_packet_size << ", " << max_packet_size << ") bytes";
       throw dunedaq::dpdklibs::BadPacketHeaderIssue(ERS_HERE, msgstr.str());
     }
 

@@ -12,10 +12,10 @@
 #include "SourceModel.hpp"
 #include "datahandlinglibs/DataHandlingIssues.hpp"
 
+#include "fdreadoutlibs/DAPHNEEthStreamTypeAdapter.hpp"
+#include "fdreadoutlibs/DAPHNEEthTypeAdapter.hpp"
 #include "fdreadoutlibs/DUNEWIBEthTypeAdapter.hpp"
 #include "fdreadoutlibs/TDEEthTypeAdapter.hpp"
-#include "fdreadoutlibs/DAPHNEEthTypeAdapter.hpp"
-#include "fdreadoutlibs/DAPHNEEthStreamTypeAdapter.hpp"
 
 #include <memory>
 #include <string>
@@ -56,7 +56,7 @@ createSourceModel(const appmodel::DataMoveCallbackConf* conf)
 
     // For callback acquisition later (lazy)
     source_model->set_sink_config(conf);
-    
+
     return source_model;
 
   } else if (datatype.find("DAPHNEEthFrame") != std::string::npos) {
@@ -65,7 +65,7 @@ createSourceModel(const appmodel::DataMoveCallbackConf* conf)
 
     // For callback acquisition later (lazy)
     source_model->set_sink_config(conf);
-    
+
     return source_model;
   } else if (datatype.find("DAPHNEEthStreamFrame") != std::string::npos) {
     // WIB2 specific char arrays
@@ -73,10 +73,10 @@ createSourceModel(const appmodel::DataMoveCallbackConf* conf)
 
     // For callback acquisition later (lazy)
     source_model->set_sink_config(conf);
-    
+
     return source_model;
-  }  
-    
+  }
+
   return nullptr;
 }
 

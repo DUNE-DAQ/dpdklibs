@@ -1,27 +1,27 @@
 /* Application will run until quit or killed. */
 
 #include "dpdklibs/EALSetup.hpp"
-#include "logging/Logging.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/udp/Utils.hpp"
+#include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
-#include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
+#include "logging/Logging.hpp"
 
 #include <inttypes.h>
+#include <rte_arp.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
-#include <rte_arp.h>
 
+#include <csignal>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdint.h>
-#include <limits>
-#include <iomanip>
-#include <fstream>
-#include <csignal>
 
 #include "CLI/App.hpp"
 #include "CLI/Config.hpp"
@@ -37,58 +37,59 @@ using namespace dpdklibs;
 using namespace udp;
 
 namespace {
-  constexpr int burst_size = 256;
+constexpr int burst_size = 256;
 
-  std::atomic<int> num_packets = 0;
-  std::atomic<int> num_bytes = 0;
-  std::atomic<int64_t> total_packets = 0;
-  std::atomic<int64_t> failed_packets = 0;
+std::atomic<int> num_packets = 0;
+std::atomic<int> num_bytes = 0;
+std::atomic<int64_t> total_packets = 0;
+std::atomic<int64_t> failed_packets = 0;
 
-  std::atomic<int64_t> garps_sent = 0;
+std::atomic<int64_t> garps_sent = 0;
 
 } // namespace ""
 
-void print_arp(struct rte_mbuf *mbuf) {
-  struct rte_ether_hdr *eth_hdr;
-  struct rte_arp_hdr *arp_hdr;
+void
+print_arp(struct rte_mbuf* mbuf)
+{
+  struct rte_ether_hdr* eth_hdr;
+  struct rte_arp_hdr* arp_hdr;
 
   // Get Ethernet header
-  eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+  eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr*);
 
   // Check for ARP packet
   if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
-      // ARP header is directly after Ethernet header
-      arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+    // ARP header is directly after Ethernet header
+    arp_hdr = (struct rte_arp_hdr*)(eth_hdr + 1);
 
-      // Convert IPs from network to host byte order
-      uint32_t sender_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
-      uint32_t target_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+    // Convert IPs from network to host byte order
+    uint32_t sender_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
+    uint32_t target_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
 
-      printf("ARP Sender MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-             arp_hdr->arp_data.arp_sha.addr_bytes[0],
-             arp_hdr->arp_data.arp_sha.addr_bytes[1],
-             arp_hdr->arp_data.arp_sha.addr_bytes[2],
-             arp_hdr->arp_data.arp_sha.addr_bytes[3],
-             arp_hdr->arp_data.arp_sha.addr_bytes[4],
-             arp_hdr->arp_data.arp_sha.addr_bytes[5]);
+    printf("ARP Sender MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+           arp_hdr->arp_data.arp_sha.addr_bytes[0],
+           arp_hdr->arp_data.arp_sha.addr_bytes[1],
+           arp_hdr->arp_data.arp_sha.addr_bytes[2],
+           arp_hdr->arp_data.arp_sha.addr_bytes[3],
+           arp_hdr->arp_data.arp_sha.addr_bytes[4],
+           arp_hdr->arp_data.arp_sha.addr_bytes[5]);
 
-      printf("ARP Sender IP: %u.%u.%u.%u\n",
-             (sender_ip >> 24) & 0xFF,
-             (sender_ip >> 16) & 0xFF,
-             (sender_ip >> 8) & 0xFF,
-             sender_ip & 0xFF);
+    printf("ARP Sender IP: %u.%u.%u.%u\n",
+           (sender_ip >> 24) & 0xFF,
+           (sender_ip >> 16) & 0xFF,
+           (sender_ip >> 8) & 0xFF,
+           sender_ip & 0xFF);
 
-      printf("ARP Target IP: %u.%u.%u.%u\n",
-             (target_ip >> 24) & 0xFF,
-             (target_ip >> 16) & 0xFF,
-             (target_ip >> 8) & 0xFF,
-             target_ip & 0xFF);
+    printf("ARP Target IP: %u.%u.%u.%u\n",
+           (target_ip >> 24) & 0xFF,
+           (target_ip >> 16) & 0xFF,
+           (target_ip >> 8) & 0xFF,
+           target_ip & 0xFF);
   }
 }
 
-
 static int
-lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
+lcore_main(struct rte_mempool* mbuf_pool, std::string ip_addr_str)
 {
   uint16_t iface = 0;
   TLOG() << "Launch lcore for interface: " << iface;
@@ -98,29 +99,27 @@ lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
   TLOG() << "IP address for ARP responses: " << ip_addr_str;
   IpAddr ip_addr(ip_addr_str);
   rte_be32_t ip_addr_bin = ip_address_dotdecimal_to_binary(
-    ip_addr.addr_bytes[0],
-    ip_addr.addr_bytes[1],
-    ip_addr.addr_bytes[2],
-    ip_addr.addr_bytes[3]
-  );
+    ip_addr.addr_bytes[0], ip_addr.addr_bytes[1], ip_addr.addr_bytes[2], ip_addr.addr_bytes[3]);
 
-  struct rte_mbuf **tx_bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf** tx_bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, tx_bufs, burst_size);
 
   auto stats = std::thread([&]() {
     while (true) {
-      TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets << " Failed packets: " << failed_packets;
+      TLOG() << "Packets/s: " << num_packets << " Bytes/s: " << num_bytes << " Total packets: " << total_packets
+             << " Failed packets: " << failed_packets;
       num_packets.exchange(0);
       num_bytes.exchange(0);
 
-      //arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
+      // arp::pktgen_send_garp(tx_bufs[0], iface, ip_addr_bin);
       //++garps_sent;
 
-      std::this_thread::sleep_for(std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
+      std::this_thread::sleep_for(
+        std::chrono::seconds(1)); // If we sample for anything other than 1s, the rate calculation will need to change
     }
   });
 
-  struct rte_mbuf **bufs = (rte_mbuf**) malloc(sizeof(struct rte_mbuf*) * burst_size);
+  struct rte_mbuf** bufs = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
   rte_pktmbuf_alloc_bulk(mbuf_pool, bufs, burst_size);
 
   bool once = true; // one shot variable
@@ -129,13 +128,13 @@ lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
     if (nb_rx != 0) {
       num_packets += nb_rx;
       // Iterate on burst packets
-      for (int i_b=0; i_b<nb_rx; ++i_b) {
+      for (int i_b = 0; i_b < nb_rx; ++i_b) {
         num_bytes += bufs[i_b]->pkt_len;
 
         // Check for segmentation
         if (bufs[i_b]->nb_segs > 1) {
-            TLOG() << "It appears a packet is spread across more than one receiving buffer;"
-                   << " there's currently no logic in this program to handle this";
+          TLOG() << "It appears a packet is spread across more than one receiving buffer;"
+                 << " there's currently no logic in this program to handle this";
         }
 
         // Check packet type
@@ -145,17 +144,14 @@ lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
           TLOG() << "Non-Ethernet packet type: " << (unsigned)pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG() << "ARP request detected!";
-            
+
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
             // print_arp(bufs[i_b]);
-
-
-
 
             arp::pktgen_process_arp(bufs[i_b], 0, ip_addr_bin);
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
             TLOG() << "TODO: Handle LLDP packet!";
-            //rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
+            // rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
           } else {
             TLOG() << "Unidentified! Dumping...";
             rte_pktmbuf_dump(stdout, bufs[i_b], bufs[i_b]->pkt_len);
@@ -167,19 +163,18 @@ lcore_main(struct rte_mempool *mbuf_pool, std::string ip_addr_str)
     }
   } // main loop
 
-
   return 0;
 }
 
 int
 main(int argc, char* argv[])
-{  
+{
 
   uint16_t iface_id = 0;
   std::string ip_address;
   std::vector<std::string> pcie_addresses;
 
-  CLI::App app{"test arp responses"};
+  CLI::App app{ "test arp responses" };
   app.add_option("-a,--ip-address", ip_address, "IP Addresses");
   app.add_option("-m,--pcie-mask", pcie_addresses, "PCIE Addresses device mask");
   app.add_option("-i,--iface", iface_id, "Interface to init");
@@ -188,7 +183,7 @@ main(int argc, char* argv[])
 
   // Validate arguments
   fmt::print("ip      : {}\n", ip_address);
-  fmt::print("pcies   : {}\n", fmt::join(pcie_addresses," | "));
+  fmt::print("pcies   : {}\n", fmt::join(pcie_addresses, " | "));
 
   std::regex re_ipv4("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}");
   std::regex re_pcie("^0{0,4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}.[0-9]$");
@@ -203,33 +198,32 @@ main(int argc, char* argv[])
   bool ip_ok = std::regex_match(ip_address, re_ipv4);
   fmt::print("IP address {} {}\n", ip_address, ip_ok);
 
-
   fmt::print("PCIE addresses\n");
   bool all_pcie_ok = true;
-  for( const auto& pcie: pcie_addresses) {
-      bool pcie_ok = std::regex_match(pcie, re_pcie);
-      fmt::print("- {} {}\n", pcie, pcie_ok);
-      all_pcie_ok &= pcie_ok;
+  for (const auto& pcie : pcie_addresses) {
+    bool pcie_ok = std::regex_match(pcie, re_pcie);
+    fmt::print("- {} {}\n", pcie, pcie_ok);
+    all_pcie_ok &= pcie_ok;
   }
 
   if (!ip_ok or !all_pcie_ok) {
-      return -1;
+    return -1;
   }
 
   std::vector<std::string> eal_args;
   eal_args.push_back("dpdklibds_test_garp");
-  for( const auto& pcie: pcie_addresses) {
-      eal_args.push_back("-a");
-      eal_args.push_back(pcie);
+  for (const auto& pcie : pcie_addresses) {
+    eal_args.push_back("-a");
+    eal_args.push_back(pcie);
   }
   dunedaq::dpdklibs::ealutils::init_eal(eal_args);
 
   auto n_ifaces = rte_eth_dev_count_avail();
   fmt::print("# of available ifaces: {}\n", n_ifaces);
-  if (n_ifaces == 0){
-      std::cout << "WARNING: no available ifaces. exiting...\n";
-      rte_eal_cleanup();
-      return 1;
+  if (n_ifaces == 0) {
+    std::cout << "WARNING: no available ifaces. exiting...\n";
+    rte_eal_cleanup();
+    return 1;
   }
 
   // int ret = rte_eal_init(argc, argv);
@@ -245,7 +239,7 @@ main(int argc, char* argv[])
   // Get pool
   std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
   TLOG() << "Allocating pool";
-  for (unsigned p_i = 0; p_i<rx_qs; ++p_i) {
+  for (unsigned p_i = 0; p_i < rx_qs; ++p_i) {
     std::ostringstream ss;
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
@@ -261,7 +255,7 @@ main(int argc, char* argv[])
   // Flow steering setup
   TLOG() << "Configuring Flow steering rules for iface=" << iface_id;
   struct rte_flow_error error;
-  struct rte_flow *flow;
+  struct rte_flow* flow;
   TLOG() << "Attempt to flush previous flow rules...";
   rte_flow_flush(iface_id, &error);
   TLOG() << "Create control flow rules (ARP).";
@@ -269,8 +263,7 @@ main(int argc, char* argv[])
   flow = generate_arp_flow(iface_id, 0, &error);
   if (not flow) { // ers::fatal
     TLOG() << "Flow can't be created for ARP queue=0"
-           << " Error type: " << (unsigned)error.type
-           << " Message: " << error.message;
+           << " Error type: " << (unsigned)error.type << " Message: " << error.message;
     return 1;
   }
 
@@ -281,6 +274,6 @@ main(int argc, char* argv[])
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
   rte_eal_cleanup();
-  
+
   return 0;
 }

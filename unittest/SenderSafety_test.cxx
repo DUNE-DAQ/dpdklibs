@@ -170,8 +170,8 @@ BOOST_AUTO_TEST_CASE(EnginePrepareFailureFreesExactlyOnce)
   backend.fail_prepare = true;
   bool built = false;
 
-  const auto outcome = sender::send_packet(
-    backend, kTestPacketBytes, nullptr, [&](std::uint8_t*) { built = true; }, []() {});
+  const auto outcome =
+    sender::send_packet(backend, kTestPacketBytes, nullptr, [&](std::uint8_t*) { built = true; }, []() {});
 
   BOOST_CHECK(outcome == sender::TxOutcome::kPrepareFailed);
   BOOST_CHECK(!built);
@@ -200,8 +200,8 @@ BOOST_AUTO_TEST_CASE(EngineBackpressureIsOneAttemptAndFreesExactlyOnce)
   backend.fail_tx = true;
   bool sent = false;
 
-  const auto outcome = sender::send_packet(
-    backend, kTestPacketBytes, nullptr, [](std::uint8_t*) {}, [&]() { sent = true; });
+  const auto outcome =
+    sender::send_packet(backend, kTestPacketBytes, nullptr, [](std::uint8_t*) {}, [&]() { sent = true; });
 
   BOOST_CHECK(outcome == sender::TxOutcome::kTxFailed);
   BOOST_CHECK(!sent);
@@ -216,7 +216,9 @@ BOOST_AUTO_TEST_CASE(EnginePreTxCopyCapturesConstructedBytes)
   std::array<std::uint8_t, kTestPacketBytes> copy{};
 
   const auto outcome = sender::send_packet(
-    backend, kTestPacketBytes, copy.data(),
+    backend,
+    kTestPacketBytes,
+    copy.data(),
     [](std::uint8_t* dst) {
       for (std::size_t i = 0; i < kTestPacketBytes; ++i) {
         dst[i] = static_cast<std::uint8_t>(i + 1);

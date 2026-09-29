@@ -23,7 +23,7 @@ namespace dunedaq::dpdklibs::sender {
 struct DpdkTxBackend
 {
   rte_mempool* pool = nullptr;
-  std::uint16_t port = 0; // NOLINT(build/unsigned)
+  std::uint16_t port = 0;  // NOLINT(build/unsigned)
   std::uint16_t queue = 0; // NOLINT(build/unsigned)
 
   // Returns nullptr if the pool is exhausted.
