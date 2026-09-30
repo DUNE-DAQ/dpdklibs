@@ -53,6 +53,8 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         // Update max burst size counter of this queue
         m_max_burst_size[src_rx_q] = std::max(nb_rx, m_max_burst_size[src_rx_q].load());
 
+        m_rx_active[lid].store(true);
+
         // -------
 	      // Iterate on burst packets
         for (int i_b=0; i_b<nb_rx; ++i_b) {
@@ -111,6 +113,9 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
             ++m_num_unhandled_non_jumbo_udp[lid];
           }
         }
+
+        flush_frames(src_rx_q);
+        m_rx_active[lid].store(false);
 
         // Bulk free of mbufs
         rte_pktmbuf_free_bulk(q_bufs, nb_rx);

@@ -159,6 +159,15 @@ IfaceWrapper::IfaceWrapper(
   m_socket_id = rte_eth_dev_socket_id(m_iface_id);
 
   m_iface_id_str = iface_cfg->UID();
+  m_processing_queue_batches = iface_cfg->get_processing_queue_batches();
+  for (auto* resource : iface_cfg->get_processing_cores()) {
+    for (auto cpu : resource->get_cpu_cores()) {
+      if (std::find(m_processing_cores.begin(), m_processing_cores.end(), cpu) != m_processing_cores.end()) {
+        throw std::invalid_argument("Duplicate frame processing CPU");
+      }
+      m_processing_cores.push_back(cpu);
+    }
+  }
 
 
   // Here is my list of cores
@@ -217,6 +226,25 @@ IfaceWrapper::IfaceWrapper(
       core_idx = 0;
     }
   }
+
+  for (int cpu : m_processing_cores) {
+    if (rte_lcore_is_enabled(cpu)) throw std::invalid_argument("Frame processing CPU overlaps DPDK lcores");
+  }
+  std::map<uint, int> source_queue;
+  for (auto& [queue, streams] : m_stream_id_to_source_id) {
+    m_queue_producer[queue] = m_queue_producer.size();
+    for (auto& [stream, source] : streams) {
+      if (!m_processing_cores.empty() && !source_queue.emplace(source, queue).second) {
+        throw std::invalid_argument("Frame processing source appears on multiple RX queues");
+      }
+      if (!m_processing_cores.empty()) {
+        m_source_worker.emplace(source, m_source_worker.size() % m_processing_cores.size());
+        m_worker_targets.push_back(m_sources.at(source));
+      }
+    }
+  }
+  m_processing_cores.resize(std::min(m_processing_cores.size(), source_queue.size()));
+  for (auto& [core, queues] : m_rx_core_map) m_rx_active[core] = false;
 
   // Log mapping
   for (auto const& [lcore, rx_qs] : m_rx_core_map) {
@@ -397,6 +425,12 @@ IfaceWrapper::start()
   }
 
   m_lcore_enable_flow.store(false);
+  for (int cpu : m_processing_cores) {
+    m_frame_workers.push_back(std::make_unique<FrameWorker>(cpu, m_queue_producer.size(), m_processing_queue_batches,
+      [](void* target, char* payload, std::size_t size) {
+        static_cast<SourceConcept*>(target)->handle_daq_frame(payload, size);
+      }));
+  }
   m_lcore_quit_signal.store(false);
   TLOG() << "Interface id=" << m_iface_id <<" Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
@@ -416,8 +450,10 @@ IfaceWrapper::start()
 void
 IfaceWrapper::stop()
 {
-  m_lcore_enable_flow.store(false);
+  disable_flow();
   m_lcore_quit_signal.store(true);
+  for (auto& [core, queues] : m_rx_core_map) rte_eal_wait_lcore(core);
+  for (auto& worker : m_frame_workers) worker->stop();
   // Stop GARP sender thread  
   if (m_garp_thread.joinable()) {
     m_garp_thread.join();
@@ -524,6 +560,19 @@ IfaceWrapper::generate_opmon_data() {
     publish( std::move(i), {{"queue", std::to_string(src_rx_q)}} );
   }
 
+  for (std::size_t i = 0; i < m_frame_workers.size(); ++i) {
+    auto& worker = *m_frame_workers[i];
+    opmon::FrameWorkerInfo info;
+    info.set_frames_enqueued(worker.counters.enqueued.load());
+    info.set_frames_processed(worker.counters.processed.load());
+    info.set_frames_dropped(worker.counters.dropped.load());
+    info.set_callback_failures(worker.counters.failed.load());
+    info.set_pending_batches(worker.pending());
+    info.set_high_water_batches(worker.counters.high_water.load());
+    info.set_max_queue_wait_ns(worker.counters.max_queue_wait_ns.exchange(0));
+    publish(std::move(info), {{"processing_core", std::to_string(m_processing_cores[i])}});
+  }
+
   // RTE Workers
   for (auto const& [lcore, _] : m_rx_core_map) {
     opmon::RTEWorkerInfo info;
@@ -554,6 +603,30 @@ IfaceWrapper::garp_func()
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
   TLOG() << "GARP function joins.";
+}
+
+void
+IfaceWrapper::disable_flow()
+{
+  m_lcore_enable_flow.store(false);
+  for (auto& [core, active] : m_rx_active) {
+    while (active.load()) std::this_thread::yield();
+  }
+  for (auto& worker : m_frame_workers) worker->drain();
+}
+
+void
+IfaceWrapper::dispatch_frame(int queue, uint source, char* payload, std::size_t size)
+{
+  auto* target = m_sources.at(source).get();
+  if (m_frame_workers.empty()) target->handle_daq_frame(payload, size);
+  else m_frame_workers[m_source_worker.at(source)]->enqueue(m_queue_producer.at(queue), target, payload, size);
+}
+
+void
+IfaceWrapper::flush_frames(int queue)
+{
+  for (auto& worker : m_frame_workers) worker->flush(m_queue_producer.at(queue));
 }
 
 //-----------------------------------------------------------------------------
@@ -604,7 +677,7 @@ IfaceWrapper::parse_udp_payload(int src_rx_q, char* payload, std::size_t size)
 
     if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
 
-      m_sources[strm_it->second]->handle_daq_frame((char*)daqhdrptr, daq_frame_size);
+      dispatch_frame(src_rx_q, strm_it->second, plptr, daq_frame_size);
 
 
     } else {
@@ -640,7 +713,7 @@ IfaceWrapper::passthrough_udp_payload(int src_rx_q, char* payload, std::size_t s
     
 
     if ( auto strm_it = strm_to_src.find(strm_id); strm_it != strm_to_src.end() ) {
-      m_sources[strm_it->second]->handle_daq_frame(payload, size);
+      dispatch_frame(src_rx_q, strm_it->second, payload, size);
     } else {
       // Really bad -> unexpeced StreamID in UDP Payload.
       // This check is needed in order to avoid dynamically add thousands

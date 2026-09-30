@@ -105,3 +105,13 @@ message RTEWorkerInfo {
   uint32 num_unhandled_non_jumbo_udp = 3;
 
 }
+
+message FrameWorkerInfo {
+  uint64 frames_enqueued = 1;
+  uint64 frames_processed = 2;
+  uint64 frames_dropped = 3;
+  uint64 callback_failures = 4;
+  uint64 pending_batches = 5;
+  uint64 high_water_batches = 6;
+  uint64 max_queue_wait_ns = 7;
+}

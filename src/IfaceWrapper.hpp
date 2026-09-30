@@ -19,6 +19,7 @@
 #include "dpdklibs/ipv4_addr.hpp"
 #include "dpdklibs/XstatsHelper.hpp"
 #include "SourceConcept.hpp"
+#include "FrameWorker.hpp"
 
 #include <confmodel/Session.hpp>
 // #include <confmodel/NetworkDevice.hpp>
@@ -82,7 +83,7 @@ public:
   void stop_xstats();
   
   void enable_flow() { m_lcore_enable_flow.store(true);}
-  void disable_flow() { m_lcore_enable_flow.store(false);}
+  void disable_flow();
   
   const std::vector<uint16_t>& get_rte_cores() const { return m_rte_cores; }
 
@@ -151,6 +152,16 @@ private:
   std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
   sid_to_source_map_t& m_sources;
   bool m_strict_parsing {true};
+
+  std::vector<int> m_processing_cores;
+  std::size_t m_processing_queue_batches;
+  std::vector<std::shared_ptr<SourceConcept>> m_worker_targets;
+  std::vector<std::unique_ptr<FrameWorker>> m_frame_workers;
+  std::map<int, std::size_t> m_queue_producer;
+  std::map<uint, std::size_t> m_source_worker;
+  std::map<int, std::atomic<bool>> m_rx_active;
+  void dispatch_frame(int queue, uint source, char* payload, std::size_t size);
+  void flush_frames(int queue);
 
   // Run marker
   std::atomic<bool>& m_run_marker;
