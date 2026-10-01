@@ -9,6 +9,9 @@
 #define DPDKLIBS_SRC_SOURCEMODEL_HPP_
 
 #include "SourceConcept.hpp"
+#include "fdreadoutlibs/pds/DescriptorProcessor.hpp"
+#include "fdreadoutlibs/DAPHNEEthTypeAdapter.hpp"
+#include <type_traits>
 
 #include "dpdklibs/Issues.hpp"
 
@@ -50,6 +53,9 @@ public:
 
   void acquire_callback() override
   {
+    if constexpr (std::is_same_v<TargetPayloadType, fdreadoutlibs::types::DAPHNEEthTypeAdapter>) {
+      m_descriptor_processor = fdreadoutlibs::pds::get_descriptor_processor(inherited::m_sink_conf->UID());
+    }
       if (m_callback_is_acquired) {
         TLOG_DEBUG(5) << "SourceModel callback is already acquired!";
       } else {
@@ -58,6 +64,30 @@ public:
         m_sink_callback = dmcbr->get_callback<TargetPayloadType>(inherited::m_sink_conf);
         m_callback_is_acquired = true;
       }
+  }
+
+  bool has_trigger_processor() const override { return bool(m_descriptor_processor); }
+
+  bool trigger_descriptor(char* buffer, std::size_t size, const char*& bytes,
+                          std::size_t& length, uint32_t& partition) const override
+  {
+    if (!m_descriptor_processor || size != m_expected_frame_size) return false;
+    fdreadoutlibs::pds::DescriptorFrame descriptor;
+    std::memcpy(&descriptor, buffer, sizeof(descriptor));
+    bytes = buffer;
+    length = sizeof(descriptor);
+    partition = descriptor.header.channel;
+    return true;
+  }
+
+  void handle_trigger_frame(const char* bytes, std::size_t size) override
+  {
+    if (!m_descriptor_processor || size != sizeof(fdreadoutlibs::pds::DescriptorFrame)) {
+      throw std::invalid_argument("Invalid DAPHNE descriptor callback");
+    }
+    fdreadoutlibs::pds::DescriptorFrame descriptor;
+    std::memcpy(&descriptor, bytes, sizeof(descriptor));
+    m_descriptor_processor->process(descriptor);
   }
 
   // Process an incoming raw byte buffer and extract complete frames of type TargetPayloadType.
@@ -98,10 +128,18 @@ public:
     info.set_failed_to_send_daq_payloads( m_failed_to_send_daq_payloads.exchange(0) );
     info.set_leftover_bytes_encountered( m_leftover_bytes_encountered.exchange(0) );
 
+    if (m_descriptor_processor) {
+      auto& c = m_descriptor_processor->counters;
+      info.set_descriptor_frames_processed(c.frames.load());
+      info.set_descriptor_overflows(c.overflow.load());
+      info.set_descriptor_frames_malformed(c.malformed.load());
+    }
     publish( std::move(info) );
   }
   
 private:
+  std::shared_ptr<fdreadoutlibs::pds::DescriptorProcessor> m_descriptor_processor;
+
   // Constants
   const std::size_t m_expected_frame_size = sizeof(TargetPayloadType);
 

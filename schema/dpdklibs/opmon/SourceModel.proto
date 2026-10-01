@@ -6,6 +6,9 @@ message SourceInfo {
 
   uint64 failed_to_send_daq_payloads = 1;
   uint64 leftover_bytes_encountered  = 2;
+  uint64 descriptor_frames_processed = 3;
+  uint64 descriptor_overflows = 4;
+  uint64 descriptor_frames_malformed = 5;
   
   
 }

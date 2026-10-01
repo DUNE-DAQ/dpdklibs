@@ -82,7 +82,7 @@ public:
   void setup_xstats();
   void stop_xstats();
   
-  void enable_flow() { m_lcore_enable_flow.store(true);}
+  void enable_flow();
   void disable_flow();
   
   const std::vector<uint16_t>& get_rte_cores() const { return m_rte_cores; }
@@ -153,10 +153,13 @@ private:
   sid_to_source_map_t& m_sources;
   bool m_strict_parsing {true};
 
+  std::vector<int> m_descriptor_cores;
+  std::size_t m_descriptor_queue_batches;
   std::vector<int> m_processing_cores;
   std::size_t m_processing_queue_batches;
   std::vector<std::shared_ptr<SourceConcept>> m_worker_targets;
   std::vector<std::unique_ptr<FrameWorker>> m_frame_workers;
+  std::vector<std::unique_ptr<FrameWorker>> m_descriptor_workers;
   std::map<int, std::size_t> m_queue_producer;
   std::map<uint, std::size_t> m_source_worker;
   std::map<int, std::atomic<bool>> m_rx_active;

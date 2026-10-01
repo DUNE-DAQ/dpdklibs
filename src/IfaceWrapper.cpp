@@ -170,6 +170,17 @@ IfaceWrapper::IfaceWrapper(
   }
 
 
+  m_descriptor_queue_batches = iface_cfg->get_descriptor_queue_batches();
+  for (auto* resource : iface_cfg->get_descriptor_cores()) {
+    for (auto cpu : resource->get_cpu_cores()) {
+      if (std::find(m_descriptor_cores.begin(), m_descriptor_cores.end(), cpu) != m_descriptor_cores.end() ||
+          std::find(m_processing_cores.begin(), m_processing_cores.end(), cpu) != m_processing_cores.end()) {
+        throw std::invalid_argument("Descriptor CPU overlaps another processing CPU");
+      }
+      m_descriptor_cores.push_back(cpu);
+    }
+  }
+
   // Here is my list of cores
   for( const auto* proc_res : iface_cfg->get_used_lcores()) {
     m_rte_cores.insert(m_rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
@@ -230,17 +241,20 @@ IfaceWrapper::IfaceWrapper(
   for (int cpu : m_processing_cores) {
     if (rte_lcore_is_enabled(cpu)) throw std::invalid_argument("Frame processing CPU overlaps DPDK lcores");
   }
+  for (int cpu : m_descriptor_cores) {
+    if (rte_lcore_is_enabled(cpu)) throw std::invalid_argument("Descriptor CPU overlaps DPDK lcores");
+  }
   std::map<uint, int> source_queue;
   for (auto& [queue, streams] : m_stream_id_to_source_id) {
     m_queue_producer[queue] = m_queue_producer.size();
     for (auto& [stream, source] : streams) {
-      if (!m_processing_cores.empty() && !source_queue.emplace(source, queue).second) {
+      if ((!m_processing_cores.empty() || !m_descriptor_cores.empty()) && !source_queue.emplace(source, queue).second) {
         throw std::invalid_argument("Frame processing source appears on multiple RX queues");
       }
       if (!m_processing_cores.empty()) {
         m_source_worker.emplace(source, m_source_worker.size() % m_processing_cores.size());
-        m_worker_targets.push_back(m_sources.at(source));
       }
+      if (!m_processing_cores.empty() || !m_descriptor_cores.empty()) m_worker_targets.push_back(m_sources.at(source));
     }
   }
   m_processing_cores.resize(std::min(m_processing_cores.size(), source_queue.size()));
@@ -431,6 +445,12 @@ IfaceWrapper::start()
         static_cast<SourceConcept*>(target)->handle_daq_frame(payload, size);
       }));
   }
+  for (int cpu : m_descriptor_cores) {
+    m_descriptor_workers.push_back(std::make_unique<FrameWorker>(cpu, m_queue_producer.size(), m_descriptor_queue_batches,
+      [](void* target, char* payload, std::size_t size) {
+        static_cast<SourceConcept*>(target)->handle_trigger_frame(payload, size);
+      }));
+  }
   m_lcore_quit_signal.store(false);
   TLOG() << "Interface id=" << m_iface_id <<" Launching GARP thread with garp_func...";
   m_garp_thread = std::thread(&IfaceWrapper::garp_func, this);
@@ -454,6 +474,7 @@ IfaceWrapper::stop()
   m_lcore_quit_signal.store(true);
   for (auto& [core, queues] : m_rx_core_map) rte_eal_wait_lcore(core);
   for (auto& worker : m_frame_workers) worker->stop();
+  for (auto& worker : m_descriptor_workers) worker->stop();
   // Stop GARP sender thread  
   if (m_garp_thread.joinable()) {
     m_garp_thread.join();
@@ -570,7 +591,20 @@ IfaceWrapper::generate_opmon_data() {
     info.set_pending_batches(worker.pending());
     info.set_high_water_batches(worker.counters.high_water.load());
     info.set_max_queue_wait_ns(worker.counters.max_queue_wait_ns.exchange(0));
-    publish(std::move(info), {{"processing_core", std::to_string(m_processing_cores[i])}});
+    publish(std::move(info), {{"processing_core", std::to_string(m_processing_cores[i])}, {"path", "raw"}});
+  }
+
+  for (std::size_t i = 0; i < m_descriptor_workers.size(); ++i) {
+    auto& worker = *m_descriptor_workers[i];
+    opmon::FrameWorkerInfo info;
+    info.set_frames_enqueued(worker.counters.enqueued.load());
+    info.set_frames_processed(worker.counters.processed.load());
+    info.set_frames_dropped(worker.counters.dropped.load());
+    info.set_callback_failures(worker.counters.failed.load());
+    info.set_pending_batches(worker.pending());
+    info.set_high_water_batches(worker.counters.high_water.load());
+    info.set_max_queue_wait_ns(worker.counters.max_queue_wait_ns.exchange(0));
+    publish(std::move(info), {{"processing_core", std::to_string(m_descriptor_cores[i])}, {"path", "descriptor"}});
   }
 
   // RTE Workers
@@ -606,12 +640,26 @@ IfaceWrapper::garp_func()
 }
 
 void
+IfaceWrapper::enable_flow()
+{
+  for (auto& [queue, streams] : m_stream_id_to_source_id) {
+    for (auto& [stream, source] : streams) {
+      if (m_sources.at(source)->has_trigger_processor() && m_descriptor_workers.empty()) {
+        throw std::invalid_argument("Separate descriptor processor requires descriptor cores");
+      }
+    }
+  }
+  m_lcore_enable_flow.store(true);
+}
+
+void
 IfaceWrapper::disable_flow()
 {
   m_lcore_enable_flow.store(false);
   for (auto& [core, active] : m_rx_active) {
     while (active.load()) std::this_thread::yield();
   }
+  for (auto& worker : m_descriptor_workers) worker->drain();
   for (auto& worker : m_frame_workers) worker->drain();
 }
 
@@ -619,6 +667,13 @@ void
 IfaceWrapper::dispatch_frame(int queue, uint source, char* payload, std::size_t size)
 {
   auto* target = m_sources.at(source).get();
+  const char* descriptor;
+  std::size_t length;
+  uint32_t channel;
+  if (!m_descriptor_workers.empty() && target->trigger_descriptor(payload, size, descriptor, length, channel)) {
+    auto worker = (uint64_t(source) * 131 + channel) % m_descriptor_workers.size();
+    m_descriptor_workers[worker]->enqueue(m_queue_producer.at(queue), target, descriptor, length);
+  }
   if (m_frame_workers.empty()) target->handle_daq_frame(payload, size);
   else m_frame_workers[m_source_worker.at(source)]->enqueue(m_queue_producer.at(queue), target, payload, size);
 }
@@ -626,6 +681,7 @@ IfaceWrapper::dispatch_frame(int queue, uint source, char* payload, std::size_t 
 void
 IfaceWrapper::flush_frames(int queue)
 {
+  for (auto& worker : m_descriptor_workers) worker->flush(m_queue_producer.at(queue));
   for (auto& worker : m_frame_workers) worker->flush(m_queue_producer.at(queue));
 }
 

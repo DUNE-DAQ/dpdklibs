@@ -10,6 +10,8 @@ Each source stays on one worker; unused configured workers are not started. Ever
 for each worker, preserving source order without a shared producer lock.
 A source mapped to multiple RX queues is rejected when workers are enabled.
 Workers execute the existing callback, including raw buffering and TP extraction.
+The optional [descriptor path](descriptor-workers.md) moves TP extraction to
+independent workers before raw buffering.
 Queue storage is allocated and first touched on the worker CPU.
 Each batch holds at most 16 KiB and 128 frame references; RX flushes at burst end.
 Queue saturation drops incoming frames and increments an explicit counter.

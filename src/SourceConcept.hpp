@@ -20,6 +20,7 @@
 #include <nlohmann/json.hpp>
 
 #include <memory>
+#include <cstdint>
 #include <sstream>
 #include <string>
 
@@ -45,6 +46,10 @@ namespace dunedaq {
 
       // Meant to process an incoming raw byte buffer and extract complete frames of arbitrary types in specialized models.
       virtual void handle_daq_frame(char* buffer, std::size_t size) = 0;
+
+      virtual bool has_trigger_processor() const { return false; }
+      virtual bool trigger_descriptor(char*, std::size_t, const char*&, std::size_t&, uint32_t&) const { return false; }
+      virtual void handle_trigger_frame(const char*, std::size_t) {}
 
       void set_sink_config(const appmodel::DataMoveCallbackConf* sink_conf) 
       { 
