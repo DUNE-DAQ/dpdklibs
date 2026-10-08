@@ -104,11 +104,29 @@ lcore_main(struct rte_mempool* mbuf_pool)
       TLOG() << " Total packets: " << num_packets << " Total bytes: " << num_bytes << " Total missed: " << num_missed
              << " Total errors: " << num_errors << " Total UDP frames: " << num_udp_frames.exchange(0)
              << " Total JUMBO frames: " << num_jumbo_frames.exchange(0);
-      // Queue based counters doesn't seem to work neither here neither in module... :((((((
-      for (unsigned long i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++) {
-        TLOG() << "HW iface queue[" << i << "] received: " << (uint64_t)iface_stats.q_ipackets[i];
-      }
 
+
+      int count = rte_eth_xstats_get_names(iface, nullptr, 0);
+      if (count > 0) {
+          std::vector<rte_eth_xstat_name> names(count);
+          std::vector<rte_eth_xstat> stats(count);
+
+          int n_names = rte_eth_xstats_get_names(iface, names.data(), count);
+          int n_stats = rte_eth_xstats_get(iface, stats.data(), count);
+
+          if (n_names == count && n_stats == count) {
+              for (int i = 0; i < count; ++i) {
+                  std::string name(names[i].name);
+
+                  // Print only received-packet counters for individual queues
+                  if (name.find("rx_q") != std::string::npos &&
+                      name.find("packets") != std::string::npos) {
+
+                      TLOG() << "HW iface"  << name << " received: " << static_cast<uint64_t>(stats[i].value);
+                  }
+              }
+          }
+      }
       ////////////// RS FIXME: HW counter based stats monitoring. Fields initialized just before thread spawn.
       if (len != rte_eth_xstats_get_by_id(iface, NULL, values, len)) {
         TLOG() << "Cannot get xstat values!";

@@ -21,7 +21,7 @@ struct ipaddr
   uint8_t addr_bytes[4];
 };
 
-struct ipv4_udp_packet_hdr
+struct __rte_packed_begin ipv4_udp_packet_hdr
 {
   struct rte_ether_hdr eth_hdr;
   // l3 header
@@ -61,7 +61,7 @@ struct ipv4_udp_packet_hdr
   //         rte_be16_t dgram_len;   /**< UDP datagram length */
   //         rte_be16_t dgram_cksum; /**< UDP datagram checksum */
   // } __rte_packed;
-} __rte_packed;
+} __rte_packed_end;
 
 } // namespace udp
 } // namespace dpdklibs
