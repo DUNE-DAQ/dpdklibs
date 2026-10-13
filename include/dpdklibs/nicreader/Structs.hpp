@@ -1,7 +1,7 @@
 /*
  * This file is 100% generated.  Any manual edits will likely be lost.
  *
- * This contains struct and other type definitions for shema in 
+ * This contains struct and other type definitions for shema in
  * namespace dunedaq::dpdklibs::nicreader.
  */
 #ifndef DUNEDAQ_DPDKLIBS_NICREADER_STRUCTS_HPP
@@ -9,173 +9,169 @@
 
 #include <cstdint>
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace dunedaq::dpdklibs::nicreader {
 
-    // @brief A count of more things
-    using BigCount = int64_t;
+// @brief A count of more things
+using BigCount = int64_t;
 
+// @brief
+using Choice = bool;
 
-    // @brief 
-    using Choice = bool;
+// @brief PCIe address string
+using pci = std::string;
 
-    // @brief PCIe address string
-    using pci = std::string;
+// @brief mac string
+using mac = std::string;
 
-    // @brief mac string
-    using mac = std::string;
+// @brief ipv4 string
+using ipv4 = std::string;
 
-    // @brief ipv4 string
-    using ipv4 = std::string;
+// @brief Count of things
+using Count = uint32_t; // NOLINT
 
-    // @brief Count of things
-    using Count = uint32_t; // NOLINT
+// @brief An ID of a thingy
+using Identifier = int32_t;
 
+// @brief Source GeoID Information
+struct SrcGeoInfo
+{
 
-    // @brief An ID of a thingy
-    using Identifier = int32_t;
+  // @brief Detector ID
+  Identifier det_id = 0;
 
+  // @brief Crate ID
+  Identifier crate_id = 0;
 
-    // @brief Source GeoID Information
-    struct SrcGeoInfo 
-    {
+  // @brief Slot ID
+  Identifier slot_id = 0;
+};
 
-        // @brief Detector ID
-        Identifier det_id = 0;
+// @brief A stream map
+struct StreamMap
+{
 
-        // @brief Crate ID
-        Identifier crate_id = 0;
+  // @brief Source ID
+  Identifier source_id = 0;
 
-        // @brief Slot ID
-        Identifier slot_id = 0;
-    };
+  // @brief Stream ID
+  Identifier stream_id = 0;
+};
 
-    // @brief A stream map
-    struct StreamMap 
-    {
+// @brief A list of streams
+using SrcStreamsMapping = std::vector<dunedaq::dpdklibs::nicreader::StreamMap>;
 
-        // @brief Source ID
-        Identifier source_id = 0;
+// @brief Source field
+struct Source
+{
 
-        // @brief Stream ID
-        Identifier stream_id = 0;
-    };
+  // @brief ID of a source
+  Identifier id = 0;
 
-    // @brief A list of streams
-    using SrcStreamsMapping = std::vector<dunedaq::dpdklibs::nicreader::StreamMap>;
+  // @brief Source IP address
+  ipv4 ip_addr = "192.168.0.1";
 
-    // @brief Source field
-    struct Source 
-    {
+  // @brief Assigned CPU lcore
+  Identifier lcore = 0;
 
-        // @brief ID of a source
-        Identifier id = 0;
+  // @brief Assigned RX queue of interface
+  Identifier rx_q = 0;
 
-        // @brief Source IP address
-        ipv4 ip_addr = "192.168.0.1";
+  // @brief Source information
+  SrcGeoInfo src_info = { 0, 0, 0 };
 
-        // @brief Assigned CPU lcore
-        Identifier lcore = 0;
+  // @brief Source streams mapping
+  SrcStreamsMapping src_streams_mapping = {};
+};
 
-        // @brief Assigned RX queue of interface
-        Identifier rx_q = 0;
+// @brief A list of sources
+using Sources = std::vector<dunedaq::dpdklibs::nicreader::Source>;
 
-        // @brief Source information
-        SrcGeoInfo src_info = {0, 0, 0};
+// @brief Source field
+struct StatsReporting
+{
 
-        // @brief Source streams mapping
-        SrcStreamsMapping src_streams_mapping = {};
-    };
+  // @brief Expected sequence ID increase per packet in a stream
+  BigCount expected_seq_id_step = 1;
 
-    // @brief A list of sources
-    using Sources = std::vector<dunedaq::dpdklibs::nicreader::Source>;
+  // @brief Expected timestamp increase per packet in a stream
+  BigCount expected_timestamp_step = -999;
 
-    // @brief Source field
-    struct StatsReporting 
-    {
+  // @brief Expected packet size
+  BigCount expected_packet_size = 7243;
 
-        // @brief Expected sequence ID increase per packet in a stream
-        BigCount expected_seq_id_step = 1;
+  // @brief Analyze only every (1/analyze_nth_packet) packet
+  Count analyze_nth_packet = 1;
+};
 
-        // @brief Expected timestamp increase per packet in a stream
-        BigCount expected_timestamp_step = -999;
+// @brief Configuration an Ethernet interface through DPDK RTE
+struct Interface
+{
 
-        // @brief Expected packet size
-        BigCount expected_packet_size = 7243;
+  // @brief PCIe address of the interface
+  pci pci_addr = "0000:00:00.0";
 
-        // @brief Analyze only every (1/analyze_nth_packet) packet
-        Count analyze_nth_packet = 1;
-    };
+  // @brief MAC address of the interface
+  mac mac_addr = "AA:BB:CC:DD:EE:FF";
 
-    // @brief Configuration an Ethernet interface through DPDK RTE
-    struct Interface 
-    {
+  // @brief IP address of interface
+  ipv4 ip_addr = "192.168.0.1";
 
-        // @brief PCIe address of the interface
-        pci pci_addr = "0000:00:00.0";
+  // @brief FlowAPI enabled
+  Choice with_flow_control = true;
 
-        // @brief MAC address of the interface
-        mac mac_addr = "AA:BB:CC:DD:EE:FF";
+  // @brief Promiscuous mode enabled
+  Choice promiscuous_mode = false;
 
-        // @brief IP address of interface
-        ipv4 ip_addr = "192.168.0.1";
+  // @brief MTU of interface
+  Count mtu = 9000;
 
-        // @brief FlowAPI enabled
-        Choice with_flow_control = true;
+  // @brief Size of a single RX ring
+  Count rx_ring_size = 1024;
 
-        // @brief Promiscuous mode enabled
-        Choice promiscuous_mode = false;
+  // @brief Size of a single TX ring
+  Count tx_ring_size = 1024;
 
-        // @brief MTU of interface
-        Count mtu = 9000;
+  // @brief Number of total MBUFs
+  Count num_mbufs = 8191;
 
-        // @brief Size of a single RX ring
-        Count rx_ring_size = 1024;
+  // @brief MBUF cache size
+  Count mbuf_cache_size = 256;
 
-        // @brief Size of a single TX ring
-        Count tx_ring_size = 1024;
+  // @brief RX burst size
+  Count burst_size = 256;
 
-        // @brief Number of total MBUFs
-        Count num_mbufs = 8191;
+  // @brief LCore loop sleep in microseconds - 0 to disable
+  Count lcore_sleep_us = 10;
 
-        // @brief MBUF cache size
-        Count mbuf_cache_size = 256;
+  // @brief A list of expected sources
+  Sources expected_sources = {};
 
-        // @brief RX burst size
-        Count burst_size = 256;
+  // @brief Defines how stats are reported
+  StatsReporting stats_reporting_cfg = { 1, -999, 7243, 1 };
+};
 
-        // @brief LCore loop sleep in microseconds - 0 to disable
-        Count lcore_sleep_us = 10;
+// @brief A list of interfaces to use
+using IfaceList = std::vector<dunedaq::dpdklibs::nicreader::Interface>;
 
-        // @brief A list of expected sources
-        Sources expected_sources = {};
+// @brief A string field
+using String = std::string;
 
-        // @brief Defines how stats are reported
-        StatsReporting stats_reporting_cfg = {1, -999, 7243, 1};
-    };
+// @brief Generic UIO reader DAQ Module Configuration
+struct Conf
+{
 
-    // @brief A list of interfaces to use
-    using IfaceList = std::vector<dunedaq::dpdklibs::nicreader::Interface>;
+  // @brief List of interfaces to configure
+  IfaceList ifaces = {};
 
-    // @brief A string field
-    using String = std::string;
+  // @brief A string with EAL arguments
+  String eal_arg_list = "daq_application";
+};
 
-    // @brief Generic UIO reader DAQ Module Configuration
-    struct Conf 
-    {
-
-        // @brief List of interfaces to configure
-        IfaceList ifaces = {};
-
-        // @brief A string with EAL arguments
-        String eal_arg_list = "daq_application";
-    };
-
-    // @brief A float number
-    using Float = float;
-
+// @brief A float number
+using Float = float;
 
 } // namespace dunedaq::dpdklibs::nicreader
 

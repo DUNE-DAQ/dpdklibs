@@ -81,11 +81,7 @@ private:
 //  - on_sent() runs only after a successful transmit.
 template<typename Backend, typename BuildFn, typename OnSentFn>
 TxOutcome
-send_packet(Backend& backend,
-            std::size_t packet_bytes,
-            std::uint8_t* pre_tx_copy,
-            BuildFn&& build,
-            OnSentFn&& on_sent)
+send_packet(Backend& backend, std::size_t packet_bytes, std::uint8_t* pre_tx_copy, BuildFn&& build, OnSentFn&& on_sent)
 {
   void* buf = backend.alloc();
   if (buf == nullptr) {

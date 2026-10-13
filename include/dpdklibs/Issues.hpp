@@ -8,8 +8,8 @@
 #ifndef DPDKLIBS_INCLUDE_DPDKLIBS_DPDKISSUES_HPP_
 #define DPDKLIBS_INCLUDE_DPDKLIBS_DPDKISSUES_HPP_
 
-#include <ers/Issue.hpp>
 #include "logging/Logging.hpp" // NOTE: if ISSUES ARE DECLARED BEFORE include logging/Logging.hpp, TLOG_DEBUG<<issue wont work.
+#include <ers/Issue.hpp>
 
 #include <string>
 
@@ -17,70 +17,53 @@ namespace dunedaq {
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToSetupInterface,
                   "Interface [" << ifaceid << "] setup failed: " << error,
-                  ((int)ifaceid)((int)error)
-                );
+                  ((int)ifaceid)((int)error));
 
-ERS_DECLARE_ISSUE(dpdklibs,
-                  InvalidEALPort,
-                  "Interface [" << ifaceid << "] is not a valid port: ",
-                  ((int)ifaceid)
-                );
+ERS_DECLARE_ISSUE(dpdklibs, InvalidEALPort, "Interface [" << ifaceid << "] is not a valid port: ", ((int)ifaceid));
 
-ERS_DECLARE_ISSUE(dpdklibs,
-                  LinkOffline,
-                  "Link offline for interface [" << ifaceid << "]",
-                  ((int)ifaceid)
-                );
+ERS_DECLARE_ISSUE(dpdklibs, LinkOffline, "Link offline for interface [" << ifaceid << "]", ((int)ifaceid));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   MainCoreConflict,
                   "The main core [" << main_core << "] conflicts with the worker cores list ",
-                  ((int)main_core)
-                );
+                  ((int)main_core));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   MissingSourceIDOutputs,
-                  "The following of source ids are available as SourceModels for interface " << ifaceid << ": " << srcs_str,
-                  ((int)ifaceid)((std::string)srcs_str)
-                );
+                  "The following of source ids are available as SourceModels for interface " << ifaceid << ": "
+                                                                                             << srcs_str,
+                  ((int)ifaceid)((std::string)srcs_str));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToRetrieveInterfaceInfo,
                   "Failed to retrieve device info for interfce [" << ifaceid << "]: " << error,
-                  ((int)ifaceid)((int)error)
-                );
+                  ((int)ifaceid)((int)error));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToRetrieveLinkStatus,
                   "Failed to retrieve link status for interfce [" << ifaceid << "]: " << error,
-                  ((int)ifaceid)((int)error)
-                );
+                  ((int)ifaceid)((int)error));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToResetInterface,
                   "Failed to reset interfce [" << ifaceid << "]: " << error,
-                  ((int)ifaceid)((int)error)
-                );
+                  ((int)ifaceid)((int)error));
 
 ERS_DECLARE_ISSUE(dpdklibs,
                   FailedToConfigureInterface,
                   "Failed to configure interface [" << ifaceid << "], stage " << stage << " : " << error,
-                  ((int)ifaceid)((std::string)stage)((int)error)
-                );
+                  ((int)ifaceid)((std::string)stage)((int)error));
 
 ERS_DECLARE_ISSUE(dpdklibs,
-                    FailedToSendData,
-                    "Sink ID [" << sink_id << "] Number of packets that failed to send: " << count,
-                    ((std::string)sink_id)((int)count)
-                  );
+                  FailedToSendData,
+                  "Sink ID [" << sink_id << "] Number of packets that failed to send: " << count,
+                  ((std::string)sink_id)((int)count));
 
 ERS_DECLARE_ISSUE(dpdklibs,
-                    PacketErrors,
-                    "Interface [" << id << "] " << error << " packet error counts: " << count,
-                    ((std::string)id)((std::string)error)((int)count)
-                  );
+                  PacketErrors,
+                  "Interface [" << id << "] " << error << " packet error counts: " << count,
+                  ((std::string)id)((std::string)error)((int)count));
 
 }
-
 
 #endif /* DPDKLIBS_INCLUDE_DPDKLIBS_DPDKISSUES_HPP_ */

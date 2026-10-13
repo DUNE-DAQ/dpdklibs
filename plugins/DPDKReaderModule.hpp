@@ -10,7 +10,7 @@
 
 #include "dpdklibs/udp/Utils.hpp"
 
-//#include "appfwk/app/Nljs.hpp"
+// #include "appfwk/app/Nljs.hpp"
 #include "appfwk/cmd/Nljs.hpp"
 #include "appfwk/cmd/Structs.hpp"
 
@@ -19,9 +19,9 @@
 #include "iomanager/IOManager.hpp"
 #include "iomanager/Sender.hpp"
 
-//#include "dpdklibs/nicreader/Structs.hpp"
-#include "dpdklibs/EALSetup.hpp"
+// #include "dpdklibs/nicreader/Structs.hpp"
 #include "IfaceWrapper.hpp"
+#include "dpdklibs/EALSetup.hpp"
 
 #include <future>
 #include <map>
@@ -49,11 +49,9 @@ public:
 
   void init(const std::shared_ptr<appfwk::ConfigurationManager> mfcg) override;
 
-
-  
 private:
   // Types
-  //using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
+  // using module_conf_t = dunedaq::dpdklibs::nicreader::Conf;
 
   // Commands
   void do_configure(const CommandData_t&);
@@ -63,7 +61,7 @@ private:
 
   // Internals
   std::shared_ptr<appfwk::ConfigurationManager> m_cfg;
-  
+
   int m_running = 0;
   std::atomic<bool> m_run_marker;
   void set_running(bool /*should_run*/);
@@ -81,11 +79,8 @@ private:
   // Both SourceConcepts and IfaceWrappers are Monitorable Objecets
   // Both quantities are available for the ReaderModule and both are registered.
   // There is no loop because the Sources passed to the Wrappers are not registered in the wrapper
-
-  
 };
 
 } // namespace dunedaq::dpdklibs
-
 
 #endif // DPDKLIBS_PLUGINS_NICRECEIVER_HPP_

@@ -1,5 +1,5 @@
 /**
- * @file Conversions_test.cxx 
+ * @file Conversions_test.cxx
  *
  * Test the converter functions written for strings vs. Big Endians vs. Little Endians, etc...
  *
@@ -30,7 +30,6 @@ BOOST_AUTO_TEST_CASE(IpAddressConversions)
 
   BOOST_REQUIRE_EQUAL(ipaddr_object.addr_bytes[0], 10);
   BOOST_REQUIRE_EQUAL(ipaddr_object.addr_bytes[2], 30);
-  
 }
 
 BOOST_AUTO_TEST_SUITE_END()

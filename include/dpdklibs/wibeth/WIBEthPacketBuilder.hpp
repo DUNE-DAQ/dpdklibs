@@ -29,10 +29,12 @@ constexpr std::size_t kUDPHeaderBytes = sizeof(rte_udp_hdr);
 constexpr std::size_t kPacketHeaderBytes = sizeof(dunedaq::dpdklibs::udp::ipv4_udp_packet_hdr);
 constexpr std::size_t kDAQEthHeaderBytes = sizeof(dunedaq::detdataformats::DAQEthHeader);
 constexpr std::size_t kWIBEthFrameBytes = sizeof(dunedaq::fddetdataformats::WIBEthFrame);
-constexpr std::size_t kEthernetPacketBytes = kEthernetHeaderBytes + kIPv4HeaderBytes + kUDPHeaderBytes + kWIBEthFrameBytes;
+constexpr std::size_t kEthernetPacketBytes =
+  kEthernetHeaderBytes + kIPv4HeaderBytes + kUDPHeaderBytes + kWIBEthFrameBytes;
 constexpr std::size_t kIPv4TotalBytes = kIPv4HeaderBytes + kUDPHeaderBytes + kWIBEthFrameBytes;
 constexpr std::size_t kUDPDatagramBytes = kUDPHeaderBytes + kWIBEthFrameBytes;
-constexpr std::uint16_t kWIBEthBlockLength = static_cast<std::uint16_t>((kWIBEthFrameBytes / sizeof(std::uint64_t)) - 1);
+constexpr std::uint16_t kWIBEthBlockLength =
+  static_cast<std::uint16_t>((kWIBEthFrameBytes / sizeof(std::uint64_t)) - 1);
 constexpr std::uint64_t kDefaultTimestampStep = 2048;
 constexpr double kDefaultRateHz = 62500000.0 / static_cast<double>(kDefaultTimestampStep);
 
@@ -80,7 +82,10 @@ patch_daq_header(void* wibeth_frame, const HeaderPatch& patch);
 // Ethernet/IPv4/UDP header, then the WIBEthFrame, then the header patch.
 // ethernet_packet may have any alignment.
 void
-construct_packet(void* ethernet_packet, const void* wibeth_frame, const PacketConfig& cfg, const HeaderPatch& patch = {});
+construct_packet(void* ethernet_packet,
+                 const void* wibeth_frame,
+                 const PacketConfig& cfg,
+                 const HeaderPatch& patch = {});
 
 } // namespace dunedaq::dpdklibs::wibeth
 

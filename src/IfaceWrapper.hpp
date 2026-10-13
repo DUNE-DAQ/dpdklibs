@@ -1,5 +1,5 @@
 /**
- * @file IfaceWrapper.hpp IfaceWrapper for holding resources of 
+ * @file IfaceWrapper.hpp IfaceWrapper for holding resources of
  * a DPDK controlled NIC interface/port
  *
  * This is part of the DUNE DAQ , copyright 2020.
@@ -9,16 +9,16 @@
 #ifndef DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 #define DPDKLIBS_SRC_IFACEWRAPPER_HPP_
 
-//#include "dpdklibs/nicreader/Structs.hpp"
+// #include "dpdklibs/nicreader/Structs.hpp"
 #include "confmodel/NetworkDevice.hpp"
 
+#include "SourceConcept.hpp"
 #include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/udp/Utils.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/XstatsHelper.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
-#include "dpdklibs/XstatsHelper.hpp"
-#include "SourceConcept.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
 #include <confmodel/Session.hpp>
 // #include <confmodel/NetworkDevice.hpp>
@@ -27,49 +27,46 @@
 
 #include <nlohmann/json.hpp>
 
-#include <ers/ers.hpp>
 #include "logging/Logging.hpp" // NOTE: if ISSUES ARE DECLARED BEFORE include logging/Logging.hpp, TLOG_DEBUG<<issue wont work.
+#include <ers/ers.hpp>
 
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
-#include <set>
 
 #include <folly/ProducerConsumerQueue.h>
 
 namespace dunedaq {
 
-  ERS_DECLARE_ISSUE( dpdklibs,
-		     MetricPublishFailed,
-		     "Field " << field << " was not reported",
-		     ((std::string)field)
-		     )
+ERS_DECLARE_ISSUE(dpdklibs, MetricPublishFailed, "Field " << field << " was not reported", ((std::string)field))
 
-  ERS_DECLARE_ISSUE( dpdklibs,
-		     UnexpectedStreamID,
-		     "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
-		     ((int)src_id)((size_t)counter)
-		     )
+ERS_DECLARE_ISSUE(dpdklibs,
+                  UnexpectedStreamID,
+                  "Unexpected stream ID " << src_id << " in UDP payoad. Total counter: " << counter,
+                  ((int)src_id)((size_t)counter))
 
 namespace dpdklibs {
 
-  class IfaceWrapper : public opmonlib::MonitorableObject
+class IfaceWrapper : public opmonlib::MonitorableObject
 {
 public:
   using sid_to_source_map_t = std::map<int, std::shared_ptr<SourceConcept>>;
 
-  IfaceWrapper(uint iface_id, const appmodel::DPDKReceiver* receiver,
-	       const std::vector<const appmodel::NWDetDataSender*>& senders,
-	       const std::vector<const confmodel::DetectorStream*>& active_streams,
-	       sid_to_source_map_t& sources, std::atomic<bool>& run_marker);
-  ~IfaceWrapper(); 
- 
+  IfaceWrapper(uint iface_id,
+               const appmodel::DPDKReceiver* receiver,
+               const std::vector<const appmodel::NWDetDataSender*>& senders,
+               const std::vector<const confmodel::DetectorStream*>& active_streams,
+               sid_to_source_map_t& sources,
+               std::atomic<bool>& run_marker);
+  ~IfaceWrapper();
+
   IfaceWrapper(const IfaceWrapper&) = delete;            ///< IfaceWrapper is not copy-constructible
   IfaceWrapper& operator=(const IfaceWrapper&) = delete; ///< IfaceWrapper is not copy-assginable
   IfaceWrapper(IfaceWrapper&&) = delete;                 ///< IfaceWrapper is not move-constructible
   IfaceWrapper& operator=(IfaceWrapper&&) = delete;      ///< IfaceWrapper is not move-assignable
 
-  //void init();
+  // void init();
   void start();
   void stop();
 
@@ -80,14 +77,14 @@ public:
   void setup_flow_steering();
   void setup_xstats();
   void stop_xstats();
-  
-  void enable_flow() { m_lcore_enable_flow.store(true);}
-  void disable_flow() { m_lcore_enable_flow.store(false);}
-  
+
+  void enable_flow() { m_lcore_enable_flow.store(true); }
+  void disable_flow() { m_lcore_enable_flow.store(false); }
+
   const std::vector<uint16_t>& get_rte_cores() const { return m_rte_cores; }
 
 protected:
-  //iface_conf_t m_cfg;
+  // iface_conf_t m_cfg;
   int m_iface_id;
   std::string m_iface_id_str;
   bool m_configured;
@@ -126,7 +123,7 @@ private:
 
   // Mbufs and pools
   std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
-  std::map<int, struct rte_mbuf **> m_bufs; // by queue
+  std::map<int, struct rte_mbuf**> m_bufs; // by queue
 
   // Stats by queues
   std::map<int, std::atomic<std::size_t>> m_num_frames_rxq;
@@ -142,7 +139,6 @@ private:
   // Unexpected stream ID count
   std::map<int, std::atomic<std::size_t>> m_num_unexid_frames;
 
-
   // DPDK HW stats
   dpdklibs::IfaceXstats m_iface_xstats;
 
@@ -150,35 +146,34 @@ private:
   // queue -> [stream_id -> sid]
   std::map<int, std::map<uint, uint>> m_stream_id_to_source_id;
   sid_to_source_map_t& m_sources;
-  bool m_strict_parsing {true};
+  bool m_strict_parsing{ true };
 
   // Run marker
   std::atomic<bool>& m_run_marker;
 
   // GARP
   std::unique_ptr<rte_mempool> m_garp_mbuf_pool;
-  std::map<int, struct rte_mbuf **> m_garp_bufs;
+  std::map<int, struct rte_mbuf**> m_garp_bufs;
   std::thread m_garp_thread;
   void garp_func();
-  std::atomic<uint64_t> m_garps_sent{0};
+  std::atomic<uint64_t> m_garps_sent{ 0 };
 
   // ARP
   std::unique_ptr<rte_mempool> m_arp_mbuf_pool;
-  std::map<int, struct rte_mbuf **> m_arp_bufs;
+  std::map<int, struct rte_mbuf**> m_arp_bufs;
   std::thread m_arp_thread;
   void arp_func();
-  std::atomic<uint64_t> m_arps_sent{0};
+  std::atomic<uint64_t> m_arps_sent{ 0 };
 
   // Lcore processor
-  int rx_runner(void *arg __rte_unused);
-  int arp_response_runner(void *arg __rte_unused);
+  int rx_runner(void* arg __rte_unused);
+  int arp_response_runner(void* arg __rte_unused);
 
   // Parse UDP payloads as DAQ frames
   void parse_udp_payload(int src_rx_q, char* payload, std::size_t size);
 
   // Pass through UDP payloads as is
   void passthrough_udp_payload(int src_rx_q, char* payload, std::size_t size);
-
 };
 
 } // namespace dpdklibs

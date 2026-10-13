@@ -33,9 +33,9 @@ DpdkTxBackend::prepare(void* buf, std::size_t bytes)
     return nullptr;
   }
   mbuf->l2_len = static_cast<std::uint16_t>(sizeof(rte_ether_hdr)); // NOLINT(build/unsigned)
-  mbuf->l3_len = static_cast<std::uint16_t>(sizeof(rte_ipv4_hdr)); // NOLINT(build/unsigned)
-  mbuf->l4_len = static_cast<std::uint16_t>(sizeof(rte_udp_hdr)); // NOLINT(build/unsigned)
-  return reinterpret_cast<std::uint8_t*>(dst); // NOLINT
+  mbuf->l3_len = static_cast<std::uint16_t>(sizeof(rte_ipv4_hdr));  // NOLINT(build/unsigned)
+  mbuf->l4_len = static_cast<std::uint16_t>(sizeof(rte_udp_hdr));   // NOLINT(build/unsigned)
+  return reinterpret_cast<std::uint8_t*>(dst);                      // NOLINT
 }
 
 bool

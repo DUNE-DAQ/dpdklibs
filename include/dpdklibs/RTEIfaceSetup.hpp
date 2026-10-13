@@ -31,7 +31,7 @@ namespace ifaceutils {
 #define RTE_JUMBO_ETHER_MTU (PG_JUMBO_FRAME_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /*< Ethernet MTU. */
 #endif
 
-static volatile uint8_t dpdk_quit_signal; 
+static volatile uint8_t dpdk_quit_signal;
 
 static const struct rte_eth_conf iface_conf_default = {
   .rxmode = {
@@ -50,7 +50,8 @@ static const struct rte_eth_conf iface_conf_default = {
 
 // Get number of available interfaces
 inline int
-get_num_available_ifaces() {
+get_num_available_ifaces()
+{
   unsigned nb_ifaces = rte_eth_dev_count_avail();
   TLOG() << "Available interfaces: " << nb_ifaces;
   return nb_ifaces;
@@ -72,7 +73,7 @@ iface_conf_rss_mode(struct rte_eth_conf& iface_conf, bool mode = false, bool off
 
 // Enables RX in promiscuous mode for the Ethernet device.
 inline int
-iface_promiscuous_mode(std::uint16_t iface, bool mode = false) 
+iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
 {
   int retval = -1;
   retval = rte_eth_promiscuous_get(iface);
@@ -80,14 +81,14 @@ iface_promiscuous_mode(std::uint16_t iface, bool mode = false)
   if (mode) {
     retval = rte_eth_promiscuous_enable(iface);
   } else {
-    retval = rte_eth_promiscuous_disable(iface); 
+    retval = rte_eth_promiscuous_disable(iface);
   }
   if (retval != 0) {
     TLOG() << "Couldn't modify promiscuous mode of iface[" << iface << "]! Error code: " << retval;
   }
   retval = rte_eth_promiscuous_get(iface);
   TLOG() << "New promiscuous mode of iface[" << iface << "] is: " << retval;
-  return retval; 
+  return retval;
 }
 
 // Get interface validity
@@ -98,7 +99,8 @@ iface_valid(uint16_t iface)
 }
 
 inline void
-hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ' ', char fill = '0', int digits = 2) {
+hex_digits_to_stream(std::ostringstream& ostrs, int value, char separator = ' ', char fill = '0', int digits = 2)
+{
   ostrs << std::setfill(fill) << std::setw(digits) << std::hex << value << std::dec << separator;
 }
 
@@ -121,7 +123,7 @@ get_iface_mac_str(uint16_t iface)
     hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[4], ':');
     hex_digits_to_stream(ostrs, (int)mac_addr.addr_bytes[5]);
     std::string mac_str = ostrs.str();
-    mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ' '), mac_str.end());  
+    mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ' '), mac_str.end());
     return mac_str;
   }
 }
@@ -139,10 +141,10 @@ get_iface_pci_str(uint16_t iface)
   } else if (dev_info.device) {
     auto dev_name = rte_dev_name(dev_info.device);
     iface_pci_addr_str = dev_name;
-    //TLOG() << "Dev name: " << dev_name;
-    //const auto bus = rte_dev_bus(dev_info.device);
-    //const auto bus_info = rte_dev_bus_info(dev_info.device);
-    //const auto dev_driver = rte_dev_driver(dev_info.device);
+    // TLOG() << "Dev name: " << dev_name;
+    // const auto bus = rte_dev_bus(dev_info.device);
+    // const auto bus_info = rte_dev_bus_info(dev_info.device);
+    // const auto dev_driver = rte_dev_driver(dev_info.device);
   }
   return iface_pci_addr_str;
 }
@@ -170,7 +172,7 @@ iface_reset(uint16_t iface)
 }
 
 // inline int
-// iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings, 
+// iface_init(uint16_t iface, uint16_t rx_rings, uint16_t tx_rings,
 // 	         std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
 //            bool with_reset=false, bool with_mq_rss=false)
 // {
@@ -187,7 +189,7 @@ iface_reset(uint16_t iface)
 //     TLOG() << "Specified interface " << iface << " is not valid in EAL!";
 //     return retval;
 //   }
-  
+
 //   // Get interface info
 //   retval = rte_eth_dev_info_get(iface, &dev_info);
 //   if (retval != 0) {

@@ -5,45 +5,43 @@
  * Licensing/copyright details are in the COPYING file that you should have
  * received with this code.
  */
-//#include "dpdklibs/nicreader/Nljs.hpp"
+// #include "dpdklibs/nicreader/Nljs.hpp"
 
-#include "appfwk/ConfigurationManager.hpp"
 #include "appfwk/ConfigurationManager.hpp"
 
 #include "appmodel/NetworkDetectorToDaqConnection.hpp"
 
-#include "appmodel/DataReaderModule.hpp"
-#include "appmodel/DPDKReaderConf.hpp"
 #include "appmodel/DPDKPortConfiguration.hpp"
+#include "appmodel/DPDKReaderConf.hpp"
+#include "appmodel/DataReaderModule.hpp"
+#include "confmodel/DetectorStream.hpp"
 #include "confmodel/HostCores.hpp"
 #include "confmodel/NetworkDevice.hpp"
 #include "confmodel/QueueWithSourceId.hpp"
-#include "confmodel/DetectorStream.hpp"
 
 #include "logging/Logging.hpp"
 
 #include "datahandlinglibs/DataHandlingIssues.hpp"
-#include "datahandlinglibs/utils/BufferCopy.hpp" 
+#include "datahandlinglibs/utils/BufferCopy.hpp"
 
-#include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/RTEIfaceSetup.hpp"
-#include "dpdklibs/udp/Utils.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/FlowControl.hpp"
-#include "dpdklibs/Issues.hpp"
 #include "CreateSource.hpp"
 #include "DPDKReaderModule.hpp"
+#include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/FlowControl.hpp"
+#include "dpdklibs/Issues.hpp"
+#include "dpdklibs/RTEIfaceSetup.hpp"
+#include "dpdklibs/udp/PacketCtor.hpp"
+#include "dpdklibs/udp/Utils.hpp"
 
-#include <cinttypes>
 #include <chrono>
-#include <sstream>
+#include <cinttypes>
+#include <ios>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
-#include <ios>
-
 
 /**
  * @brief Name used by TRACE TLOG calls from this source file
@@ -64,8 +62,8 @@ namespace dunedaq {
 namespace dpdklibs {
 
 DPDKReaderModule::DPDKReaderModule(const std::string& name)
-  : DAQModule(name),
-    m_run_marker{ false }
+  : DAQModule(name)
+  , m_run_marker{ false }
 {
   register_command("conf", &DPDKReaderModule::do_configure);
   register_command("start", &DPDKReaderModule::do_start);
@@ -73,9 +71,7 @@ DPDKReaderModule::DPDKReaderModule(const std::string& name)
   register_command("scrap", &DPDKReaderModule::do_scrap);
 }
 
-DPDKReaderModule::~DPDKReaderModule()
-{
-}
+DPDKReaderModule::~DPDKReaderModule() {}
 
 inline void
 tokenize(std::string const& str, const char delim, std::vector<std::string>& out)
@@ -89,7 +85,7 @@ tokenize(std::string const& str, const char delim, std::vector<std::string>& out
 }
 
 void
-DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg )
+DPDKReaderModule::init(const std::shared_ptr<appfwk::ConfigurationManager> mcfg)
 {
   auto mdal = mcfg->get_dal<appmodel::DataReaderModule>(get_name());
   m_cfg = mcfg;
@@ -111,13 +107,13 @@ void
 DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
 {
   TLOG() << get_name() << ": Entering do_conf() method";
-  //auto session = appfwk::ModuleManager::get()->get_session();
+  // auto session = appfwk::ModuleManager::get()->get_session();
   auto mdal = m_cfg->get_dal<appmodel::DataReaderModule>(get_name());
   auto module_conf = mdal->get_configuration()->cast<appmodel::DPDKReaderConf>();
   auto res_set = mdal->get_connections();
   // EAL setup
   TLOG() << "Setting up EAL with params from config.";
-  std::vector<std::string> eal_params ;
+  std::vector<std::string> eal_params;
   eal_params.push_back("eal_cmdline");
   eal_params.push_back("--proc-type=primary");
 
@@ -131,13 +127,12 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     auto connection = res->cast<appmodel::NetworkDetectorToDaqConnection>();
     if (connection == nullptr) {
       datahandlinglibs::GenericConfigurationError err(
-          ERS_HERE, "DetectorToDaqConnection configuration failed due expected but unavailable connection!"
-        );
+        ERS_HERE, "DetectorToDaqConnection configuration failed due expected but unavailable connection!");
       ers::fatal(err);
-      throw err;      
+      throw err;
     }
     if (connection->is_excluded(*(m_cfg->get_session()))) {
-	    continue;
+      continue;
     }
 
     d2d_conns.push_back(connection);
@@ -145,8 +140,11 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     auto receiver = connection->receiver()->cast<appmodel::DPDKReceiver>();
     if (!receiver) {
       throw datahandlinglibs::InitializationError(
-        ERS_HERE, fmt::format("Found {} of type {} in connection {} while expecting type DPDKReceiver", receiver->class_name(), receiver->UID(), connection->UID())
-      );
+        ERS_HERE,
+        fmt::format("Found {} of type {} in connection {} while expecting type DPDKReceiver",
+                    receiver->class_name(),
+                    receiver->UID(),
+                    connection->UID()));
     }
 
     auto net_device = receiver->get_uses()->cast<confmodel::NetworkDevice>();
@@ -158,7 +156,7 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     eal_params.push_back("-a");
     eal_params.push_back(net_device->get_pcie_addr());
 
-    for ( const auto* proc_res : receiver->get_configuration()->get_used_lcores() ) {
+    for (const auto* proc_res : receiver->get_configuration()->get_used_lcores()) {
       rte_cores.insert(rte_cores.end(), proc_res->get_cpu_cores().begin(), proc_res->get_cpu_cores().end());
     }
   }
@@ -170,11 +168,10 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
   rte_cores.push_front(main_core);
 
   eal_params.push_back("-l");
-  eal_params.push_back(fmt::format("{}", fmt::join(rte_cores,",")));
-
+  eal_params.push_back(fmt::format("{}", fmt::join(rte_cores, ",")));
 
   // Use the first pcie device id as file prefix
-  // FIXME: Review this strategy - should work in most of cases, but it could be 
+  // FIXME: Review this strategy - should work in most of cases, but it could be
   // confusing in configs with multiple connections
   eal_params.push_back(fmt::format("--file-prefix={}", first_pcie_addr));
 
@@ -185,13 +182,13 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
   // Get available connections from EAL
   auto available_ifaces = ifaceutils::get_num_available_ifaces();
   TLOG() << "Number of available connections: " << available_ifaces;
-  for (unsigned int ifc_id=0; ifc_id<available_ifaces; ++ifc_id) {
+  for (unsigned int ifc_id = 0; ifc_id < available_ifaces; ++ifc_id) {
     std::string mac_addr_str = ifaceutils::get_iface_mac_str(ifc_id);
     std::string pci_addr_str = ifaceutils::get_iface_pci_str(ifc_id);
     m_mac_to_id_map[mac_addr_str] = ifc_id;
     // TODO: remove
     m_pci_to_id_map[pci_addr_str] = ifc_id;
-    TLOG() << "Available iface with MAC=" << mac_addr_str << " PCIe=" <<  pci_addr_str << " logical ID=" << ifc_id;
+    TLOG() << "Available iface with MAC=" << mac_addr_str << " PCIe=" << pci_addr_str << " logical ID=" << ifc_id;
   }
 
   for (auto d2d_conn : d2d_conns) {
@@ -201,38 +198,38 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
     std::vector<const appmodel::NWDetDataSender*> nw_senders;
     std::vector<const confmodel::DetectorStream*> active_streams;
 
-    for ( auto nw_sender : d2d_conn->get_net_senders() ) {
+    for (auto nw_sender : d2d_conn->get_net_senders()) {
       TLOG() << "Sender " << nw_sender->UID() << "is " << nw_sender->is_excluded(*(m_cfg->get_session()));
 
-      if ( ! nw_sender->is_excluded(*(m_cfg->get_session())) ) {
+      if (!nw_sender->is_excluded(*(m_cfg->get_session()))) {
         nw_senders.push_back(nw_sender);
 
-        for ( auto det_stream : nw_sender->get_streams() ) {
-          if ( det_stream->is_excluded(*(m_cfg->get_session())) ) 
+        for (auto det_stream : nw_sender->get_streams()) {
+          if (det_stream->is_excluded(*(m_cfg->get_session())))
             continue;
-          
+
           active_streams.push_back(det_stream);
         }
       }
     }
 
     auto net_device = dpdk_receiver->get_uses();
-    
-    if ((m_mac_to_id_map.count(net_device->get_mac_address()) == 0) || (m_pci_to_id_map.count(net_device->get_pcie_addr()) == 0)) {
-        TLOG() << "No available interface with MAC=" << net_device->get_mac_address();
-        throw datahandlinglibs::InitializationError(
-          ERS_HERE, "DPDKReaderModule configuration failed due expected but unavailable interface!"
-        );
+
+    if ((m_mac_to_id_map.count(net_device->get_mac_address()) == 0) ||
+        (m_pci_to_id_map.count(net_device->get_pcie_addr()) == 0)) {
+      TLOG() << "No available interface with MAC=" << net_device->get_mac_address();
+      throw datahandlinglibs::InitializationError(
+        ERS_HERE, "DPDKReaderModule configuration failed due expected but unavailable interface!");
     }
-    
+
     uint iface_id = m_mac_to_id_map[net_device->get_mac_address()];
-    auto ptr = m_ifaces[iface_id] = std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, active_streams, m_sources, m_run_marker);
-    register_node( fmt::format("interface-{}", iface_id), ptr);
+    auto ptr = m_ifaces[iface_id] =
+      std::make_shared<IfaceWrapper>(iface_id, dpdk_receiver, nw_senders, active_streams, m_sources, m_run_marker);
+    register_node(fmt::format("interface-{}", iface_id), ptr);
     ptr->allocate_mbufs();
     ptr->setup_interface();
     ptr->setup_flow_steering();
     ptr->setup_xstats();
-
   }
 
   if (!m_run_marker.load()) {
@@ -244,7 +241,6 @@ DPDKReaderModule::do_configure(const CommandData_t& /*args*/)
   } else {
     TLOG_DEBUG(5) << "iface wrappers are already running!";
   }
-
 }
 
 void
@@ -269,7 +265,6 @@ DPDKReaderModule::do_stop(const CommandData_t&)
   }
 }
 
-
 void
 DPDKReaderModule::do_scrap(const CommandData_t&)
 {
@@ -291,8 +286,7 @@ DPDKReaderModule::do_scrap(const CommandData_t&)
   ealutils::finish_eal();
 }
 
-
-void 
+void
 DPDKReaderModule::set_running(bool should_run)
 {
   bool was_running = m_run_marker.exchange(should_run);
