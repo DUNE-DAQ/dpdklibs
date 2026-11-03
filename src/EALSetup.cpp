@@ -269,7 +269,7 @@ get_mempool(const std::string& pool_name, int num_mbufs, int mbuf_cache_size, in
   mbuf_pool = rte_pktmbuf_pool_create(pool_name.c_str(), num_mbufs, mbuf_cache_size, 0, data_room_size, socket_id);
 
   if (mbuf_pool == NULL) {
-    // ers fatal
+    ers::fatal(dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "Cannot create rte mempools."));
     rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");
   }
   return std::unique_ptr<rte_mempool>(mbuf_pool);
@@ -298,6 +298,7 @@ init_eal(int argc, const char* argv[])
   // Init EAL
   int ret = rte_eal_init(argc, (char**)argv);
   if (ret < 0) {
+    ers::fatal(dunedaq::datahandlinglibs::InitializationError(ERS_HERE, "EAL initialization failed."));
     rte_exit(EXIT_FAILURE, "ERROR: EAL initialization failed.\n");
   }
   TLOG() << "EAL initialized with provided parameters.";
