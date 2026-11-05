@@ -1,5 +1,6 @@
 /* Application will run until quit or killed. */
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/arp/ARP.hpp"
@@ -237,14 +238,13 @@ main(int argc, char* argv[])
   const uint16_t rx_ring_size = 1024;
   const uint16_t tx_ring_size = 1024;
   // Get pool
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   TLOG() << "Allocating pool";
   for (unsigned p_i = 0; p_i < rx_qs; ++p_i) {
     std::ostringstream ss;
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
   }
-
   // Setup interface
   auto nb_ifaces = rte_eth_dev_count_avail();
   TLOG() << "# of available interfaces: " << nb_ifaces;
@@ -273,6 +273,20 @@ main(int argc, char* argv[])
   // Cleanup
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
+
+  int ret = rte_eth_dev_stop(iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
+
+  ret = rte_eth_dev_close(iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
+
+  mbuf_pools.clear();
   rte_eal_cleanup();
 
   return 0;

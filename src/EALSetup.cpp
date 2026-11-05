@@ -12,6 +12,7 @@
 
 #include <boost/program_options/parsers.hpp>
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/Issues.hpp"
 
@@ -97,7 +98,7 @@ iface_init(uint16_t iface,
            uint16_t tx_rings,
            uint16_t rx_ring_size,
            uint16_t tx_ring_size,
-           std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+           std::map<int, dunedaq::dpdklibs::unique_mempool>& mbuf_pool,
            bool with_reset,
            bool with_mq_rss,
            bool check_link_status)
@@ -179,10 +180,17 @@ iface_init(uint16_t iface,
 
   // Allocate and set up RX queues for interface.
   for (q = 0; q < rx_rings; q++) {
-    // retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
-    if ((retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get())) <
+
+    rte_mempool* pool = mbuf_pool[q].get();
+    if ((retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, pool)) <
         0) {
-      // return retval;
+        TLOG() << "RX queue setup failed: port=" << iface
+                << " queue=" << q
+                << " descriptors=" << nb_rxd
+                << " socket=" << rte_eth_dev_socket_id(iface)
+                << " pool=" << pool
+                << " retval=" << retval
+                << " error=" << rte_strerror(-retval);
       throw FailedToConfigureInterface(ERS_HERE, iface, "Rx queues setup", retval);
     }
   }
@@ -259,7 +267,7 @@ iface_init(uint16_t iface,
   return 0;
 }
 
-std::unique_ptr<rte_mempool>
+dunedaq::dpdklibs::unique_mempool
 get_mempool(const std::string& pool_name, int num_mbufs, int mbuf_cache_size, int data_room_size, int socket_id)
 {
   TLOG() << "get_mempool with: NUM_MBUFS = " << num_mbufs << " | MBUF_CACHE_SIZE = " << mbuf_cache_size
@@ -272,7 +280,7 @@ get_mempool(const std::string& pool_name, int num_mbufs, int mbuf_cache_size, in
     // ers fatal
     rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");
   }
-  return std::unique_ptr<rte_mempool>(mbuf_pool);
+  return dunedaq::dpdklibs::unique_mempool{mbuf_pool};
 }
 
 std::vector<const char*>

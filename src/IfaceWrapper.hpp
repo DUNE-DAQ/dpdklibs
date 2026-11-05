@@ -13,6 +13,7 @@
 #include "confmodel/NetworkDevice.hpp"
 
 #include "SourceConcept.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/XstatsHelper.hpp"
 #include "dpdklibs/arp/ARP.hpp"
@@ -74,6 +75,7 @@ public:
 
   void allocate_mbufs();
   void setup_interface();
+  void unset_interface();
   void setup_flow_steering();
   void setup_xstats();
   void stop_xstats();
@@ -122,7 +124,7 @@ private:
   std::atomic<bool> m_lcore_enable_flow{ false };
 
   // Mbufs and pools
-  std::map<int, std::unique_ptr<rte_mempool>> m_mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> m_mbuf_pools;
   std::map<int, struct rte_mbuf**> m_bufs; // by queue
 
   // Stats by queues
@@ -152,14 +154,14 @@ private:
   std::atomic<bool>& m_run_marker;
 
   // GARP
-  std::unique_ptr<rte_mempool> m_garp_mbuf_pool;
+  dunedaq::dpdklibs::unique_mempool m_garp_mbuf_pool;
   std::map<int, struct rte_mbuf**> m_garp_bufs;
   std::thread m_garp_thread;
   void garp_func();
   std::atomic<uint64_t> m_garps_sent{ 0 };
 
   // ARP
-  std::unique_ptr<rte_mempool> m_arp_mbuf_pool;
+  dunedaq::dpdklibs::unique_mempool m_arp_mbuf_pool;
   std::map<int, struct rte_mbuf**> m_arp_bufs;
   std::thread m_arp_thread;
   void arp_func();

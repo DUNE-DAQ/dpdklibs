@@ -304,6 +304,38 @@ IfaceWrapper::setup_interface()
 
 //-----------------------------------------------------------------------------
 void
+IfaceWrapper::unset_interface()
+{
+  int ret = rte_eth_dev_stop(m_iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << m_iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Do not free pools or continue teardown.
+  }
+
+  ret = rte_eth_dev_close(m_iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << m_iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Keep pools alive; do not proceed to EAL cleanup.
+  }
+
+  for (auto& [queue, bufs] : m_arp_bufs) {
+  std::free(bufs);
+  }
+  m_arp_bufs.clear();
+
+  for (auto& [queue, bufs] : m_garp_bufs) {
+    std::free(bufs);
+  }
+  m_garp_bufs.clear();
+  m_arp_mbuf_pool.reset();
+  m_garp_mbuf_pool.reset();
+  m_mbuf_pools.clear();
+}
+
+//-----------------------------------------------------------------------------
+void
 IfaceWrapper::setup_flow_steering()
 {
   // Flow steering setup
