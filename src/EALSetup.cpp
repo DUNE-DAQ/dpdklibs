@@ -98,7 +98,7 @@ iface_init(uint16_t iface,
            uint16_t tx_rings,
            uint16_t rx_ring_size,
            uint16_t tx_ring_size,
-           std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+           std::map<int, dunedaq::dpdklibs::unique_mempool>& mbuf_pool,
            bool with_reset,
            bool with_mq_rss,
            bool check_link_status)

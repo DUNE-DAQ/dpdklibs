@@ -245,20 +245,13 @@ main(int argc, char* argv[])
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
   }
-  {
-    dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-    for (const auto& [queue, pool] : mbuf_pools) {
-      borrowed_pools.borrow(queue, pool.get());
-    }
+  // Setup interface
+  auto nb_ifaces = rte_eth_dev_count_avail();
+  TLOG() << "# of available interfaces: " << nb_ifaces;
+  TLOG() << "Initialize interface " << iface_id;
+  ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
+  ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
 
-    // Setup interface
-    auto nb_ifaces = rte_eth_dev_count_avail();
-    TLOG() << "# of available interfaces: " << nb_ifaces;
-    TLOG() << "Initialize interface " << iface_id;
-    ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, borrowed_pools.get());
-    ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
-
-  }
   // Flow steering setup
   TLOG() << "Configuring Flow steering rules for iface=" << iface_id;
   struct rte_flow_error error;

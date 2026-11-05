@@ -461,15 +461,9 @@ main(int argc, char** argv)
     rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
   }
 
-  {
   // Setting up only one iface
   fmt::print("Initialize only iface {}!\n", iface);
-  dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-  for (const auto& [queue, pool] : mbuf_pools) {
-    borrowed_pools.borrow(queue, pool.get());
-  }
-  ealutils::iface_init(iface, n_rx_qs, 0, rx_ring_size, tx_ring_size, borrowed_pools.get()); // just init iface, no TX queues
-  }
+  ealutils::iface_init(iface, n_rx_qs, 0, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
 
   for (unsigned i = 0; i < 10; ++i) {
     std::string rnd_ip("192.168.0.1");

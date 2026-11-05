@@ -300,13 +300,7 @@ main(int argc, char** argv)
       is_receiver = false;
     }
 
-    {
-      dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-      for (const auto& [queue, pool] : mbuf_pools) {
-        borrowed_pools.borrow(queue, pool.get());
-      }
-      retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, borrowed_pools.get());
-    }
+    retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
 
     if (retval != 0) {
       rte_eal_cleanup();

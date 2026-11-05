@@ -193,21 +193,14 @@ main(int argc, char* argv[])
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
   }
-  {
-    // Setup interface
-    auto nb_ifaces = rte_eth_dev_count_avail();
-    TLOG() << "# of available interfaces: " << nb_ifaces;
-    TLOG() << "Initialize interface " << iface_id;
+  // Setup interface
+  auto nb_ifaces = rte_eth_dev_count_avail();
+  TLOG() << "# of available interfaces: " << nb_ifaces;
+  TLOG() << "Initialize interface " << iface_id;
 
-    dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-    for (const auto& [queue, pool] : mbuf_pools) {
-      borrowed_pools.borrow(queue, pool.get());
-    }
+  ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
+  ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
 
-    ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, borrowed_pools.get());
-    ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
-
-  }
   // Launch lcores
   lcore_main(mbuf_pools[0].get(), ip_addresses);
 

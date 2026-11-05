@@ -286,17 +286,12 @@ IfaceWrapper::setup_interface()
   bool with_reset = false, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
-  dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-  for (const auto& [queue, pool] : m_mbuf_pools) {
-    borrowed_pools.borrow(queue, pool.get());
-  }  
-
   int retval = ealutils::iface_init(m_iface_id,
                                     m_rx_qs.size(),
                                     m_tx_qs.size(),
                                     m_rx_ring_size,
                                     m_tx_ring_size,
-                                    borrowed_pools.get(),
+                                    m_mbuf_pools,
                                     with_reset,
                                     with_mq_mode,
                                     check_link_status);

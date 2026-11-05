@@ -491,19 +491,10 @@ main(int argc, char** argv)
     bufs[i] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
     rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
   }
-  {
-    // Setting up only one iface
-    fmt::print("Initialize only iface {}!\n", iface);
-
-    dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
-    for (const auto& [queue, pool] : mbuf_pools) {
-      borrowed_pools.borrow(queue, pool.get());
-    }
-
-    ealutils::iface_init(
-      iface, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, borrowed_pools.get()); // just init iface, no TX queues
-
-  }
+  // Setting up only one iface
+  fmt::print("Initialize only iface {}!\n", iface);
+  ealutils::iface_init(
+    iface, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
   lcore_main(mbuf_pools[0].get(), iface, time_per_report, garp_ip_addresses);
 
   int ret = rte_eth_dev_stop(iface);

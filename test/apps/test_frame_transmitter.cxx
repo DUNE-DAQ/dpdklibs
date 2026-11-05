@@ -6,6 +6,7 @@
  * received with this code.
  */
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -161,7 +162,7 @@ main(int argc, char* argv[])
   const uint16_t tx_ring_size = 1024;
 
   uint16_t portid = 0;
-  std::map<int, std::unique_ptr<rte_mempool>> dummyarg;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> dummyarg;
   retval = ealutils::iface_init(portid, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, dummyarg);
 
   if (retval != 0) {
