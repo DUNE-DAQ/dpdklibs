@@ -1,5 +1,6 @@
 /* Application will run until quit or killed. */
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/arp/ARP.hpp"
 #include "dpdklibs/ipv4_addr.hpp"
@@ -185,27 +186,46 @@ main(int argc, char* argv[])
   const uint16_t rx_ring_size = 2048;
   const uint16_t tx_ring_size = 2048;
   // Get pool
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   TLOG() << "Allocating pool";
   for (unsigned p_i = 0; p_i < rx_qs; ++p_i) {
     std::ostringstream ss;
     ss << "MBP-" << p_i;
     mbuf_pools[p_i] = ealutils::get_mempool(ss.str());
   }
+  {
+    // Setup interface
+    auto nb_ifaces = rte_eth_dev_count_avail();
+    TLOG() << "# of available interfaces: " << nb_ifaces;
+    TLOG() << "Initialize interface " << iface_id;
 
-  // Setup interface
-  auto nb_ifaces = rte_eth_dev_count_avail();
-  TLOG() << "# of available interfaces: " << nb_ifaces;
-  TLOG() << "Initialize interface " << iface_id;
-  ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools);
-  ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
+    dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
+    for (const auto& [queue, pool] : mbuf_pools) {
+      borrowed_pools.borrow(queue, pool.get());
+    }
 
+    ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, borrowed_pools.get());
+    ealutils::iface_promiscuous_mode(iface_id, true); // should come from config
+
+  }
   // Launch lcores
   lcore_main(mbuf_pools[0].get(), ip_addresses);
 
   // Cleanup
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
+
+  int ret = rte_eth_dev_stop(iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
+
+  ret = rte_eth_dev_close(iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
   rte_eal_cleanup();
 
   return 0;

@@ -8,6 +8,8 @@
 #ifndef DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
 #define DPDKLIBS_INCLUDE_DPDKLIBS_EALSETUP_HPP_
 
+#include "dpdklibs/DpdkMempool.hpp"
+
 #include "logging/Logging.hpp"
 
 #include <boost/program_options/parsers.hpp>
@@ -46,7 +48,7 @@ iface_init(uint16_t iface,
            bool with_mq_rss = false,
            bool check_link_status = false);
 
-std::unique_ptr<rte_mempool>
+dunedaq::dpdklibs::unique_mempool
 get_mempool(const std::string& pool_name,
             int num_mbufs = NUM_MBUFS,
             int mbuf_cache_size = MBUF_CACHE_SIZE,

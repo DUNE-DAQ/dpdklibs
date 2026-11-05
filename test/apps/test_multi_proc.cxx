@@ -28,6 +28,7 @@
 #define RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE 0
 
 #include "detdataformats/DAQEthHeader.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -444,7 +445,7 @@ main(int argc, char** argv)
   // return 0;
 
   // Allocate pools and mbufs per queue
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   std::map<int, struct rte_mbuf**> bufs;
   uint16_t n_rx_qs = 1;
   const uint16_t rx_ring_size = 1024;
@@ -460,9 +461,15 @@ main(int argc, char** argv)
     rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
   }
 
+  {
   // Setting up only one iface
   fmt::print("Initialize only iface {}!\n", iface);
-  ealutils::iface_init(iface, n_rx_qs, 0, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
+  dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
+  for (const auto& [queue, pool] : mbuf_pools) {
+    borrowed_pools.borrow(queue, pool.get());
+  }
+  ealutils::iface_init(iface, n_rx_qs, 0, rx_ring_size, tx_ring_size, borrowed_pools.get()); // just init iface, no TX queues
+  }
 
   for (unsigned i = 0; i < 10; ++i) {
     std::string rnd_ip("192.168.0.1");
@@ -483,6 +490,17 @@ main(int argc, char** argv)
 
   lcore_main(mbuf_pools[0].get(), iface, time_per_report);
 
+  ret = rte_eth_dev_stop(iface);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << iface
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
+
+  ret = rte_eth_dev_close(iface);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << iface
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+  }
   rte_eal_cleanup();
 
   return 0;

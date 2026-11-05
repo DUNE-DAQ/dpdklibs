@@ -286,12 +286,17 @@ IfaceWrapper::setup_interface()
   bool with_reset = false, with_mq_mode = true; // go to config
   bool check_link_status = false;
 
+  dunedaq::dpdklibs::BorrowedPoolMap borrowed_pools;
+  for (const auto& [queue, pool] : m_mbuf_pools) {
+    borrowed_pools.borrow(queue, pool.get());
+  }  
+
   int retval = ealutils::iface_init(m_iface_id,
                                     m_rx_qs.size(),
                                     m_tx_qs.size(),
                                     m_rx_ring_size,
                                     m_tx_ring_size,
-                                    m_mbuf_pools,
+                                    borrowed_pools.get(),
                                     with_reset,
                                     with_mq_mode,
                                     check_link_status);
@@ -300,6 +305,38 @@ IfaceWrapper::setup_interface()
   }
   // Promiscuous mode
   ealutils::iface_promiscuous_mode(m_iface_id, m_prom_mode); // should come from config
+}
+
+//-----------------------------------------------------------------------------
+void
+IfaceWrapper::unset_interface()
+{
+  int ret = rte_eth_dev_stop(m_iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << m_iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Do not free pools or continue teardown.
+  }
+
+  ret = rte_eth_dev_close(m_iface_id);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << m_iface_id
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Keep pools alive; do not proceed to EAL cleanup.
+  }
+
+  for (auto& [queue, bufs] : m_arp_bufs) {
+  std::free(bufs);
+  }
+  m_arp_bufs.clear();
+
+  for (auto& [queue, bufs] : m_garp_bufs) {
+    std::free(bufs);
+  }
+  m_garp_bufs.clear();
+  m_arp_mbuf_pool.reset();
+  m_garp_mbuf_pool.reset();
+  m_mbuf_pools.clear();
 }
 
 //-----------------------------------------------------------------------------
