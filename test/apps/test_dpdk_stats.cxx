@@ -219,17 +219,8 @@ main(int argc, char* argv[])
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
 
-  ret = rte_eth_dev_stop(iface_id);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_stop failed for port " << iface_id
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
+  ealutils::iface_stop(iface_id);
 
-  ret = rte_eth_dev_close(iface_id);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_close failed for port " << iface_id
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
   rte_eal_cleanup();
 
   return 0;

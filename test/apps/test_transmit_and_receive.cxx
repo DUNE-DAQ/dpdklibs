@@ -321,17 +321,7 @@ main(int argc, char** argv)
 
   rte_eal_mp_wait_lcore();
 
-  int ret = rte_eth_dev_stop(portid);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_stop failed for port " << portid
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
-
-  ret = rte_eth_dev_close(portid);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_close failed for port " << portid
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
+  ealutils::iface_stop(portid);
   rte_eal_cleanup();
 
   int mynum = 55;

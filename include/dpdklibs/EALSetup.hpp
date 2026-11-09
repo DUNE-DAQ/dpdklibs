@@ -48,6 +48,8 @@ iface_init(uint16_t iface,
            bool with_mq_rss = false,
            bool check_link_status = false);
 
+void iface_stop(uint16_t iface);
+
 dunedaq::dpdklibs::unique_mempool
 get_mempool(const std::string& pool_name,
             int num_mbufs = NUM_MBUFS,

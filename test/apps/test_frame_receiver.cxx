@@ -23,8 +23,6 @@
 #include "detdataformats/DAQEthHeader.hpp"
 #include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/udp/Utils.hpp"
 #include "logging/Logging.hpp"
 
 #include "dpdklibs/arp/ARP.hpp"
@@ -497,17 +495,7 @@ main(int argc, char** argv)
     iface, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
   lcore_main(mbuf_pools[0].get(), iface, time_per_report, garp_ip_addresses);
 
-  int ret = rte_eth_dev_stop(iface);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_stop failed for port " << iface
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
-
-  ret = rte_eth_dev_close(iface);
-  if (ret != 0) {
-    TLOG() << "rte_eth_dev_close failed for port " << iface
-          << ": " << ret << " (" << rte_strerror(-ret) << ")";
-  }
+  ealutils::iface_stop(iface);
   rte_eal_cleanup();
 
   return 0;
