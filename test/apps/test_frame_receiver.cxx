@@ -21,9 +21,8 @@
 #include "CLI/Formatter.hpp"
 
 #include "detdataformats/DAQEthHeader.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
-#include "dpdklibs/udp/PacketCtor.hpp"
-#include "dpdklibs/udp/Utils.hpp"
 #include "logging/Logging.hpp"
 
 #include "dpdklibs/arp/ARP.hpp"
@@ -474,7 +473,7 @@ main(int argc, char** argv)
   }
 
   // Allocate pools and mbufs per queue
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   std::map<int, struct rte_mbuf**> bufs;
   const uint16_t n_rx_qs = 1;
   const uint16_t n_tx_qs = 1;
@@ -490,14 +489,13 @@ main(int argc, char** argv)
     bufs[i] = (rte_mbuf**)malloc(sizeof(struct rte_mbuf*) * burst_size);
     rte_pktmbuf_alloc_bulk(mbuf_pools[i].get(), bufs[i], burst_size);
   }
-
   // Setting up only one iface
   fmt::print("Initialize only iface {}!\n", iface);
   ealutils::iface_init(
     iface, n_rx_qs, n_tx_qs, rx_ring_size, tx_ring_size, mbuf_pools); // just init iface, no TX queues
-
   lcore_main(mbuf_pools[0].get(), iface, time_per_report, garp_ip_addresses);
 
+  ealutils::iface_stop(iface);
   rte_eal_cleanup();
 
   return 0;

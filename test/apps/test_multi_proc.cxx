@@ -28,6 +28,7 @@
 #define RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE 0
 
 #include "detdataformats/DAQEthHeader.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/FlowControl.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
@@ -444,7 +445,7 @@ main(int argc, char** argv)
   // return 0;
 
   // Allocate pools and mbufs per queue
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   std::map<int, struct rte_mbuf**> bufs;
   uint16_t n_rx_qs = 1;
   const uint16_t rx_ring_size = 1024;
@@ -483,6 +484,7 @@ main(int argc, char** argv)
 
   lcore_main(mbuf_pools[0].get(), iface, time_per_report);
 
+  ealutils::iface_stop(iface);
   rte_eal_cleanup();
 
   return 0;

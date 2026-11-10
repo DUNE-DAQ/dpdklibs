@@ -13,6 +13,7 @@
 #include <boost/program_options/parsers.hpp>
 
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/Issues.hpp"
 
 #include <rte_eal.h>
@@ -97,7 +98,7 @@ iface_init(uint16_t iface,
            uint16_t tx_rings,
            uint16_t rx_ring_size,
            uint16_t tx_ring_size,
-           std::map<int, std::unique_ptr<rte_mempool>>& mbuf_pool,
+           std::map<int, dunedaq::dpdklibs::unique_mempool>& mbuf_pool,
            bool with_reset,
            bool with_mq_rss,
            bool check_link_status)
@@ -168,21 +169,18 @@ iface_init(uint16_t iface,
   // Some PMDs require calling:
   rte_eth_dev_set_ptypes(iface, RTE_PTYPE_L2_MASK | RTE_PTYPE_L3_MASK | RTE_PTYPE_L4_MASK, NULL, 0);
 
-  // // Adjust RX/TX ring sizes
-  // retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd);
-  // if (retval != 0)
-  //   return retval;
-
   if ((retval = rte_eth_dev_adjust_nb_rx_tx_desc(iface, &nb_rxd, &nb_txd)) != 0) {
     throw FailedToConfigureInterface(ERS_HERE, iface, "Adjust tx/rx descriptors", retval);
   }
 
   // Allocate and set up RX queues for interface.
   for (q = 0; q < rx_rings; q++) {
-    // retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get());
-    if ((retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, mbuf_pool[q].get())) <
+
+    rte_mempool* pool = mbuf_pool[q].get();
+    if ((retval = rte_eth_rx_queue_setup(iface, q, nb_rxd, rte_eth_dev_socket_id(iface), NULL, pool)) <
         0) {
-      // return retval;
+        TLOG() << "RX queue setup failed: port=" << iface << " queue=" << q << " descriptors=" << nb_rxd
+                << " socket=" << rte_eth_dev_socket_id(iface) << " pool=" << pool << " retval=" << retval << " error=" << rte_strerror(-retval);
       throw FailedToConfigureInterface(ERS_HERE, iface, "Rx queues setup", retval);
     }
   }
@@ -257,9 +255,26 @@ iface_init(uint16_t iface,
   }
 
   return 0;
+}// NOLINT
+
+void iface_stop(uint16_t iface)
+{
+  int ret = rte_eth_dev_stop(iface);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_stop failed for port " << iface
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Do not free pools or continue teardown.
+  }
+
+  ret = rte_eth_dev_close(iface);
+  if (ret != 0) {
+    TLOG() << "rte_eth_dev_close failed for port " << iface
+          << ": " << ret << " (" << rte_strerror(-ret) << ")";
+    return; // Keep pools alive; do not proceed to EAL cleanup.
+  }
 }
 
-std::unique_ptr<rte_mempool>
+dunedaq::dpdklibs::unique_mempool
 get_mempool(const std::string& pool_name, int num_mbufs, int mbuf_cache_size, int data_room_size, int socket_id)
 {
   TLOG() << "get_mempool with: NUM_MBUFS = " << num_mbufs << " | MBUF_CACHE_SIZE = " << mbuf_cache_size
@@ -272,7 +287,7 @@ get_mempool(const std::string& pool_name, int num_mbufs, int mbuf_cache_size, in
     // ers fatal
     rte_exit(EXIT_FAILURE, "ERROR: Cannot create rte_mempool!\n");
   }
-  return std::unique_ptr<rte_mempool>(mbuf_pool);
+  return dunedaq::dpdklibs::unique_mempool{mbuf_pool};
 }
 
 std::vector<const char*>

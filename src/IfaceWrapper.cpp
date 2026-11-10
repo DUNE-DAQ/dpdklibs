@@ -304,6 +304,26 @@ IfaceWrapper::setup_interface()
 
 //-----------------------------------------------------------------------------
 void
+IfaceWrapper::unset_interface()
+{
+  ealutils::iface_stop(m_iface_id);
+
+  for (auto& [queue, bufs] : m_arp_bufs) {
+  std::free(bufs);
+  }
+  m_arp_bufs.clear();
+
+  for (auto& [queue, bufs] : m_garp_bufs) {
+    std::free(bufs);
+  }
+  m_garp_bufs.clear();
+  m_arp_mbuf_pool.reset();
+  m_garp_mbuf_pool.reset();
+  m_mbuf_pools.clear();
+}
+
+//-----------------------------------------------------------------------------
+void
 IfaceWrapper::setup_flow_steering()
 {
   // Flow steering setup

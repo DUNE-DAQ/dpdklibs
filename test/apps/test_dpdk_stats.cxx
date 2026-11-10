@@ -1,5 +1,6 @@
 /* Application will run until quit or killed. */
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/RTEIfaceSetup.hpp"
 #include "dpdklibs/arp/ARP.hpp"
@@ -195,7 +196,7 @@ main(int argc, char* argv[])
   const uint16_t rx_ring_size = 1024;
   const uint16_t tx_ring_size = 1024;
   // Get pool
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   TLOG() << "Allocating pool";
   for (unsigned p_i = 0; p_i < rx_qs; ++p_i) {
     std::ostringstream ss;
@@ -209,16 +210,17 @@ main(int argc, char* argv[])
   TLOG() << "Initialize interface " << iface_id;
   TLOG() << "  -> Iface MAC: " << ifaceutils::get_iface_mac_str(iface_id);
   TLOG() << "  -> Iface PCI: " << ifaceutils::get_iface_pci_str(iface_id);
-
   ealutils::iface_init(iface_id, rx_qs, tx_qs, rx_ring_size, tx_ring_size, mbuf_pools, false, false);
   ealutils::iface_promiscuous_mode(iface_id, false); // should come from config
-
   // Launch lcores
   lcore_main(mbuf_pools[0].get());
 
   // Cleanup
   TLOG() << "EAL cleanup...";
   ealutils::wait_for_lcores();
+
+  ealutils::iface_stop(iface_id);
+
   rte_eal_cleanup();
 
   return 0;

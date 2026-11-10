@@ -13,6 +13,7 @@
  * received with this code.
  */
 
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
 #include "dpdklibs/udp/PacketCtor.hpp"
 #include "dpdklibs/udp/Utils.hpp"
@@ -270,7 +271,7 @@ main(int argc, char** argv)
   uint16_t rx_ring_size = 1024;
   uint16_t tx_ring_size = 1024;
   int port_cntr = -1;
-  std::map<int, std::unique_ptr<rte_mempool>> mbuf_pools;
+  std::map<int, dunedaq::dpdklibs::unique_mempool> mbuf_pools;
   std::vector<lcore_thread_arg> lcore_thread_args;
 
   RTE_ETH_FOREACH_DEV(portid)
@@ -319,6 +320,8 @@ main(int argc, char** argv)
   rte_eal_mp_remote_launch(lcore_main, &lcore_thread_args, SKIP_MAIN);
 
   rte_eal_mp_wait_lcore();
+
+  ealutils::iface_stop(portid);
   rte_eal_cleanup();
 
   int mynum = 55;
