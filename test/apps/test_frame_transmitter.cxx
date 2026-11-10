@@ -38,7 +38,9 @@ constexpr int buffer_size = 9800; // Same number as in EALSetup.hpp
 
 std::string dst_mac_addr = "";
 int payload_bytes = 0; // payload past the DAQEthHeader
+unsigned int lcore_id = 1;
 
+std::atomic<bool> stop_stats{false};
 std::atomic<long> num_bursts = 0;
 std::atomic<long> num_packets = 0;
 std::atomic<long> num_bytes = 0;
@@ -56,7 +58,7 @@ lcore_main(void* arg)
 
   uint16_t lid = rte_lcore_id();
 
-  if (lid != 1) {
+  if (lid != lcore_id) {
     return;
   }
 
@@ -110,7 +112,7 @@ lcore_main(void* arg)
   while (cntr < std::numeric_limits<int>::max()) {
     cntr++;
 
-    nb_tx = rte_eth_tx_burst(iface, lid - 1, bufs, burst_size);
+    nb_tx = rte_eth_tx_burst(iface, 0, bufs, burst_size);
     num_packets += nb_tx;
     num_bytes += nb_tx * bufs[0]->pkt_len; // n.b. Assumption in this line is that each packet is the same size
     num_bursts++;
@@ -132,6 +134,7 @@ main(int argc, char* argv[])
 
   app.add_option("--dst-mac", dst_mac_addr, "Destination MAC address (default " + default_mac_address + ")");
   app.add_option("--payload", payload_bytes, "Bytes of payload past the DAQEthHeader header");
+  app.add_option("--lcore", lcore_id, "cpu core to run transmitter worker (default " + std::to_string(lcore_id) + ").");
 
   if (dst_mac_addr == "") {
     dst_mac_addr = default_mac_address;
@@ -195,9 +198,14 @@ main(int argc, char* argv[])
     }
   });
 
-  rte_eal_mp_remote_launch((lcore_function_t*)lcore_main, &portid, SKIP_MAIN);
+  // rte_eal_mp_remote_launch((lcore_function_t*)lcore_main, &portid, lcore_id);
+  rte_eal_remote_launch((lcore_function_t*)lcore_main, &portid, lcore_id);
 
   rte_eal_mp_wait_lcore();
+
+  stop_stats.store(true);
+  stats.join();
+  
   rte_eal_cleanup();
 
   return 0;
