@@ -12,8 +12,8 @@
 
 #include <boost/program_options/parsers.hpp>
 
-#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/EALSetup.hpp"
+#include "dpdklibs/DpdkMempool.hpp"
 #include "dpdklibs/Issues.hpp"
 
 #include <rte_eal.h>
@@ -255,7 +255,7 @@ iface_init(uint16_t iface,
   }
 
   return 0;
-}
+}// NOLINT
 
 void iface_stop(uint16_t iface)
 {
