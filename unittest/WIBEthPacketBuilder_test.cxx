@@ -146,8 +146,7 @@ expected_header()
 
   // The checksum covers the IPv4 header with its own field zero, which is the
   // state written above.
-  const std::uint16_t checksum =
-    static_cast<std::uint16_t>(~ones_complement_sum(&header[kIPv4Offset], kIPv4HeaderLen));
+  const std::uint16_t checksum = static_cast<std::uint16_t>(~ones_complement_sum(&header[kIPv4Offset], kIPv4HeaderLen));
   header.at(kChecksumOffset) = static_cast<std::uint8_t>(checksum >> 8);
   header.at(kChecksumOffset + 1) = static_cast<std::uint8_t>(checksum & 0xffU);
 
@@ -188,10 +187,8 @@ BOOST_AUTO_TEST_CASE(GoldenHeaderPayloadAndInputImmutability)
   // Compare the 42-byte header element-wise so a mismatch reports its offset
   // and value.
   const auto expected = expected_header();
-  BOOST_CHECK_EQUAL_COLLECTIONS(packet_bytes.begin(),
-                                packet_bytes.begin() + expected.size(),
-                                expected.begin(),
-                                expected.end());
+  BOOST_CHECK_EQUAL_COLLECTIONS(
+    packet_bytes.begin(), packet_bytes.begin() + expected.size(), expected.begin(), expected.end());
 
   // Patched DAQ header fields.
   const auto out_header = read_daq_header(packet_bytes.data() + wibeth::kPacketHeaderBytes);

@@ -1,18 +1,19 @@
-#include <time.h>
+#include "dpdklibs/udp/IPV4UDPPacket.hpp"
 #include <rte_arp.h>
 #include <rte_ethdev.h>
-#include "dpdklibs/udp/IPV4UDPPacket.hpp"
+#include <time.h>
 
 namespace dunedaq {
 namespace dpdklibs {
 
-int 
-IfaceWrapper::rx_runner(void *arg __rte_unused) {
+int
+IfaceWrapper::rx_runner(void* arg __rte_unused)
+{
 
   // Timespec for opportunistic sleep. Nanoseconds configured in conf.
-	struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
+  struct timespec sleep_request = { 0, (long)m_lcore_sleep_ns };
 
-  //bool once = true; // One shot action variable.
+  // bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
 
   const uint16_t lid = rte_lcore_id();
@@ -27,7 +28,7 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
 
   std::map<int, int> nb_rx_map;
   // While loop of quit atomic member in IfaceWrapper
-  while(!this->m_lcore_quit_signal.load()) {
+  while (!this->m_lcore_quit_signal.load()) {
 
     // Loop over assigned queues to process
     uint8_t fb_count(0);
@@ -40,13 +41,12 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
       nb_rx_map[src_rx_q] = nb_rx;
     }
 
-
     for (const auto& q : queues) {
 
       auto src_rx_q = q.first;
       auto* q_bufs = m_bufs[src_rx_q];
       const uint16_t nb_rx = nb_rx_map[src_rx_q];
-  
+
       // We got packets from burst on this queue
       if (nb_rx != 0) [[likely]] {
 
@@ -54,12 +54,12 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
         m_max_burst_size[src_rx_q] = std::max(nb_rx, m_max_burst_size[src_rx_q].load());
 
         // -------
-	      // Iterate on burst packets
-        for (int i_b=0; i_b<nb_rx; ++i_b) {
+        // Iterate on burst packets
+        for (int i_b = 0; i_b < nb_rx; ++i_b) {
 
           // Check if packet is segmented. Implement support for it if needed.
-          //if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
-          //  TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;" 
+          // if (q_bufs[i_b]->nb_segs > 1) [[unlikely]] {
+          //  TLOG_DEBUG(10) << "It appears a packet is spread across more than one receiving buffer;"
           //                 << " there's currently no logic in this program to handle this";
           //}
 
@@ -67,14 +67,15 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           auto pkt_type = q_bufs[i_b]->packet_type;
           // Handle non IPV4 frames.
           if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) [[unlikely]] {
-            //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+            // TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
             if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
-              //TLOG() << "Unexpected: Should handle an ARP request from lcore=" << lid << " rx_q=" << src_rx_q << "! Flow should be steered to dedicated RX Queue.";
+              // TLOG() << "Unexpected: Should handle an ARP request from lcore=" << lid << " rx_q=" << src_rx_q << "!
+              // Flow should be steered to dedicated RX Queue.";
             } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
-              //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
+              // TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
             } else {
-              //TLOG_DEBUG(10) << "Unidentified! Dumping...";
-              //rte_pktmbuf_dump(stdout, q_bufs[i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+              // TLOG_DEBUG(10) << "Unidentified! Dumping...";
+              // rte_pktmbuf_dump(stdout, q_bufs[i_b], m_bufs[src_rx_q][i_b]->pkt_len);
             }
             ++m_num_unhandled_non_ipv4[lid];
             continue;
@@ -90,13 +91,14 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
           if (q_bufs[i_b]->pkt_len > 1500) [[likely]] { // RS FIXME: do proper check on data length later
 
             // If flow enabled, handle the payload.
-            if ( m_lcore_enable_flow.load() ) [[likely]] {
+            if (m_lcore_enable_flow.load()) [[likely]] {
               // Get length of user payload. (Ethernet headers excluded.)
-              struct udp::ipv4_udp_packet_hdr* udp_packet = rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
+              struct udp::ipv4_udp_packet_hdr* udp_packet =
+                rte_pktmbuf_mtod(q_bufs[i_b], struct udp::ipv4_udp_packet_hdr*);
               char* message = udp::get_udp_payload(q_bufs[i_b]);
               std::size_t udp_payload_len = udp::get_payload_size_udp_hdr(&udp_packet->udp_hdr);
 
-              if ( m_strict_parsing ) { // all sources maintain DAQ protocol
+              if (m_strict_parsing) { // all sources maintain DAQ protocol
                 parse_udp_payload(src_rx_q, message, udp_payload_len);
               } else { // avoid size checks and scattering
                 passthrough_udp_payload(src_rx_q, message, udp_payload_len);
@@ -129,72 +131,76 @@ IfaceWrapper::rx_runner(void *arg __rte_unused) {
     if (!fb_count) {
       if (m_lcore_sleep_ns) {
         // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
-        /*int response =*/ nanosleep(&sleep_request, nullptr);
+        /*int response =*/nanosleep(&sleep_request, nullptr);
       }
     }
 
   } // main while(quit) loop
- 
+
   TLOG() << "LCore RX runner on CPU[" << lid << "] returned.";
   return 0;
 }
 
-
-int 
-IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
+int
+IfaceWrapper::arp_response_runner(void* arg __rte_unused)
+{
 
   // Timespec for opportunistic sleep. Nanoseconds configured in conf.
   struct timespec sleep_request = { 0, (long)900000 };
 
-  //bool once = true; // One shot action variable.
+  // bool once = true; // One shot action variable.
   uint16_t iface = m_iface_id;
 
   const uint16_t lid = rte_lcore_id();
   unsigned arp_rx_queue = m_arp_rx_queue;
 
-  TLOG() << "LCore ARP responder on CPU[" << lid << "]: Main loop starts for iface " << iface << " rx queue: " << arp_rx_queue;
+  TLOG() << "LCore ARP responder on CPU[" << lid << "]: Main loop starts for iface " << iface
+         << " rx queue: " << arp_rx_queue;
 
   // While loop of quit atomic member in IfaceWrapper
-  while(!this->m_lcore_quit_signal.load()) {
+  while (!this->m_lcore_quit_signal.load()) {
 
     const uint16_t nb_rx = rte_eth_rx_burst(iface, arp_rx_queue, m_arp_bufs[arp_rx_queue], m_burst_size);
 
     // We got packets from burst on this queue
     if (nb_rx != 0) {
       // Iterate on burst packets
-      for (int i_b=0; i_b<nb_rx; ++i_b) {
+      for (int i_b = 0; i_b < nb_rx; ++i_b) {
 
         // Check packet type, ommit/drop unexpected ones.
         auto pkt_type = m_arp_bufs[arp_rx_queue][i_b]->packet_type;
         //// Handle non IPV4 packets
         if (not RTE_ETH_IS_IPV4_HDR(pkt_type)) {
-          //TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
+          // TLOG_DEBUG(10) << "Non-Ethernet packet type: " << (unsigned)pkt_type << " original: " << pkt_type;
           if (pkt_type == RTE_PTYPE_L2_ETHER_ARP) {
             TLOG_DEBUG(10) << "Handling ARP request";
-            struct rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(m_arp_bufs[arp_rx_queue][i_b], struct rte_ether_hdr *);
-            struct rte_arp_hdr* arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+            struct rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(m_arp_bufs[arp_rx_queue][i_b], struct rte_ether_hdr*);
+            struct rte_arp_hdr* arp_hdr = (struct rte_arp_hdr*)(eth_hdr + 1);
 
-            std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
+            std::string srcaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
+              dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip)));
             TLOG_DEBUG(10) << "SRC IP: " << srcaddr;
-            std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
+            std::string dstaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
+              dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip)));
             TLOG_DEBUG(10) << "DEST IP: " << dstaddr;
 
-            for( const auto& ip_addr_bin : m_ip_addr_bin) {
-              std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_addr_bin)));
+            for (const auto& ip_addr_bin : m_ip_addr_bin) {
+              std::string localaddr = dunedaq::dpdklibs::udp::get_ipv4_decimal_addr_str(
+                dunedaq::dpdklibs::udp::ip_address_binary_to_dotdecimal(rte_be_to_cpu_32(ip_addr_bin)));
               TLOG_DEBUG(10) << "LOCAL IP: " << localaddr;
             }
 
-
-            if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) != m_ip_addr_bin.end()) {
+            if (std::find(m_ip_addr_bin.begin(), m_ip_addr_bin.end(), arp_hdr->arp_data.arp_tip) !=
+                m_ip_addr_bin.end()) {
               arp::pktgen_process_arp(m_arp_bufs[arp_rx_queue][i_b], m_iface_id, arp_hdr->arp_data.arp_tip);
             } else {
               TLOG_DEBUG(10) << "I'm not the ARP target";
             }
           } else if (pkt_type == RTE_PTYPE_L2_ETHER_LLDP) {
-            //TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
+            // TLOG_DEBUG(10) << "TODO: Handle LLDP packet!";
           } else {
-            //TLOG_DEBUG(10) << "Unidentified! Dumping...";
-            //rte_pktmbuf_dump(stdout, m_arp_bufs[arp_rx_queue][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
+            // TLOG_DEBUG(10) << "Unidentified! Dumping...";
+            // rte_pktmbuf_dump(stdout, m_arp_bufs[arp_rx_queue][i_b], m_bufs[src_rx_q][i_b]->pkt_len);
           }
           continue;
         }
@@ -202,17 +208,17 @@ IfaceWrapper::arp_response_runner(void *arg __rte_unused) {
 
       // Bulk free of mbufs
       rte_pktmbuf_free_bulk(m_arp_bufs[arp_rx_queue], nb_rx);
-      
+
     } // per burst
 
     // If no full buffers in burst...
     if (m_lcore_sleep_ns) {
       // Sleep n nanoseconds... (value from config, timespec initialized in lcore first lines)
-      /*int response =*/ nanosleep(&sleep_request, nullptr);
+      /*int response =*/nanosleep(&sleep_request, nullptr);
     }
 
   } // main while(quit) loop
- 
+
   TLOG() << "LCore ARP responder on CPU[" << lid << "] returned.";
   return 0;
 }
