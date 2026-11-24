@@ -67,6 +67,7 @@ endif()
 # Plugins
 #daq_add_plugin(NICSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs)
 daq_add_plugin(DPDKReaderModule duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs opmonlib::opmonlib)
+daq_add_plugin(DPDKFakeDataSender duneDAQModule LINK_LIBRARIES appfwk::appfwk dpdklibs opmonlib::opmonlib)
 
 ##############################################################################
 # Integration tests
@@ -90,5 +91,6 @@ daq_add_unit_test(Utils_test LINK_LIBRARIES dpdklibs)
 daq_add_unit_test(WIBEthPacketBuilder_test LINK_LIBRARIES dpdklibs)
 daq_add_unit_test(SenderSafety_test LINK_LIBRARIES dpdklibs)
 daq_add_unit_test(DpdkOwnership_test LINK_LIBRARIES dpdklibs)
+daq_add_unit_test(DPDKFakeDataSender_test LINK_LIBRARIES dpdklibs)
 
 daq_install()
